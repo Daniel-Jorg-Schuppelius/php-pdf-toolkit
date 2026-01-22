@@ -193,7 +193,9 @@ final class ZugferdReader {
      * Listet Attachments mit pdfdetach (poppler-utils).
      */
     private function listAttachmentsWithPdfdetach(string $pdfPath): array {
-        $command = $this->config->buildCommand('pdfdetach', [], ['-list', $pdfPath]);
+        $command = $this->config->buildCommand('pdfdetach-list', [
+            '[PDF-FILE]' => $pdfPath,
+        ]);
         if ($command === null) {
             return [];
         }
@@ -221,7 +223,9 @@ final class ZugferdReader {
      * Listet Attachments mit pdftk.
      */
     private function listAttachmentsWithPdftk(string $pdfPath): array {
-        $command = $this->config->buildCommand('pdftk', [], [$pdfPath, 'dump_data']);
+        $command = $this->config->buildCommand('pdftk-dump', [
+            '[PDF-FILE]' => $pdfPath,
+        ]);
         if ($command === null) {
             return [];
         }
@@ -256,7 +260,11 @@ final class ZugferdReader {
     private function extractWithPdfdetach(string $pdfPath, string $filename, string $tempDir): ?string {
         $outputPath = $tempDir . '/' . $filename;
 
-        $command = $this->config->buildCommand('pdfdetach', [], ['-savefile', $filename, '-o', $tempDir, $pdfPath]);
+        $command = $this->config->buildCommand('pdfdetach-savefile', [
+            '[FILENAME]' => $filename,
+            '[OUTPUT-DIR]' => $tempDir,
+            '[PDF-FILE]' => $pdfPath,
+        ]);
         if ($command === null) {
             return null;
         }
@@ -267,7 +275,10 @@ final class ZugferdReader {
 
         if ($returnCode !== 0 || !File::exists($outputPath)) {
             // Versuche mit saveall
-            $command = $this->config->buildCommand('pdfdetach', [], ['-saveall', '-o', $tempDir, $pdfPath]);
+            $command = $this->config->buildCommand('pdfdetach-saveall', [
+                '[OUTPUT-DIR]' => $tempDir,
+                '[PDF-FILE]' => $pdfPath,
+            ]);
             if ($command !== null) {
                 Shell::executeShellCommand($command, $output, $returnCode);
             }
@@ -284,7 +295,10 @@ final class ZugferdReader {
      * Extrahiert Attachment mit pdftk.
      */
     private function extractWithPdftk(string $pdfPath, string $filename, string $tempDir): ?string {
-        $command = $this->config->buildCommand('pdftk', [], [$pdfPath, 'unpack_files', 'output', $tempDir]);
+        $command = $this->config->buildCommand('pdftk-unpack', [
+            '[PDF-FILE]' => $pdfPath,
+            '[OUTPUT-DIR]' => $tempDir,
+        ]);
         if ($command === null) {
             return null;
         }

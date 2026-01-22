@@ -21,12 +21,26 @@
             "package": "poppler-utils",
             "arguments": ["-png", "-r", "[DPI]", "[PDF-FILE]", "[OUTPUT-PREFIX]"]
         },
-        "pdfdetach": {
+        "pdfdetach-list": {
             "path": "pdfdetach",
             "required": false,
-            "description": "PDF Attachment Extractor",
+            "description": "PDF Attachment Extractor - List mode",
             "package": "poppler-utils",
-            "arguments": []
+            "arguments": ["-list", "[PDF-FILE]"]
+        },
+        "pdfdetach-savefile": {
+            "path": "pdfdetach",
+            "required": false,
+            "description": "PDF Attachment Extractor - Save single file",
+            "package": "poppler-utils",
+            "arguments": ["-savefile", "[FILENAME]", "-o", "[OUTPUT-DIR]", "[PDF-FILE]"]
+        },
+        "pdfdetach-saveall": {
+            "path": "pdfdetach",
+            "required": false,
+            "description": "PDF Attachment Extractor - Save all files",
+            "package": "poppler-utils",
+            "arguments": ["-saveall", "-o", "[OUTPUT-DIR]", "[PDF-FILE]"]
         },
         "pdftk": {
             "path": "pdftk",
@@ -34,6 +48,20 @@
             "description": "PDF Toolkit for manipulating PDF files",
             "package": "pdftk-java",
             "arguments": []
+        },
+        "pdftk-dump": {
+            "path": "pdftk",
+            "required": false,
+            "description": "PDF Toolkit - Dump metadata",
+            "package": "pdftk-java",
+            "arguments": ["[PDF-FILE]", "dump_data"]
+        },
+        "pdftk-unpack": {
+            "path": "pdftk",
+            "required": false,
+            "description": "PDF Toolkit - Unpack attachments",
+            "package": "pdftk-java",
+            "arguments": ["[PDF-FILE]", "unpack_files", "output", "[OUTPUT-DIR]"]
         },
         "tesseract": {
             "path": "tesseract",
