@@ -21,6 +21,20 @@
             "package": "poppler-utils",
             "arguments": ["-png", "-r", "[DPI]", "[PDF-FILE]", "[OUTPUT-PREFIX]"]
         },
+        "pdfdetach": {
+            "path": "pdfdetach",
+            "required": false,
+            "description": "PDF Attachment Extractor",
+            "package": "poppler-utils",
+            "arguments": []
+        },
+        "pdftk": {
+            "path": "pdftk",
+            "required": false,
+            "description": "PDF Toolkit for manipulating PDF files",
+            "package": "pdftk-java",
+            "arguments": []
+        },
         "tesseract": {
             "path": "tesseract",
             "required": true,
