@@ -79,6 +79,18 @@ class Config {
     // ----------------------------------------------------------
 
     /**
+     * Statische Methode um ein Executable zu holen.
+     * 
+     * @param string $name Name des Executables
+     * @return array|null Die Executable-Konfiguration oder null
+     */
+    public static function getExecutable(string $name): ?array {
+        $instance = self::getInstance();
+        $raw = $instance->configLoader->get('shellExecutables', null, []);
+        return $raw[$name] ?? null;
+    }
+
+    /**
      * Holt einen Konfigurationswert.
      * 
      * @param string $section Config-Sektion (z.B. 'PDFSettings')

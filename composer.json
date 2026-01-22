@@ -1,5 +1,5 @@
 {
-  "name": "dschuppelius/php-pdf-toolkit",
+  "name": "daniel-jorg-schuppelius/php-pdf-toolkit",
   "description": "PHP 8.2+ library for PDF text extraction with automatic reader selection. Supports embedded text and scanned documents via OCR.",
   "type": "library",
   "license": "MIT",
@@ -11,7 +11,10 @@
   ],
   "require": {
     "php": "^8.2 || ^8.3 || ^8.4",
-    "dschuppelius/php-common-toolkit": "^1.0"
+    "dschuppelius/php-common-toolkit": "^1.0",
+    "dompdf/dompdf": "^3.1",
+    "tecnickcom/tcpdf": "^6.6",
+    "ext-gd": "*"
   },
   "autoload": {
     "psr-4": {

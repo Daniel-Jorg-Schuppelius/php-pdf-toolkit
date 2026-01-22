@@ -35,6 +35,13 @@
             "package": "ocrmypdf",
             "arguments": ["-q", "--tesseract-pagesegmode", "[PSM]", "--language", "[LANG]", "--deskew", "--clean", "--skip-text", "--output-type", "pdf", "[INPUT]", "[OUTPUT]"]
         },
+        "wkhtmltopdf": {
+            "path": "wkhtmltopdf",
+            "required": false,
+            "description": "HTML to PDF Converter (WebKit-based)",
+            "package": "wkhtmltopdf",
+            "arguments": ["--page-size", "[SIZE]", "--encoding", "UTF-8", "--quiet", "[INPUT]", "[OUTPUT]"]
+        },
         "java": {
             "path": "java",
             "required": true,
