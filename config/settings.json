@@ -1,0 +1,9 @@
+{
+    "PDFSettings": [
+        {"key": "tesseract_lang", "value": "eng", "enabled": true},
+        {"key": "tesseract_data_path", "value": "", "enabled": false},
+        {"key": "tesseract_psm", "value": 3, "enabled": true},
+        {"key": "ocrmypdf_psm", "value": 11, "enabled": true},
+        {"key": "pdftoppm_dpi", "value": 300, "enabled": true}
+    ]
+}

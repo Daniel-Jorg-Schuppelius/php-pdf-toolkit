@@ -1,0 +1,55 @@
+{
+    "shellExecutables": {
+        "pdftotext": {
+            "path": "pdftotext",
+            "required": true,
+            "description": "PDF to Text Converter",
+            "package": "poppler-utils",
+            "arguments": ["-layout", "-enc", "UTF-8", "[PDF-FILE]", "[TEXT-FILE]"]
+        },
+        "pdfinfo": {
+            "path": "pdfinfo",
+            "required": true,
+            "description": "PDF Metadata Extractor",
+            "package": "poppler-utils",
+            "arguments": ["[PDF-FILE]"]
+        },
+        "pdftoppm": {
+            "path": "pdftoppm",
+            "required": true,
+            "description": "PDF to PPM/PNG/JPEG Converter",
+            "package": "poppler-utils",
+            "arguments": ["-png", "-r", "[DPI]", "[PDF-FILE]", "[OUTPUT-PREFIX]"]
+        },
+        "tesseract": {
+            "path": "tesseract",
+            "required": true,
+            "description": "OCR Engine",
+            "package": "tesseract-ocr",
+            "arguments": ["[INPUT]", "[OUTPUT]", "-l", "[LANG]", "--psm", "[PSM]"]
+        },
+        "ocrmypdf": {
+            "path": "ocrmypdf",
+            "required": true,
+            "description": "PDF OCR via OCRmyPDF",
+            "package": "ocrmypdf",
+            "arguments": ["-q", "--tesseract-pagesegmode", "[PSM]", "--language", "[LANG]", "--deskew", "--clean", "--skip-text", "--output-type", "pdf", "[INPUT]", "[OUTPUT]"]
+        },
+        "java": {
+            "path": "java",
+            "required": true,
+            "description": "Java Runtime Environment",
+            "package": "default-jre",
+            "arguments": ["-jar", "[JAR]"]
+        }
+    },
+    "javaExecutables": {
+        "pdfbox": {
+            "path": "/usr/local/bin/pdfbox-app-3.0.0-alpha2.jar",
+            "required": true,
+            "description": "Apache PDFBox Tool",
+            "url": "https://dlcdn.apache.org/pdfbox/3.0.0-alpha2/pdfbox-app-3.0.0-alpha2.jar",
+            "arguments": ["export:text", "-i", "[INPUT]", "-o", "[OUTPUT]"]
+        }
+    }
+}

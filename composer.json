@@ -1,0 +1,40 @@
+{
+  "name": "dschuppelius/php-pdf-toolkit",
+  "description": "PHP 8.2+ library for PDF text extraction with automatic reader selection. Supports embedded text and scanned documents via OCR.",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Daniel Jörg Schuppelius",
+      "email": "info@schuppelius.org"
+    }
+  ],
+  "require": {
+    "php": "^8.2 || ^8.3 || ^8.4",
+    "dschuppelius/php-common-toolkit": "^1.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "PDFToolkit\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Tests\\": "tests/"
+    }
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^11.0"
+  },
+  "prefer-stable": true,
+  "config": {
+    "sort-packages": true,
+    "optimize-autoloader": true
+  },
+  "scripts": {
+    "test": [
+      "composer dump-autoload --optimize",
+      "vendor/bin/phpunit"
+    ]
+  }
+}

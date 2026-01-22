@@ -1,0 +1,26 @@
+# Dependencies
+/vendor/
+composer.lock
+
+# IDE
+/.idea/
+/.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Tesseract data (download separately)
+/data/tesseract/*.traineddata
+
+# Build/Test
+/var/
+/build/
+/.phpunit.cache/
+/.phpunit.result.cache
+/coverage/
+
+# Logs
+*.log
