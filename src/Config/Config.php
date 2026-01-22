@@ -198,7 +198,8 @@ class Config {
         }
 
         $config = $raw[$name];
-        $path = $config['path'] ?? $name;
+        // Use path if set and non-empty, otherwise fall back to name
+        $path = !empty($config['path']) ? $config['path'] : $name;
         $arguments = $config['arguments'] ?? [];
 
         // Platzhalter in Argumenten ersetzen

@@ -42,13 +42,6 @@
             "package": "poppler-utils",
             "arguments": ["-saveall", "-o", "[OUTPUT-DIR]", "[PDF-FILE]"]
         },
-        "pdftk": {
-            "path": "pdftk",
-            "required": false,
-            "description": "PDF Toolkit for manipulating PDF files",
-            "package": "pdftk-java",
-            "arguments": []
-        },
         "pdftk-dump": {
             "path": "pdftk",
             "required": false,

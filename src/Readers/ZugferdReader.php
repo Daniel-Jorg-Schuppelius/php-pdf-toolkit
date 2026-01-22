@@ -60,9 +60,9 @@ final class ZugferdReader {
             return $this->available;
         }
 
-        // pdftk oder pdfdetach (poppler) benötigt
-        $this->available = $this->config->getShellExecutable('pdfdetach') !== null
-            || $this->config->getShellExecutable('pdftk') !== null;
+        // pdftk oder pdfdetach (poppler) benötigt - prüfe die spezifischen Befehle
+        $this->available = $this->config->buildCommand('pdfdetach-list', ['[PDF-FILE]' => '/test']) !== null
+            || $this->config->buildCommand('pdftk-dump', ['[PDF-FILE]' => '/test']) !== null;
 
         return $this->available;
     }
