@@ -31,13 +31,15 @@ A PHP 8.2+ library for extracting text from PDF documents and creating PDFs with
 
 - PHP 8.2+
 
-### For Text Extraction (at least one):
+### For Text Extraction (at least one)
+
 - `pdftotext` (`apt install poppler-utils`)
 - `tesseract-ocr` (`apt install tesseract-ocr tesseract-ocr-deu`)
 - `ocrmypdf` (`apt install ocrmypdf`)
 - Java + PDFBox JAR (optional)
 
-### For PDF Creation (at least one):
+### For PDF Creation (at least one)
+
 - `dompdf/dompdf` (`composer require dompdf/dompdf`)
 - `tecnickcom/tcpdf` (`composer require tecnickcom/tcpdf`)
 - `wkhtmltopdf` (`apt install wkhtmltopdf`)
@@ -176,7 +178,7 @@ Tool paths can be configured in `config/executables.json`:
 
 ## Architecture
 
-```
+```text
 PDFReaderRegistry → [Readers by Priority] → PDFDocument
                           ↓
               PdftotextReader (10)     # Fast, for text PDFs
@@ -194,11 +196,3 @@ PDFWriterRegistry → [Writers by Priority] → PDF File
 ## License
 
 MIT License - see [LICENSE](LICENSE) file.
-
-### Note on Dependencies
-
-Some optional dependencies use LGPL license:
-- `dompdf/dompdf` - LGPL
-- `tecnickcom/tcpdf` - LGPL
-
-These are loaded via Composer as external dependencies, which is compatible with MIT licensing.
