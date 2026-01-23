@@ -144,12 +144,12 @@ final class ZugferdReader {
         }
 
         // Versuche pdfdetach (poppler)
-        if ($this->config->getShellExecutable('pdfdetach') !== null) {
+        if ($this->config->buildCommand('pdfdetach-list', ['[PDF-FILE]' => $pdfPath]) !== null) {
             return $this->listAttachmentsWithPdfdetach($pdfPath);
         }
 
         // Fallback: pdftk
-        if ($this->config->getShellExecutable('pdftk') !== null) {
+        if ($this->config->buildCommand('pdftk-dump', ['[PDF-FILE]' => $pdfPath]) !== null) {
             return $this->listAttachmentsWithPdftk($pdfPath);
         }
 
@@ -170,15 +170,16 @@ final class ZugferdReader {
 
         $tempDir = sys_get_temp_dir() . '/zugferd_' . uniqid();
         mkdir($tempDir, 0755, true);
+        $outputPath = $tempDir . '/' . $filename;
 
         try {
             // Versuche pdfdetach
-            if ($this->config->getShellExecutable('pdfdetach') !== null) {
+            if ($this->config->buildCommand('pdfdetach-savefile', ['[FILENAME]' => $filename, '[OUTPUT-FILE]' => $outputPath, '[PDF-FILE]' => $pdfPath]) !== null) {
                 return $this->extractWithPdfdetach($pdfPath, $filename, $tempDir);
             }
 
             // Fallback: pdftk
-            if ($this->config->getShellExecutable('pdftk') !== null) {
+            if ($this->config->buildCommand('pdftk-unpack', ['[PDF-FILE]' => $pdfPath, '[OUTPUT-DIR]' => $tempDir]) !== null) {
                 return $this->extractWithPdftk($pdfPath, $filename, $tempDir);
             }
         } finally {
@@ -262,7 +263,7 @@ final class ZugferdReader {
 
         $command = $this->config->buildCommand('pdfdetach-savefile', [
             '[FILENAME]' => $filename,
-            '[OUTPUT-DIR]' => $tempDir,
+            '[OUTPUT-FILE]' => $outputPath,
             '[PDF-FILE]' => $pdfPath,
         ]);
         if ($command === null) {
@@ -288,7 +289,7 @@ final class ZugferdReader {
             }
         }
 
-        return File::getContents($outputPath) ?: null;
+        return File::read($outputPath) ?: null;
     }
 
     /**
@@ -312,7 +313,7 @@ final class ZugferdReader {
             return null;
         }
 
-        return File::getContents($outputPath) ?: null;
+        return File::read($outputPath) ?: null;
     }
 
     /**

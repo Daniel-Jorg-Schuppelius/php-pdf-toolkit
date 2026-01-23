@@ -33,7 +33,7 @@
             "required": false,
             "description": "PDF Attachment Extractor - Save single file",
             "package": "poppler-utils",
-            "arguments": ["-savefile", "[FILENAME]", "-o", "[OUTPUT-DIR]", "[PDF-FILE]"]
+            "arguments": ["-savefile", "[FILENAME]", "-o", "[OUTPUT-FILE]", "[PDF-FILE]"]
         },
         "pdfdetach-saveall": {
             "path": "pdfdetach",
