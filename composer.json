@@ -11,10 +11,10 @@
   ],
   "require": {
     "php": "^8.2 || ^8.3 || ^8.4",
-    "dschuppelius/php-common-toolkit": "^1.0",
+    "ext-gd": "*",
     "dompdf/dompdf": "^3.1",
-    "tecnickcom/tcpdf": "^6.6",
-    "ext-gd": "*"
+    "dschuppelius/php-common-toolkit": "^1.1",
+    "tecnickcom/tcpdf": "^6.6"
   },
   "autoload": {
     "psr-4": {

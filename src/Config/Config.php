@@ -14,57 +14,71 @@ namespace PDFToolkit\Config;
 
 use CommonToolkit\Entities\Executables\JavaExecutable;
 use CommonToolkit\Entities\Executables\ShellExecutable;
-use CommonToolkit\Helper\FileSystem\File;
-use CommonToolkit\Helper\FileSystem\FileTypes\JsonFile;
 use CommonToolkit\Helper\FileSystem\Folder;
-use Composer\InstalledVersions;
-use ConfigToolkit\ConfigLoader;
+use ConfigToolkit\CommandBuilder;
+use ConfigToolkit\Contracts\Abstracts\ConfigAbstract;
 use ERRORToolkit\Enums\LogType;
-use ERRORToolkit\Traits\ErrorLog;
 use InvalidArgumentException;
 use Psr\Log\LoggerInterface;
-use Psr\Log\LogLevel;
 
 /**
  * Konfigurationsklasse für das PDF-Toolkit.
  * 
- * Lädt die Konfiguration aus dem config-Verzeichnis und stellt
+ * Erweitert die abstrakte Konfiguration und stellt
  * typisierte Executables für PDF-Operationen bereit.
  */
-class Config {
-    use ErrorLog;
+class Config extends ConfigAbstract {
+    /**
+     * Konstruktor mit optionalem Logger.
+     */
+    protected function __construct(?string $configDir = null, ?LoggerInterface $logger = null) {
+        if ($logger !== null) {
+            self::setLogger($logger);
+        }
 
-    private const COMPOSER_FILE = __DIR__ . '/../../composer.json';
-    private const VERSION_FILE = __DIR__ . '/../../VERSION';
-
-    private static ?Config $instance = null;
-    private ConfigLoader $configLoader;
-    private ?bool $debugOverride = null;
-
-    private function __construct(string $configDir, ?LoggerInterface $logger = null) {
-        self::setLogger($logger);
+        $configDir = $configDir ?? static::getDefaultConfigDir();
 
         if (!Folder::exists($configDir)) {
             self::logError("Invalid config directory: $configDir");
             throw new InvalidArgumentException("Invalid config directory: $configDir");
         }
 
-        $this->configLoader = ConfigLoader::getInstance($logger);
-        $this->configLoader->loadConfigFiles(glob($configDir . '/*.json'), true);
-    }
-
-    public static function getInstance(string $configDir = __DIR__ . "/../../config", ?LoggerInterface $logger = null): Config {
-        if (self::$instance === null) {
-            self::$instance = new self($configDir, $logger);
-        }
-        return self::$instance;
+        parent::__construct($configDir);
     }
 
     /**
-     * Setzt die Singleton-Instanz zurück (nützlich für Tests).
+     * {@inheritdoc}
+     */
+    protected static function getDefaultConfigDir(): string {
+        return __DIR__ . '/../../config';
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    protected static function getProjectName(): string {
+        return 'php-pdf-toolkit';
+    }
+
+    /**
+     * Gibt die Singleton-Instanz zurück.
+     * 
+     * @param string|null $configDir Optionales Konfigurationsverzeichnis
+     * @param LoggerInterface|null $logger Optionaler Logger
+     * @return static
+     */
+    public static function getInstance(?string $configDir = null, ?LoggerInterface $logger = null): static {
+        if (static::$instance === null) {
+            static::$instance = new static($configDir, $logger);
+        }
+        return static::$instance;
+    }
+
+    /**
+     * Alias für resetInstance() zur Rückwärtskompatibilität.
      */
     public static function reset(): void {
-        self::$instance = null;
+        static::resetInstance();
     }
 
     public function reload(?string $configDir = null): void {
@@ -72,6 +86,7 @@ class Config {
             $this->configLoader->loadConfigFiles(glob($configDir . '/*.json'), true);
         }
         $this->configLoader->reload();
+        $this->commandBuilder = new CommandBuilder($this->configLoader);
     }
 
     // ----------------------------------------------------------
@@ -88,21 +103,6 @@ class Config {
         $instance = self::getInstance();
         $raw = $instance->configLoader->get('shellExecutables', null, []);
         return $raw[$name] ?? null;
-    }
-
-    /**
-     * Holt einen Konfigurationswert.
-     * 
-     * @param string $section Config-Sektion (z.B. 'PDFSettings')
-     * @param string|null $key Optionaler Key innerhalb der Sektion
-     * @param mixed $default Default-Wert falls nicht gefunden
-     */
-    public function getConfig(string $section, ?string $key = null, mixed $default = null): mixed {
-        return $this->configLoader->get($section, $key, $default);
-    }
-
-    public function getSection(string $section): mixed {
-        return $this->configLoader->get($section, null, []);
     }
 
     // ----------------------------------------------------------
@@ -144,17 +144,17 @@ class Config {
     }
 
     /**
-     * Holt den Pfad eines Shell-Executables.
+     * Holt den Pfad eines Shell-Executables mit Fallback.
      * 
      * @param string $name Name des Executables
      * @param string|null $fallback Fallback-Pfad wenn nicht konfiguriert
      * @return string Der konfigurierte Pfad oder Fallback
      */
-    public function getExecutablePath(string $name, ?string $fallback = null): string {
-        // Versuche den Pfad direkt aus der Konfiguration zu holen
-        $raw = $this->configLoader->get('shellExecutables', null, []);
-        if (isset($raw[$name]) && is_array($raw[$name]) && isset($raw[$name]['path'])) {
-            return $raw[$name]['path'];
+    public function getExecutablePathWithFallback(string $name, ?string $fallback = null): string {
+        // Versuche den Pfad über die Parent-Methode
+        $path = parent::getExecutablePath($name);
+        if ($path !== null) {
+            return $path;
         }
 
         // Fallback: Prüfe ob Tool im PATH verfügbar ist
@@ -173,7 +173,6 @@ class Config {
      * Holt den Pfad eines Java-Executables (JAR).
      */
     public function getJavaExecutablePath(string $name, ?string $fallback = null): string {
-        // Versuche den Pfad direkt aus der Konfiguration zu holen
         $raw = $this->configLoader->get('javaExecutables', null, []);
         if (isset($raw[$name]) && is_array($raw[$name]) && isset($raw[$name]['path'])) {
             return $raw[$name]['path'];
@@ -182,81 +181,8 @@ class Config {
     }
 
     /**
-     * Baut einen Shell-Befehl mit ersetzten Platzhaltern.
-     * 
-     * Die Argumente werden aus der Config geholt und Platzhalter ersetzt.
-     * 
-     * @param string $name Name des Executables
-     * @param array $replacements Platzhalter-Ersetzungen (z.B. ['[INPUT]' => '/path/to/file.pdf'])
-     * @param array $extraArgs Zusätzliche Argumente die angehängt werden
-     * @return string|null Der vollständige Befehl oder null wenn nicht konfiguriert
+     * Hilfsmethode um Executable-Instanzen zu laden.
      */
-    public function buildCommand(string $name, array $replacements = [], array $extraArgs = []): ?string {
-        $raw = $this->configLoader->get('shellExecutables', null, []);
-        if (!isset($raw[$name]) || !is_array($raw[$name])) {
-            return null;
-        }
-
-        $config = $raw[$name];
-        // Use path if set and non-empty, otherwise fall back to name
-        $path = !empty($config['path']) ? $config['path'] : $name;
-        $arguments = $config['arguments'] ?? [];
-
-        // Platzhalter in Argumenten ersetzen
-        $resolvedArgs = [];
-        foreach ($arguments as $arg) {
-            $resolved = $arg;
-            foreach ($replacements as $placeholder => $value) {
-                $resolved = str_replace($placeholder, $value, $resolved);
-            }
-            $resolvedArgs[] = escapeshellarg($resolved);
-        }
-
-        // Extra-Argumente anhängen
-        foreach ($extraArgs as $arg) {
-            $resolvedArgs[] = escapeshellarg($arg);
-        }
-
-        return escapeshellcmd($path) . ' ' . implode(' ', $resolvedArgs);
-    }
-
-    /**
-     * Baut einen Java-Befehl (java -jar ...) mit ersetzten Platzhaltern.
-     * 
-     * @param string $name Name des Java-Executables
-     * @param array $replacements Platzhalter-Ersetzungen
-     * @param array $extraArgs Zusätzliche Argumente
-     * @return string|null Der vollständige Befehl oder null wenn nicht konfiguriert
-     */
-    public function buildJavaCommand(string $name, array $replacements = [], array $extraArgs = []): ?string {
-        $javaPath = $this->getExecutablePath('java');
-        $jarPath = $this->getJavaExecutablePath($name);
-
-        if (empty($jarPath)) {
-            return null;
-        }
-
-        $raw = $this->configLoader->get('javaExecutables', null, []);
-        $arguments = $raw[$name]['arguments'] ?? [];
-
-        // Platzhalter in Argumenten ersetzen
-        $resolvedArgs = [];
-        foreach ($arguments as $arg) {
-            $resolved = $arg;
-            foreach ($replacements as $placeholder => $value) {
-                $resolved = str_replace($placeholder, $value, $resolved);
-            }
-            $resolvedArgs[] = escapeshellarg($resolved);
-        }
-
-        // Extra-Argumente anhängen
-        foreach ($extraArgs as $arg) {
-            $resolvedArgs[] = escapeshellarg($arg);
-        }
-
-        return escapeshellcmd($javaPath) . ' -jar ' . escapeshellarg($jarPath) . ' ' . implode(' ', $resolvedArgs);
-    }
-
     private function loadExecutableInstances(string $section, string $class): array {
         $raw = $this->configLoader->get($section, null, []);
         $result = [];
@@ -273,46 +199,27 @@ class Config {
     }
 
     // ----------------------------------------------------------
-    //          Strukturierte Werte (Debugging/Logging)
+    //          Projekt-spezifische Logging-Methoden
     // ----------------------------------------------------------
 
-    public function getLogType(): LogType {
-        return LogType::fromString($this->configLoader->get("Logging", "log", LogType::NULL->value));
+    /**
+     * Gibt den Log-Typ als Enum zurück.
+     */
+    public function getLogTypeEnum(): LogType {
+        return LogType::fromString(parent::getLogType());
     }
 
-    public function getLogLevel(): string {
-        return $this->debugOverride ? LogLevel::DEBUG : $this->configLoader->get("Logging", "level", LogLevel::DEBUG);
+    /**
+     * {@inheritdoc}
+     */
+    protected static function getComposerFilePath(): string {
+        return __DIR__ . '/../../composer.json';
     }
 
-    public function getLogPath(): ?string {
-        return $this->configLoader->get("Logging", "path");
-    }
-
-    public function isDebugEnabled(): bool {
-        return $this->debugOverride ?? $this->configLoader->get("Debugging", "debug", false);
-    }
-
-    public function setDebug(bool $debug): void {
-        $this->debugOverride = $debug;
-    }
-
-    public function getVersion(): string {
-        if (File::exists(self::COMPOSER_FILE)) {
-            try {
-                $composer = JsonFile::decode(self::COMPOSER_FILE);
-
-                if (isset($composer['name']) && class_exists(InstalledVersions::class) && InstalledVersions::isInstalled($composer['name'])) {
-                    return InstalledVersions::getPrettyVersion($composer['name']) ?? 'unknown';
-                }
-            } catch (\Throwable) {
-                // Fallback zu VERSION-Datei
-            }
-        }
-
-        if (File::exists(self::VERSION_FILE)) {
-            return trim(File::read(self::VERSION_FILE));
-        }
-
-        return 'unknown';
+    /**
+     * {@inheritdoc}
+     */
+    protected static function getVersionFilePath(): string {
+        return __DIR__ . '/../../VERSION';
     }
 }
