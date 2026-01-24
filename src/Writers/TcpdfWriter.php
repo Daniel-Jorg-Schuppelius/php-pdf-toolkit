@@ -15,6 +15,7 @@ namespace PDFToolkit\Writers;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Contracts\PDFWriterInterface;
 use PDFToolkit\Entities\PDFContent;
+use PDFToolkit\Enums\PDFWriterType;
 use TCPDF;
 
 /**
@@ -26,20 +27,20 @@ use TCPDF;
 final class TcpdfWriter implements PDFWriterInterface {
     use ErrorLog;
 
-    public static function getName(): string {
-        return 'tcpdf';
+    public static function getType(): PDFWriterType {
+        return PDFWriterType::Tcpdf;
     }
 
     public static function getPriority(): int {
-        return 20;
+        return PDFWriterType::Tcpdf->getPriority();
     }
 
     public static function supportsHtml(): bool {
-        return true;
+        return PDFWriterType::Tcpdf->supportsHtml();
     }
 
     public static function supportsText(): bool {
-        return true;
+        return PDFWriterType::Tcpdf->supportsText();
     }
 
     public function isAvailable(): bool {

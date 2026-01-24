@@ -15,6 +15,7 @@ namespace PDFToolkit\Writers;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Contracts\PDFWriterInterface;
 use PDFToolkit\Entities\PDFContent;
+use PDFToolkit\Enums\PDFWriterType;
 use TCPDF;
 
 /**
@@ -42,20 +43,20 @@ final class ZugferdWriter implements PDFWriterInterface {
     public const LEVEL_EN16931 = 'EN 16931';
     public const LEVEL_EXTENDED = 'EXTENDED';
 
-    public static function getName(): string {
-        return 'zugferd';
+    public static function getType(): PDFWriterType {
+        return PDFWriterType::Zugferd;
     }
 
     public static function getPriority(): int {
-        return 15; // Höhere Priorität als Standard-TCPDF
+        return PDFWriterType::Zugferd->getPriority();
     }
 
     public static function supportsHtml(): bool {
-        return true;
+        return PDFWriterType::Zugferd->supportsHtml();
     }
 
     public static function supportsText(): bool {
-        return true;
+        return PDFWriterType::Zugferd->supportsText();
     }
 
     public function isAvailable(): bool {

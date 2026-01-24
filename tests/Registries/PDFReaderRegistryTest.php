@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace Tests\Registries;
 
 use PDFToolkit\Entities\PDFDocument;
+use PDFToolkit\Enums\PDFReaderType;
 use PDFToolkit\Registries\PDFReaderRegistry;
 use PHPUnit\Framework\TestCase;
 
@@ -29,10 +30,13 @@ final class PDFReaderRegistryTest extends TestCase {
         $this->assertIsInt($registry->count());
     }
 
-    public function testGetAvailableReaderNamesReturnsArray(): void {
+    public function testGetAvailableReaderTypesReturnsArray(): void {
         $registry = new PDFReaderRegistry();
-        $names = $registry->getAvailableReaderNames();
-        $this->assertIsArray($names);
+        $types = $registry->getAvailableReaderTypes();
+        $this->assertIsArray($types);
+        foreach ($types as $type) {
+            $this->assertInstanceOf(PDFReaderType::class, $type);
+        }
     }
 
     public function testHasAvailableReaders(): void {
@@ -42,8 +46,8 @@ final class PDFReaderRegistryTest extends TestCase {
 
     public function testPdftotextReaderIsAvailable(): void {
         $registry = new PDFReaderRegistry();
-        $names = $registry->getAvailableReaderNames();
-        $this->assertContains('pdftotext', $names, 'pdftotext-Reader sollte verfügbar sein');
+        $types = $registry->getAvailableReaderTypes();
+        $this->assertContains(PDFReaderType::Pdftotext, $types, 'pdftotext-Reader sollte verfügbar sein');
     }
 
     public function testExtractTextFromTextPdf(): void {
@@ -68,7 +72,7 @@ final class PDFReaderRegistryTest extends TestCase {
         $doc = $registry->extractText(self::SAMPLE_PDF);
 
         $this->assertInstanceOf(PDFDocument::class, $doc);
-        $this->assertEquals('pdftotext', $doc->reader, 'Text-PDF sollte mit pdftotext extrahiert werden');
+        $this->assertSame(PDFReaderType::Pdftotext, $doc->reader, 'Text-PDF sollte mit pdftotext extrahiert werden');
         $this->assertFalse($doc->isScanned, 'Text-PDF sollte nicht als gescannt markiert sein');
     }
 
@@ -94,8 +98,8 @@ final class PDFReaderRegistryTest extends TestCase {
         $registry = new PDFReaderRegistry();
 
         // Prüfen ob OCR-Reader verfügbar sind
-        $names = $registry->getAvailableReaderNames();
-        $hasOcr = in_array('tesseract', $names) || in_array('ocrmypdf', $names);
+        $types = $registry->getAvailableReaderTypes();
+        $hasOcr = in_array(PDFReaderType::Tesseract, $types, true) || in_array(PDFReaderType::Ocrmypdf, $types, true);
         if (!$hasOcr) {
             $this->markTestSkipped('Kein OCR-Reader verfügbar');
         }
@@ -116,11 +120,11 @@ final class PDFReaderRegistryTest extends TestCase {
         $registry = new PDFReaderRegistry();
         $doc = $registry->extractText($scannedPdf);
 
-        if ($doc === null) {
+        if ($doc->reader === null) {
             $this->markTestSkipped('OCR-Reader nicht verfügbar');
         }
 
         // Muss ein OCR-fähiger Reader sein
-        $this->assertContains($doc->reader, ['tesseract', 'ocrmypdf'], 'Scanned PDF sollte mit OCR-Reader verarbeitet werden');
+        $this->assertContains($doc->reader, [PDFReaderType::Tesseract, PDFReaderType::Ocrmypdf], 'Scanned PDF sollte mit OCR-Reader verarbeitet werden');
     }
 }

@@ -15,6 +15,7 @@ namespace PDFToolkit\Registries;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Contracts\PDFWriterInterface;
 use PDFToolkit\Entities\PDFContent;
+use PDFToolkit\Enums\PDFWriterType;
 use PDFToolkit\Writers\DompdfWriter;
 use PDFToolkit\Writers\TcpdfWriter;
 use PDFToolkit\Writers\WkhtmltopdfWriter;
@@ -54,7 +55,7 @@ final class PDFWriterRegistry {
                 $writers[] = $writer;
 
                 $this->logDebug('Writer loaded', [
-                    'name' => $writerClass::getName(),
+                    'name' => $writerClass::getType()->value,
                     'priority' => $writerClass::getPriority(),
                     'available' => $writer->isAvailable()
                 ]);
@@ -82,7 +83,7 @@ final class PDFWriterRegistry {
         usort($this->writers, fn($a, $b) => $a::getPriority() <=> $b::getPriority());
 
         $this->logDebug('Writer registered', [
-            'name' => $writer::getName(),
+            'name' => $writer::getType()->value,
             'priority' => $writer::getPriority()
         ]);
     }
@@ -106,11 +107,11 @@ final class PDFWriterRegistry {
     }
 
     /**
-     * Gibt einen spezifischen Writer nach Namen zurück.
+     * Gibt einen spezifischen Writer nach Typ zurück.
      */
-    public function getWriter(string $name): ?PDFWriterInterface {
+    public function getByType(PDFWriterType $type): ?PDFWriterInterface {
         foreach ($this->writers as $writer) {
-            if ($writer::getName() === $name) {
+            if ($writer::getType() === $type) {
                 return $writer;
             }
         }
@@ -124,52 +125,47 @@ final class PDFWriterRegistry {
      * @param PDFContent $content Der zu konvertierende Inhalt
      * @param string $outputPath Absoluter Pfad für die Ausgabedatei
      * @param array $options Optionale Konfiguration
-     * @param string|null $preferredWriter Name eines bevorzugten Writers
+     * @param PDFWriterType|null $preferredWriter Bevorzugter Writer-Typ
      * @return bool true wenn erfolgreich
      */
-    public function createPdf(
-        PDFContent $content,
-        string $outputPath,
-        array $options = [],
-        ?string $preferredWriter = null
-    ): bool {
+    public function createPdf(PDFContent $content, string $outputPath, array $options = [], ?PDFWriterType $preferredWriter = null): bool {
         // Bevorzugter Writer
         if ($preferredWriter !== null) {
-            $writer = $this->getWriter($preferredWriter);
+            $writer = $this->getByType($preferredWriter);
             if ($writer !== null && $writer->isAvailable() && $writer->canHandle($content)) {
-                $this->logDebug('Using preferred writer', ['writer' => $preferredWriter]);
+                $this->logDebug('Using preferred writer', ['writer' => $preferredWriter->value]);
                 return $writer->createPdf($content, $outputPath, $options);
             }
-            $this->logDebug('Preferred writer not available, trying others', ['preferred' => $preferredWriter]);
+            $this->logDebug('Preferred writer not available, trying others', ['preferred' => $preferredWriter->value]);
         }
 
         // Writer nach Priorität durchprobieren
         foreach ($this->writers as $writer) {
             if (!$writer->isAvailable()) {
-                $this->logDebug('Writer not available', ['writer' => $writer::getName()]);
+                $this->logDebug('Writer not available', ['writer' => $writer::getType()->value]);
                 continue;
             }
 
             if (!$writer->canHandle($content)) {
-                $this->logDebug('Writer cannot handle content', ['writer' => $writer::getName()]);
+                $this->logDebug('Writer cannot handle content', ['writer' => $writer::getType()->value]);
                 continue;
             }
 
-            $this->logDebug('Trying writer', ['writer' => $writer::getName()]);
+            $this->logDebug('Trying writer', ['writer' => $writer::getType()->value]);
 
             if ($writer->createPdf($content, $outputPath, $options)) {
                 $this->logDebug('PDF created successfully', [
-                    'writer' => $writer::getName(),
+                    'writer' => $writer::getType()->value,
                     'path' => $outputPath
                 ]);
                 return true;
             }
 
-            $this->logDebug('Writer failed, trying next', ['writer' => $writer::getName()]);
+            $this->logDebug('Writer failed, trying next', ['writer' => $writer::getType()->value]);
         }
 
         $this->logError('No writer could create the PDF', [
-            'availableWriters' => array_map(fn($w) => $w::getName(), $this->getAvailableWriters())
+            'availableWriters' => array_map(fn($w) => $w::getType()->value, $this->getAvailableWriters())
         ]);
 
         return false;
@@ -180,17 +176,17 @@ final class PDFWriterRegistry {
      * 
      * @param PDFContent $content Der zu konvertierende Inhalt
      * @param array $options Optionale Konfiguration
-     * @param string|null $preferredWriter Name eines bevorzugten Writers
+     * @param PDFWriterType|null $preferredWriter Bevorzugter Writer-Typ
      * @return string|null PDF-Inhalt als String oder null bei Fehler
      */
     public function createPdfString(
         PDFContent $content,
         array $options = [],
-        ?string $preferredWriter = null
+        ?PDFWriterType $preferredWriter = null
     ): ?string {
         // Bevorzugter Writer
         if ($preferredWriter !== null) {
-            $writer = $this->getWriter($preferredWriter);
+            $writer = $this->getByType($preferredWriter);
             if ($writer !== null && $writer->isAvailable() && $writer->canHandle($content)) {
                 return $writer->createPdfString($content, $options);
             }
@@ -250,7 +246,8 @@ final class PDFWriterRegistry {
 
         foreach ($this->writers as $writer) {
             $info[] = [
-                'name' => $writer::getName(),
+                'type' => $writer::getType(),
+                'name' => $writer::getType()->value,
                 'priority' => $writer::getPriority(),
                 'available' => $writer->isAvailable(),
                 'supportsHtml' => $writer::supportsHtml(),
@@ -259,5 +256,14 @@ final class PDFWriterRegistry {
         }
 
         return $info;
+    }
+
+    /**
+     * Gibt die Typen aller verfügbaren Writer zurück.
+     * 
+     * @return PDFWriterType[]
+     */
+    public function getAvailableWriterTypes(): array {
+        return array_map(fn($w) => $w::getType(), $this->getAvailableWriters());
     }
 }

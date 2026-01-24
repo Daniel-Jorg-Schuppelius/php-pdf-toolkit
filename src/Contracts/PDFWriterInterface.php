@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace PDFToolkit\Contracts;
 
 use PDFToolkit\Entities\PDFContent;
+use PDFToolkit\Enums\PDFWriterType;
 
 /**
  * Interface für PDF-Writer.
@@ -22,9 +23,9 @@ use PDFToolkit\Entities\PDFContent;
  */
 interface PDFWriterInterface {
     /**
-     * Eindeutiger Name des Writers (z.B. 'dompdf', 'tcpdf', 'wkhtmltopdf').
+     * Writer-Typ als Enum.
      */
-    public static function getName(): string;
+    public static function getType(): PDFWriterType;
 
     /**
      * Priorität des Writers (niedriger = wird früher probiert).

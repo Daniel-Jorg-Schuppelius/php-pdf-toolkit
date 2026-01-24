@@ -16,6 +16,7 @@ use CommonToolkit\Helper\FileSystem\File;
 use CommonToolkit\Helper\Shell;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
+use PDFToolkit\Enums\PDFReaderType;
 use ERRORToolkit\Traits\ErrorLog;
 
 /**
@@ -42,20 +43,20 @@ final class OcrmypdfReader implements PDFReaderInterface {
         $this->defaultPsm = (int) ($this->config->getConfig('PDFSettings', 'ocrmypdf_psm') ?? 11);
     }
 
-    public static function getName(): string {
-        return 'ocrmypdf';
+    public static function getType(): PDFReaderType {
+        return PDFReaderType::Ocrmypdf;
     }
 
     public static function getPriority(): int {
-        return 60; // Nach Tesseract (komplexer, aber bessere Ergebnisse)
+        return PDFReaderType::Ocrmypdf->getPriority();
     }
 
     public static function supportsScannedPdfs(): bool {
-        return true;
+        return PDFReaderType::Ocrmypdf->supportsScannedPdfs();
     }
 
     public static function supportsTextPdfs(): bool {
-        return false;
+        return PDFReaderType::Ocrmypdf->supportsTextPdfs();
     }
 
     public function isAvailable(): bool {
@@ -130,8 +131,7 @@ final class OcrmypdfReader implements PDFReaderInterface {
                 return null;
             }
 
-            $this->logDebug("ocrmypdf successfully extracted " . strlen($text) . " chars from: $pdfPath");
-            return $text;
+            return $this->logDebugAndReturn($text, "ocrmypdf successfully extracted " . strlen($text) . " chars from: $pdfPath");
         } finally {
             // Aufräumen
             File::delete($tempPdf);

@@ -17,6 +17,7 @@ use CommonToolkit\Helper\FileSystem\Folder;
 use CommonToolkit\Helper\Shell;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
+use PDFToolkit\Enums\PDFReaderType;
 use ERRORToolkit\Traits\ErrorLog;
 
 /**
@@ -56,20 +57,20 @@ final class TesseractReader implements PDFReaderInterface {
         }
     }
 
-    public static function getName(): string {
-        return 'tesseract';
+    public static function getType(): PDFReaderType {
+        return PDFReaderType::Tesseract;
     }
 
     public static function getPriority(): int {
-        return 50; // OCR als Fallback
+        return PDFReaderType::Tesseract->getPriority();
     }
 
     public static function supportsScannedPdfs(): bool {
-        return true;
+        return PDFReaderType::Tesseract->supportsScannedPdfs();
     }
 
     public static function supportsTextPdfs(): bool {
-        return false; // Nicht für Text-PDFs gedacht
+        return PDFReaderType::Tesseract->supportsTextPdfs();
     }
 
     public function isAvailable(): bool {
@@ -162,9 +163,8 @@ final class TesseractReader implements PDFReaderInterface {
             }
 
             $text = implode("\n\n--- Seite ---\n\n", $allText);
-            $this->logDebug("Tesseract extracted " . strlen($text) . " chars from " . count($pages) . " pages");
 
-            return $text;
+            return $this->logDebugAndReturn($text, "Tesseract extracted " . strlen($text) . " chars from " . count($pages) . " pages");
         } finally {
             // Aufräumen - rekursiv löschen
             Folder::delete($tempDir, true);

@@ -16,6 +16,7 @@ use CommonToolkit\Helper\FileSystem\File;
 use CommonToolkit\Helper\Shell;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
+use PDFToolkit\Enums\PDFReaderType;
 use ERRORToolkit\Traits\ErrorLog;
 
 /**
@@ -34,20 +35,20 @@ final class PdfboxReader implements PDFReaderInterface {
         $this->config = Config::getInstance();
     }
 
-    public static function getName(): string {
-        return 'pdfbox';
+    public static function getType(): PDFReaderType {
+        return PDFReaderType::Pdfbox;
     }
 
     public static function getPriority(): int {
-        return 30; // Nach pdftotext, vor OCR
+        return PDFReaderType::Pdfbox->getPriority();
     }
 
     public static function supportsScannedPdfs(): bool {
-        return false;
+        return PDFReaderType::Pdfbox->supportsScannedPdfs();
     }
 
     public static function supportsTextPdfs(): bool {
-        return true;
+        return PDFReaderType::Pdfbox->supportsTextPdfs();
     }
 
     public function isAvailable(): bool {
@@ -108,7 +109,6 @@ final class PdfboxReader implements PDFReaderInterface {
             return null;
         }
 
-        $this->logDebug("PDFBox successfully extracted " . strlen($text) . " chars from: $pdfPath");
-        return $text;
+        return $this->logDebugAndReturn($text, "PDFBox successfully extracted " . strlen($text) . " chars from: $pdfPath");
     }
 }

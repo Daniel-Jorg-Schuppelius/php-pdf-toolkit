@@ -18,6 +18,7 @@ use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Contracts\PDFWriterInterface;
 use PDFToolkit\Entities\PDFContent;
 use PDFToolkit\Config\Config;
+use PDFToolkit\Enums\PDFWriterType;
 
 /**
  * PDF-Writer basierend auf wkhtmltopdf.
@@ -37,20 +38,20 @@ final class WkhtmltopdfWriter implements PDFWriterInterface {
         $this->executableConfig = Config::getInstance()->getConfig('shellExecutables', 'wkhtmltopdf');
     }
 
-    public static function getName(): string {
-        return 'wkhtmltopdf';
+    public static function getType(): PDFWriterType {
+        return PDFWriterType::Wkhtmltopdf;
     }
 
     public static function getPriority(): int {
-        return 30;
+        return PDFWriterType::Wkhtmltopdf->getPriority();
     }
 
     public static function supportsHtml(): bool {
-        return true;
+        return PDFWriterType::Wkhtmltopdf->supportsHtml();
     }
 
     public static function supportsText(): bool {
-        return true;
+        return PDFWriterType::Wkhtmltopdf->supportsText();
     }
 
     public function isAvailable(): bool {

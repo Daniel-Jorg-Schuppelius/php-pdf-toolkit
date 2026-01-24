@@ -14,6 +14,7 @@ namespace PDFToolkit\Registries;
 
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Entities\PDFDocument;
+use PDFToolkit\Enums\PDFReaderType;
 use CommonToolkit\Helper\FileSystem\Folder;
 use ERRORToolkit\Traits\ErrorLog;
 use Generator;
@@ -46,7 +47,7 @@ final class PDFReaderRegistry {
 
         $readersDir = dirname(__DIR__) . '/Readers';
 
-        if (!is_dir($readersDir)) {
+        if (!Folder::exists($readersDir)) {
             $this->logWarning("Readers directory not found: $readersDir");
             $this->loaded = true;
             return;
@@ -59,9 +60,9 @@ final class PDFReaderRegistry {
                     $reader = new $className();
                     if ($reader->isAvailable()) {
                         $this->readers[] = $reader;
-                        $this->logDebug("Loaded PDF reader: " . $className::getName());
+                        $this->logDebug("Loaded PDF reader: " . $className::getType()->value);
                     } else {
-                        $this->logDebug("PDF reader not available: " . $className::getName());
+                        $this->logDebug("PDF reader not available: " . $className::getType()->value);
                     }
                 } catch (\Throwable $e) {
                     $this->logWarning("Failed to load PDF reader $className: " . $e->getMessage());
@@ -102,14 +103,14 @@ final class PDFReaderRegistry {
     }
 
     /**
-     * Gibt alle verfügbaren Reader als Array zurück (indiziert nach Name).
+     * Gibt alle verfügbaren Reader als Array zurück (indiziert nach Typ).
      * 
      * @return array<string, PDFReaderInterface>
      */
     public function getAvailableReaders(): array {
         $result = [];
         foreach ($this->readers as $reader) {
-            $result[$reader::getName()] = $reader;
+            $result[$reader::getType()->value] = $reader;
         }
         return $result;
     }
@@ -141,11 +142,11 @@ final class PDFReaderRegistry {
     }
 
     /**
-     * Gibt einen Reader nach Namen zurück.
+     * Gibt einen Reader nach Typ zurück.
      */
-    public function getByName(string $name): ?PDFReaderInterface {
+    public function getByType(PDFReaderType $type): ?PDFReaderInterface {
         foreach ($this->readers as $reader) {
-            if ($reader::getName() === $name) {
+            if ($reader::getType() === $type) {
                 return $reader;
             }
         }
@@ -169,10 +170,10 @@ final class PDFReaderRegistry {
 
             $text = $reader->extractText($pdfPath, $options);
             if ($text !== null && trim($text) !== '') {
-                $this->logDebug("Text extracted with " . $reader::getName());
+                $this->logDebug("Text extracted with " . $reader::getType()->value);
                 return new PDFDocument(
                     text: $text,
-                    reader: $reader::getName(),
+                    reader: $reader::getType(),
                     isScanned: false,
                     sourcePath: $pdfPath
                 );
@@ -187,10 +188,10 @@ final class PDFReaderRegistry {
 
             $text = $reader->extractText($pdfPath, $options);
             if ($text !== null && trim($text) !== '') {
-                $this->logDebug("Text extracted via OCR with " . $reader::getName());
+                $this->logDebug("Text extracted via OCR with " . $reader::getType()->value);
                 return new PDFDocument(
                     text: $text,
-                    reader: $reader::getName(),
+                    reader: $reader::getType(),
                     isScanned: true,
                     sourcePath: $pdfPath
                 );
@@ -214,11 +215,74 @@ final class PDFReaderRegistry {
     }
 
     /**
-     * Gibt die Namen aller verfügbaren Reader zurück.
+     * Extrahiert Text mit ALLEN verfügbaren Readern.
+     * Nützlich um verschiedene OCR-Ergebnisse zu vergleichen.
      * 
-     * @return string[]
+     * @param string $pdfPath Pfad zur PDF-Datei
+     * @param array $options Optionen (z.B. 'language' => 'deu+eng')
+     * @param bool $ocrOnly Nur OCR-Reader verwenden (Standard: false)
+     * @return PDFDocument Mit allen Ergebnissen in alternatives
      */
-    public function getAvailableReaderNames(): array {
-        return array_map(fn($r) => $r::getName(), $this->readers);
+    public function extractAllText(string $pdfPath, array $options = [], bool $ocrOnly = false): PDFDocument {
+        $primaryText = null;
+        $primaryReader = null;
+        $primaryIsScanned = false;
+        $alternatives = [];
+
+        $readers = $ocrOnly ? $this->getScannedPdfReaders() : $this->getReaders();
+
+        foreach ($readers as $reader) {
+            if (!$reader->canHandle($pdfPath)) {
+                continue;
+            }
+
+            $text = $reader->extractText($pdfPath, $options);
+            if ($text !== null && trim($text) !== '') {
+                $readerType = $reader::getType();
+                $isScanned = $reader::supportsScannedPdfs();
+
+                if ($primaryText === null) {
+                    // Erstes erfolgreiches Ergebnis wird primär
+                    $primaryText = $text;
+                    $primaryReader = $readerType;
+                    $primaryIsScanned = $isScanned;
+                    $this->logDebug("Primary text extracted with " . $readerType->value);
+                } else {
+                    // Weitere Ergebnisse werden als Alternativen gespeichert
+                    $alternatives[$readerType->value] = [
+                        'text' => $text,
+                        'isScanned' => $isScanned
+                    ];
+                    $this->logDebug("Alternative text extracted with " . $readerType->value);
+                }
+            }
+        }
+
+        if ($primaryText === null) {
+            $this->logWarning("No reader could extract text from: $pdfPath");
+        } else {
+            $this->logInfo(sprintf(
+                "Extracted text with %d reader(s) from: %s",
+                1 + count($alternatives),
+                $pdfPath
+            ));
+        }
+
+        return new PDFDocument(
+            text: $primaryText,
+            reader: $primaryReader,
+            isScanned: $primaryIsScanned,
+            sourcePath: $pdfPath,
+            alternatives: $alternatives
+        );
+    }
+
+    /**
+     * Gibt die Typen aller verfügbaren Reader zurück.
+     * 
+     * @return PDFReaderType[]
+     */
+    public function getAvailableReaderTypes(): array {
+        return array_map(fn($r) => $r::getType(), $this->readers);
     }
 }

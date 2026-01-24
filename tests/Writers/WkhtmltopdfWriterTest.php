@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace Tests\Writers;
 
 use PDFToolkit\Entities\PDFContent;
+use PDFToolkit\Enums\PDFWriterType;
 use PDFToolkit\Writers\WkhtmltopdfWriter;
 use PHPUnit\Framework\TestCase;
 
@@ -26,7 +27,7 @@ final class WkhtmltopdfWriterTest extends TestCase {
     }
 
     public function testGetName(): void {
-        $this->assertEquals('wkhtmltopdf', WkhtmltopdfWriter::getName());
+        $this->assertSame(PDFWriterType::Wkhtmltopdf, WkhtmltopdfWriter::getType());
     }
 
     public function testGetPriority(): void {

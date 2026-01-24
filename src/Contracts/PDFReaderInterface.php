@@ -12,6 +12,8 @@ declare(strict_types=1);
 
 namespace PDFToolkit\Contracts;
 
+use PDFToolkit\Enums\PDFReaderType;
+
 /**
  * Interface für PDF-Reader.
  * 
@@ -20,9 +22,9 @@ namespace PDFToolkit\Contracts;
  */
 interface PDFReaderInterface {
     /**
-     * Eindeutiger Name des Readers (z.B. 'pdftotext', 'tesseract', 'pdfbox').
+     * Reader-Typ als Enum.
      */
-    public static function getName(): string;
+    public static function getType(): PDFReaderType;
 
     /**
      * Priorität des Readers (niedriger = wird früher probiert).

@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace PDFToolkit\Readers;
 
 use CommonToolkit\Helper\FileSystem\File;
+use CommonToolkit\Helper\FileSystem\Folder;
 use CommonToolkit\Helper\Shell;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
@@ -347,17 +348,10 @@ final class ZugferdReader {
      * Räumt temporäres Verzeichnis auf.
      */
     private function cleanupTempDir(string $dir): void {
-        if (!is_dir($dir)) {
+        if (!Folder::exists($dir)) {
             return;
         }
 
-        $files = glob($dir . '/*');
-        foreach ($files as $file) {
-            if (is_file($file)) {
-                unlink($file);
-            }
-        }
-
-        rmdir($dir);
+        Folder::delete($dir, true);
     }
 }

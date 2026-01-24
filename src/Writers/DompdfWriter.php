@@ -18,6 +18,7 @@ use Dompdf\Options;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Contracts\PDFWriterInterface;
 use PDFToolkit\Entities\PDFContent;
+use PDFToolkit\Enums\PDFWriterType;
 
 /**
  * PDF-Writer basierend auf Dompdf.
@@ -28,20 +29,20 @@ use PDFToolkit\Entities\PDFContent;
 final class DompdfWriter implements PDFWriterInterface {
     use ErrorLog;
 
-    public static function getName(): string {
-        return 'dompdf';
+    public static function getType(): PDFWriterType {
+        return PDFWriterType::Dompdf;
     }
 
     public static function getPriority(): int {
-        return 10;
+        return PDFWriterType::Dompdf->getPriority();
     }
 
     public static function supportsHtml(): bool {
-        return true;
+        return PDFWriterType::Dompdf->supportsHtml();
     }
 
     public static function supportsText(): bool {
-        return true;
+        return PDFWriterType::Dompdf->supportsText();
     }
 
     public function isAvailable(): bool {

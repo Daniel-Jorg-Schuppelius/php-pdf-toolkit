@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace Tests\Writers;
 
 use PDFToolkit\Entities\PDFContent;
+use PDFToolkit\Enums\PDFWriterType;
 use PDFToolkit\Writers\TcpdfWriter;
 use PHPUnit\Framework\TestCase;
 
@@ -26,7 +27,7 @@ final class TcpdfWriterTest extends TestCase {
     }
 
     public function testGetName(): void {
-        $this->assertEquals('tcpdf', TcpdfWriter::getName());
+        $this->assertSame(PDFWriterType::Tcpdf, TcpdfWriter::getType());
     }
 
     public function testGetPriority(): void {

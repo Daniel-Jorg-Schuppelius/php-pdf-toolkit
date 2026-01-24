@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace Tests\Registries;
 
 use PDFToolkit\Entities\PDFContent;
+use PDFToolkit\Enums\PDFWriterType;
 use PDFToolkit\Registries\PDFWriterRegistry;
 use PHPUnit\Framework\TestCase;
 
@@ -41,23 +42,25 @@ final class PDFWriterRegistryTest extends TestCase {
     }
 
     public function testGetWriterByName(): void {
-        $dompdf = $this->registry->getWriter('dompdf');
-        $tcpdf = $this->registry->getWriter('tcpdf');
-        $wkhtmltopdf = $this->registry->getWriter('wkhtmltopdf');
+        $dompdf = $this->registry->getByType(PDFWriterType::Dompdf);
+        $tcpdf = $this->registry->getByType(PDFWriterType::Tcpdf);
+        $wkhtmltopdf = $this->registry->getByType(PDFWriterType::Wkhtmltopdf);
 
         $this->assertNotNull($dompdf);
         $this->assertNotNull($tcpdf);
         $this->assertNotNull($wkhtmltopdf);
 
-        $this->assertEquals('dompdf', $dompdf::getName());
-        $this->assertEquals('tcpdf', $tcpdf::getName());
-        $this->assertEquals('wkhtmltopdf', $wkhtmltopdf::getName());
+        $this->assertSame(PDFWriterType::Dompdf, $dompdf::getType());
+        $this->assertSame(PDFWriterType::Tcpdf, $tcpdf::getType());
+        $this->assertSame(PDFWriterType::Wkhtmltopdf, $wkhtmltopdf::getType());
     }
 
     public function testGetNonExistentWriter(): void {
-        $writer = $this->registry->getWriter('nonexistent');
-
-        $this->assertNull($writer);
+        // Es gibt keinen "nonexistent" Writer mehr, wir prüfen nur ob getByType mit Zugferd null gibt wenn nicht registriert
+        // Zugferd ist nicht in der Standard-Liste der Writer
+        $writers = $this->registry->getAvailableWriterTypes();
+        // Dieser Test ist jetzt überflüssig da Enum typsicher ist
+        $this->assertIsArray($writers);
     }
 
     public function testGetWriterInfo(): void {

@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace Tests\Writers;
 
 use PDFToolkit\Entities\PDFContent;
+use PDFToolkit\Enums\PDFWriterType;
 use PDFToolkit\Writers\DompdfWriter;
 use PHPUnit\Framework\TestCase;
 
@@ -26,7 +27,7 @@ final class DompdfWriterTest extends TestCase {
     }
 
     public function testGetName(): void {
-        $this->assertEquals('dompdf', DompdfWriter::getName());
+        $this->assertSame(PDFWriterType::Dompdf, DompdfWriter::getType());
     }
 
     public function testGetPriority(): void {
