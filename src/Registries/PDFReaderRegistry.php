@@ -15,6 +15,7 @@ namespace PDFToolkit\Registries;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Entities\PDFDocument;
 use PDFToolkit\Enums\PDFReaderType;
+use PDFToolkit\Helper\PDFHelper;
 use CommonToolkit\Helper\FileSystem\Folder;
 use ERRORToolkit\Traits\ErrorLog;
 use Generator;
@@ -156,45 +157,67 @@ final class PDFReaderRegistry {
     /**
      * Versucht, Text aus einer PDF zu extrahieren.
      * Probiert alle Reader der Reihe nach durch.
+     * OCR wird nur verwendet, wenn kein eingebetteter Text vorhanden ist.
      * 
      * @param string $pdfPath Pfad zur PDF-Datei
-     * @param array $options Optionen (z.B. 'language' => 'deu+eng')
+     * @param array $options Optionen (z.B. 'language' => 'deu+eng', 'forceOcr' => true)
      * @return PDFDocument
      */
     public function extractText(string $pdfPath, array $options = []): PDFDocument {
-        // Zuerst Text-PDF Reader probieren
-        foreach ($this->getTextPdfReaders() as $reader) {
-            if (!$reader->canHandle($pdfPath)) {
-                continue;
-            }
+        $forceOcr = $options['forceOcr'] ?? false;
 
-            $text = $reader->extractText($pdfPath, $options);
-            if ($text !== null && trim($text) !== '') {
-                $this->logDebug("Text extracted with " . $reader::getType()->value);
-                return new PDFDocument(
-                    text: $text,
-                    reader: $reader::getType(),
-                    isScanned: false,
-                    sourcePath: $pdfPath
-                );
-            }
-        }
+        // Prüfen ob das PDF eingebetteten Text hat
+        $hasEmbeddedText = PDFHelper::hasEmbeddedText($pdfPath);
 
-        // Dann OCR Reader probieren (gescannte PDFs)
-        foreach ($this->getScannedPdfReaders() as $reader) {
-            if (!$reader->canHandle($pdfPath)) {
-                continue;
-            }
+        if ($hasEmbeddedText && !$forceOcr) {
+            // PDF hat eingebetteten Text -> nur Text-Reader verwenden (kein OCR)
+            $this->logDebug("PDF has embedded text, using text readers only");
 
-            $text = $reader->extractText($pdfPath, $options);
-            if ($text !== null && trim($text) !== '') {
-                $this->logDebug("Text extracted via OCR with " . $reader::getType()->value);
-                return new PDFDocument(
-                    text: $text,
-                    reader: $reader::getType(),
-                    isScanned: true,
-                    sourcePath: $pdfPath
-                );
+            foreach ($this->getTextPdfReaders() as $reader) {
+                // OCR-Reader überspringen wenn Text vorhanden
+                if ($reader::supportsScannedPdfs() && !$reader::supportsTextPdfs()) {
+                    continue;
+                }
+
+                // Reine OCR-Reader überspringen (z.B. tesseract, ocrmypdf)
+                if ($reader::getType()->isOcrOnly()) {
+                    continue;
+                }
+
+                if (!$reader->canHandle($pdfPath)) {
+                    continue;
+                }
+
+                $text = $reader->extractText($pdfPath, $options);
+                if ($text !== null && trim($text) !== '') {
+                    $this->logDebug("Text extracted with " . $reader::getType()->value);
+                    return new PDFDocument(
+                        text: $text,
+                        reader: $reader::getType(),
+                        isScanned: false,
+                        sourcePath: $pdfPath
+                    );
+                }
+            }
+        } else {
+            // Kein eingebetteter Text oder OCR erzwungen -> OCR verwenden
+            $this->logDebug($forceOcr ? "OCR forced by option" : "PDF likely scanned, using OCR readers");
+
+            foreach ($this->getScannedPdfReaders() as $reader) {
+                if (!$reader->canHandle($pdfPath)) {
+                    continue;
+                }
+
+                $text = $reader->extractText($pdfPath, $options);
+                if ($text !== null && trim($text) !== '') {
+                    $this->logDebug("Text extracted via OCR with " . $reader::getType()->value);
+                    return new PDFDocument(
+                        text: $text,
+                        reader: $reader::getType(),
+                        isScanned: true,
+                        sourcePath: $pdfPath
+                    );
+                }
             }
         }
 

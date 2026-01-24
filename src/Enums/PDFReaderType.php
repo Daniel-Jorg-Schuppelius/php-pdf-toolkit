@@ -59,6 +59,13 @@ enum PDFReaderType: string {
     }
 
     /**
+     * Gibt an, ob der Reader nur für OCR geeignet ist (keine normale Text-Extraktion).
+     */
+    public function isOcrOnly(): bool {
+        return $this->supportsScannedPdfs() && !$this->supportsTextPdfs();
+    }
+
+    /**
      * Gibt eine lesbare Beschreibung zurück.
      */
     public function getDescription(): string {
