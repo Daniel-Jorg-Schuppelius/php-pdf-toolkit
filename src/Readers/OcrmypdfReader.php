@@ -18,6 +18,7 @@ use CommonToolkit\Helper\Shell;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
+use PDFToolkit\Helper\TesseractDataHelper;
 use ERRORToolkit\Traits\ErrorLog;
 
 /**
@@ -45,11 +46,11 @@ final class OcrmypdfReader implements PDFReaderInterface {
         $this->tessDataPath = $this->config->getConfig('PDFSettings', 'tesseract_data_path') ?? '';
         $this->defaultPsm = (int) ($this->config->getConfig('PDFSettings', 'ocrmypdf_psm') ?? 11);
 
-        // Fallback auf lokales data-Verzeichnis
+        // Fallback auf lokales data-Verzeichnis mit automatischem Download
         if (empty($this->tessDataPath)) {
-            $localPath = dirname(__DIR__, 2) . '/data/tesseract';
-            if (is_dir($localPath)) {
-                $this->tessDataPath = $localPath;
+            $usablePath = TesseractDataHelper::getUsableDataPath($this->defaultLanguage);
+            if ($usablePath !== null) {
+                $this->tessDataPath = $usablePath;
             }
         }
     }

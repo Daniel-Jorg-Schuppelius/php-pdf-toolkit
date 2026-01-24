@@ -18,6 +18,7 @@ use CommonToolkit\Helper\Shell;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
+use PDFToolkit\Helper\TesseractDataHelper;
 use ERRORToolkit\Traits\ErrorLog;
 
 /**
@@ -48,11 +49,11 @@ final class TesseractReader implements PDFReaderInterface {
         $this->defaultPsm = (int) ($this->config->getConfig('PDFSettings', 'tesseract_psm') ?? 3);
         $this->defaultDpi = (int) ($this->config->getConfig('PDFSettings', 'pdftoppm_dpi') ?? 300);
 
-        // Fallback auf lokales data-Verzeichnis
+        // Fallback auf lokales data-Verzeichnis mit automatischem Download
         if (empty($this->tessDataPath)) {
-            $localPath = dirname(__DIR__, 2) . '/data/tesseract';
-            if (is_dir($localPath)) {
-                $this->tessDataPath = $localPath;
+            $usablePath = TesseractDataHelper::getUsableDataPath($this->defaultLanguage);
+            if ($usablePath !== null) {
+                $this->tessDataPath = $usablePath;
             }
         }
     }
