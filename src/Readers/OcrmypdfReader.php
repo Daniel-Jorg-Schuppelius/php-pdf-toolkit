@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace PDFToolkit\Readers;
 
 use CommonToolkit\Helper\FileSystem\File;
+use CommonToolkit\Helper\FileSystem\Folder;
 use CommonToolkit\Helper\Shell;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
@@ -31,6 +32,7 @@ final class OcrmypdfReader implements PDFReaderInterface {
     private ?bool $available = null;
     private Config $config;
     private string $defaultLanguage;
+    private string $tessDataPath;
     private int $defaultPsm;
 
     public function __construct() {
@@ -40,7 +42,16 @@ final class OcrmypdfReader implements PDFReaderInterface {
     private function loadConfig(): void {
         $this->config = Config::getInstance();
         $this->defaultLanguage = $this->config->getConfig('PDFSettings', 'tesseract_lang') ?? 'deu+eng';
+        $this->tessDataPath = $this->config->getConfig('PDFSettings', 'tesseract_data_path') ?? '';
         $this->defaultPsm = (int) ($this->config->getConfig('PDFSettings', 'ocrmypdf_psm') ?? 11);
+
+        // Fallback auf lokales data-Verzeichnis
+        if (empty($this->tessDataPath)) {
+            $localPath = dirname(__DIR__, 2) . '/data/tesseract';
+            if (is_dir($localPath)) {
+                $this->tessDataPath = $localPath;
+            }
+        }
     }
 
     public static function getType(): PDFReaderType {
@@ -93,6 +104,11 @@ final class OcrmypdfReader implements PDFReaderInterface {
                 '[INPUT]' => $pdfPath,
                 '[OUTPUT]' => $tempPdf,
             ]);
+
+            // TESSDATA_PREFIX setzen falls eigene Trainingsdaten vorhanden
+            if (!empty($this->tessDataPath) && Folder::exists($this->tessDataPath)) {
+                $command = "TESSDATA_PREFIX=" . escapeshellarg($this->tessDataPath) . " " . $command;
+            }
 
             $output = [];
             $returnCode = 0;

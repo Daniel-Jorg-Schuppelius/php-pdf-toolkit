@@ -15,6 +15,7 @@ namespace Tests\Registries;
 use PDFToolkit\Entities\PDFContent;
 use PDFToolkit\Enums\PDFWriterType;
 use PDFToolkit\Registries\PDFWriterRegistry;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
 final class PDFWriterRegistryTest extends TestCase {
@@ -135,9 +136,7 @@ final class PDFWriterRegistryTest extends TestCase {
         PDFContent::fromFile('/nonexistent/file.html');
     }
 
-    /**
-     * @group integration
-     */
+    #[Group('integration')]
     public function testCreatePdfWithAvailableWriter(): void {
         if (!$this->registry->hasAvailableWriter()) {
             $this->markTestSkipped('No PDF writer available');
@@ -160,9 +159,7 @@ final class PDFWriterRegistryTest extends TestCase {
         }
     }
 
-    /**
-     * @group integration
-     */
+    #[Group('integration')]
     public function testHtmlToPdfShortcut(): void {
         if (!$this->registry->hasAvailableWriter()) {
             $this->markTestSkipped('No PDF writer available');
@@ -183,9 +180,7 @@ final class PDFWriterRegistryTest extends TestCase {
         }
     }
 
-    /**
-     * @group integration
-     */
+    #[Group('integration')]
     public function testTextToPdfShortcut(): void {
         if (!$this->registry->hasAvailableWriter()) {
             $this->markTestSkipped('No PDF writer available');

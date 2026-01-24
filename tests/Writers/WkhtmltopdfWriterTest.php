@@ -15,6 +15,7 @@ namespace Tests\Writers;
 use PDFToolkit\Entities\PDFContent;
 use PDFToolkit\Enums\PDFWriterType;
 use PDFToolkit\Writers\WkhtmltopdfWriter;
+use PHPUnit\Framework\Attributes\Group;
 use PHPUnit\Framework\TestCase;
 
 final class WkhtmltopdfWriterTest extends TestCase {
@@ -58,10 +59,8 @@ final class WkhtmltopdfWriterTest extends TestCase {
         }
     }
 
-    /**
-     * @group integration
-     * @group external
-     */
+    #[Group('integration')]
+    #[Group('external')]
     public function testCreatePdfFromHtml(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('wkhtmltopdf is not available');
@@ -86,10 +85,8 @@ final class WkhtmltopdfWriterTest extends TestCase {
         }
     }
 
-    /**
-     * @group integration
-     * @group external
-     */
+    #[Group('integration')]
+    #[Group('external')]
     public function testCreatePdfFromText(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('wkhtmltopdf is not available');
@@ -109,10 +106,8 @@ final class WkhtmltopdfWriterTest extends TestCase {
         }
     }
 
-    /**
-     * @group integration
-     * @group external
-     */
+    #[Group('integration')]
+    #[Group('external')]
     public function testCreatePdfWithMetadata(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('wkhtmltopdf is not available');
@@ -136,10 +131,8 @@ final class WkhtmltopdfWriterTest extends TestCase {
         }
     }
 
-    /**
-     * @group integration
-     * @group external
-     */
+    #[Group('integration')]
+    #[Group('external')]
     public function testCreatePdfWithAdvancedCss(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('wkhtmltopdf is not available');
@@ -201,10 +194,8 @@ HTML;
         }
     }
 
-    /**
-     * @group integration
-     * @group external
-     */
+    #[Group('integration')]
+    #[Group('external')]
     public function testCreatePdfWithLandscapeOrientation(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('wkhtmltopdf is not available');
@@ -226,10 +217,8 @@ HTML;
         }
     }
 
-    /**
-     * @group integration
-     * @group external
-     */
+    #[Group('integration')]
+    #[Group('external')]
     public function testCreatePdfString(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('wkhtmltopdf is not available');
@@ -245,10 +234,8 @@ HTML;
         $this->assertGreaterThan(100, strlen($pdfString));
     }
 
-    /**
-     * @group integration
-     * @group external
-     */
+    #[Group('integration')]
+    #[Group('external')]
     public function testCreatePdfWithDifferentPaperSizes(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('wkhtmltopdf is not available');
@@ -275,10 +262,8 @@ HTML;
         }
     }
 
-    /**
-     * @group integration
-     * @group external
-     */
+    #[Group('integration')]
+    #[Group('external')]
     public function testCreatePdfWithMargins(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('wkhtmltopdf is not available');
@@ -305,10 +290,8 @@ HTML;
         }
     }
 
-    /**
-     * @group integration
-     * @group external
-     */
+    #[Group('integration')]
+    #[Group('external')]
     public function testCreatePdfWithSpecialCharacters(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('wkhtmltopdf is not available');
@@ -328,10 +311,8 @@ HTML;
         }
     }
 
-    /**
-     * @group integration
-     * @group external
-     */
+    #[Group('integration')]
+    #[Group('external')]
     public function testCreatePdfWithGrayscale(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('wkhtmltopdf is not available');
@@ -353,10 +334,8 @@ HTML;
         }
     }
 
-    /**
-     * @group integration
-     * @group external
-     */
+    #[Group('integration')]
+    #[Group('external')]
     public function testCreatePdfWithCustomDpi(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('wkhtmltopdf is not available');
