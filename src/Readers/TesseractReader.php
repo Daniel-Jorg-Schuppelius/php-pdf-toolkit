@@ -142,7 +142,7 @@ final class TesseractReader implements PDFReaderInterface {
 
                 // TESSDATA_PREFIX setzen falls eigene Trainingsdaten vorhanden
                 if (!empty($this->tessDataPath) && Folder::exists($this->tessDataPath)) {
-                    $command = "TESSDATA_PREFIX=" . escapeshellarg(dirname($this->tessDataPath)) . " " . $command;
+                    $command = "TESSDATA_PREFIX=" . escapeshellarg($this->tessDataPath) . " " . $command;
                 }
 
                 $output = [];
