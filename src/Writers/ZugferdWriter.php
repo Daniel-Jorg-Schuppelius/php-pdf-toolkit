@@ -18,6 +18,7 @@ use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Contracts\PDFWriterInterface;
 use PDFToolkit\Entities\PDFContent;
 use PDFToolkit\Enums\PDFWriterType;
+use setasign\Fpdi\Tcpdf\Fpdi;
 use TCPDF;
 
 /**
@@ -78,6 +79,13 @@ final class ZugferdWriter implements PDFWriterInterface {
         return class_exists(Dompdf::class);
     }
 
+    /**
+     * Prüft ob FPDI verfügbar ist (für PDF-Import).
+     */
+    public function isFpdiAvailable(): bool {
+        return class_exists(Fpdi::class);
+    }
+
     public function canHandle(PDFContent $content): bool {
         // Nur wenn XML-Daten für E-Rechnung vorhanden sind
         return $this->isAvailable() && $content->getMeta('invoice_xml') !== null;
@@ -118,13 +126,18 @@ final class ZugferdWriter implements PDFWriterInterface {
             return null;
         }
 
-        // Wähle Rendering-Engine: Dompdf bevorzugt (besseres CSS)
+        // Wähle Rendering-Engine
         $engine = $options['render_engine'] ?? self::ENGINE_DOMPDF;
-        
-        // Falls Dompdf gewünscht aber nicht verfügbar, fallback zu TCPDF
-        if ($engine === self::ENGINE_DOMPDF && !$this->isDompdfAvailable()) {
-            $this->logDebug('Dompdf not available, falling back to TCPDF for HTML rendering');
-            $engine = self::ENGINE_TCPDF;
+
+        // Falls Dompdf gewünscht, prüfe ob auch FPDI verfügbar ist
+        if ($engine === self::ENGINE_DOMPDF) {
+            if (!$this->isDompdfAvailable()) {
+                $this->logDebug('Dompdf not available, falling back to TCPDF');
+                $engine = self::ENGINE_TCPDF;
+            } elseif (!$this->isFpdiAvailable()) {
+                $this->logDebug('FPDI not available for PDF import, falling back to TCPDF');
+                $engine = self::ENGINE_TCPDF;
+            }
         }
 
         try {
@@ -143,26 +156,75 @@ final class ZugferdWriter implements PDFWriterInterface {
     }
 
     /**
-     * Erstellt ZUGFeRD PDF mit Dompdf für HTML-Rendering und TCPDF für PDF/A-3.
+     * Erstellt ZUGFeRD PDF mit Dompdf für HTML-Rendering und FPDI/TCPDF für PDF/A-3.
      * 
      * Workflow:
      * 1. Dompdf rendert HTML zu PDF (bessere CSS-Unterstützung)
-     * 2. TCPDF importiert das PDF und fügt XML-Attachment hinzu
+     * 2. FPDI importiert das PDF
+     * 3. TCPDF fügt XML-Attachment hinzu
      */
     private function createWithDompdf(PDFContent $content, string $invoiceXml, array $options): ?string {
         // Schritt 1: HTML mit Dompdf zu PDF rendern
         $dompdf = $this->createDompdfInstance($options);
-        
+
         $html = $content->getAsHtml();
         $dompdf->loadHtml($html, 'UTF-8');
         $dompdf->setPaper($options['paper_size'] ?? 'A4', $options['orientation'] ?? 'portrait');
         $dompdf->render();
-        
-        // PDF als String
-        $pdfContent = $dompdf->output();
-        
-        // Schritt 2: Mit TCPDF das PDF importieren und XML einbetten
-        return $this->embedXmlInPdf($pdfContent, $content, $invoiceXml, $options);
+
+        // PDF als temporäre Datei speichern
+        $tempPdf = tempnam(sys_get_temp_dir(), 'zugferd_dompdf_');
+        file_put_contents($tempPdf, $dompdf->output());
+
+        try {
+            // Schritt 2: Mit FPDI das PDF importieren und mit TCPDF XML einbetten
+            return $this->importAndEmbedXml($tempPdf, $content, $invoiceXml, $options);
+        } finally {
+            @unlink($tempPdf);
+        }
+    }
+
+    /**
+     * Importiert ein PDF mit FPDI und bettet XML ein.
+     */
+    private function importAndEmbedXml(string $sourcePdf, PDFContent $content, string $invoiceXml, array $options): ?string {
+        // FPDI mit PDF/A-3 Modus erstellen (7. Parameter = 3 für PDF/A-3)
+        $pdf = new Fpdi('P', 'mm', 'A4', true, 'UTF-8', false, 3);
+
+        // Metadaten setzen
+        $profile = $options['zugferd_profile'] ?? self::LEVEL_EN16931;
+
+        if ($title = $content->getTitle()) {
+            $pdf->SetTitle($title);
+        }
+        if ($author = $content->getAuthor()) {
+            $pdf->SetAuthor($author);
+        }
+        if ($subject = $content->getSubject()) {
+            $pdf->SetSubject($subject);
+        }
+
+        $pdf->SetCreator('PHP PDF Toolkit - ZUGFeRD ' . self::ZUGFERD_VERSION);
+        $pdf->SetKeywords('ZUGFeRD, Factur-X, E-Rechnung, ' . $profile);
+
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+
+        // Quell-PDF importieren
+        $pageCount = $pdf->setSourceFile($sourcePdf);
+
+        for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+            $templateId = $pdf->importPage($pageNo);
+            $size = $pdf->getTemplateSize($templateId);
+
+            $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+            $pdf->useTemplate($templateId, 0, 0, $size['width'], $size['height']);
+        }
+
+        // XML-Rechnung einbetten
+        $this->embedInvoiceXml($pdf, $invoiceXml, $options);
+
+        return $pdf->Output('', 'S');
     }
 
     /**
@@ -184,120 +246,6 @@ final class ZugferdWriter implements PDFWriterInterface {
         $this->embedInvoiceXml($pdf, $invoiceXml, $options);
 
         return $pdf->Output('', 'S');
-    }
-
-    /**
-     * Bettet XML in ein bestehendes PDF ein und konvertiert zu PDF/A-3.
-     */
-    private function embedXmlInPdf(string $pdfContent, PDFContent $content, string $invoiceXml, array $options): ?string {
-        $profile = $options['zugferd_profile'] ?? self::LEVEL_EN16931;
-        
-        // Temporäre Datei für das Dompdf-PDF erstellen
-        $tempPdf = tempnam(sys_get_temp_dir(), 'zugferd_');
-        file_put_contents($tempPdf, $pdfContent);
-        
-        try {
-            // TCPDF mit TCPDI für PDF-Import verwenden
-            // Da TCPDI nicht immer verfügbar ist, nutzen wir einen alternativen Ansatz:
-            // Wir erstellen ein neues TCPDF und nutzen ImageMagick/GhostScript falls verfügbar
-            
-            // Einfacher Ansatz: XML direkt an das PDF anhängen
-            $result = $this->appendXmlToPdf($pdfContent, $invoiceXml, $content, $options);
-            
-            return $result;
-        } finally {
-            @unlink($tempPdf);
-        }
-    }
-
-    /**
-     * Hängt XML-Daten an ein bestehendes PDF an.
-     * 
-     * Verwendet PDF-Manipulation um die XML als eingebettete Datei hinzuzufügen.
-     */
-    private function appendXmlToPdf(string $pdfContent, string $invoiceXml, PDFContent $content, array $options): string {
-        $isFacturX = $options['facturx'] ?? false;
-        $filename = $isFacturX ? 'factur-x.xml' : 'zugferd-invoice.xml';
-        $profile = $options['zugferd_profile'] ?? self::LEVEL_EN16931;
-        
-        // Stream-basierte PDF-Manipulation für Dateieinbettung
-        // Wir nutzen eine vereinfachte Methode, die die XML als Attachment anhängt
-        
-        // PDF-Trailer finden
-        $trailerPos = strrpos($pdfContent, '%%EOF');
-        if ($trailerPos === false) {
-            $this->logError('Invalid PDF: no EOF marker found');
-            return $pdfContent;
-        }
-        
-        // Objekt-Counter aus PDF extrahieren
-        preg_match('/\/Size\s+(\d+)/', $pdfContent, $matches);
-        $objectCount = isset($matches[1]) ? (int)$matches[1] : 100;
-        
-        // Neues Embedded File Stream Objekt erstellen
-        $xmlCompressed = gzcompress($invoiceXml, 9);
-        $xmlStreamLength = strlen($xmlCompressed);
-        $xmlLength = strlen($invoiceXml);
-        
-        $newObjects = '';
-        $newObjNum = $objectCount;
-        
-        // Embedded File Stream
-        $newObjects .= "{$newObjNum} 0 obj\n";
-        $newObjects .= "<< /Type /EmbeddedFile /Subtype /text#2Fxml /Length {$xmlStreamLength} /Filter /FlateDecode /Params << /Size {$xmlLength} >> >>\n";
-        $newObjects .= "stream\n";
-        $newObjects .= $xmlCompressed;
-        $newObjects .= "\nendstream\n";
-        $newObjects .= "endobj\n\n";
-        
-        $embeddedFileObjNum = $newObjNum;
-        $newObjNum++;
-        
-        // Filespec Objekt
-        $newObjects .= "{$newObjNum} 0 obj\n";
-        $newObjects .= "<< /Type /Filespec /F ({$filename}) /UF ({$filename}) /Desc (ZUGFeRD/Factur-X Invoice XML) /AFRelationship /Data /EF << /F {$embeddedFileObjNum} 0 R /UF {$embeddedFileObjNum} 0 R >> >>\n";
-        $newObjects .= "endobj\n\n";
-        
-        // Die neuen Objekte vor dem Trailer einfügen
-        $beforeTrailer = substr($pdfContent, 0, $trailerPos);
-        $afterTrailer = substr($pdfContent, $trailerPos);
-        
-        // XMP Metadaten für ZUGFeRD/Factur-X
-        $xmpMetadata = $this->generateZugferdXmp($profile, $options, $filename);
-        
-        // Hinweis: Eine vollständige Implementation würde den Catalog und 
-        // andere PDF-Strukturen aktualisieren. Für Produktion sollte eine
-        // Bibliothek wie FPDI oder pdftk verwendet werden.
-        
-        return $beforeTrailer . $newObjects . $afterTrailer;
-    }
-
-    /**
-     * Generiert XMP-Metadaten für ZUGFeRD/Factur-X.
-     */
-    private function generateZugferdXmp(string $profile, array $options, string $filename): string {
-        $isFacturX = $options['facturx'] ?? false;
-        $version = $isFacturX ? self::FACTURX_VERSION : self::ZUGFERD_VERSION;
-        $namespace = $isFacturX ? 'Factur-X' : 'ZUGFeRD';
-
-        return <<<XMP
-<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
-<x:xmpmeta xmlns:x="adobe:ns:meta/">
-    <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
-        <rdf:Description rdf:about="" xmlns:fx="urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#">
-            <fx:DocumentType>{$namespace} INVOICE</fx:DocumentType>
-            <fx:DocumentFileName>{$filename}</fx:DocumentFileName>
-            <fx:Version>{$version}</fx:Version>
-            <fx:ConformanceLevel>{$profile}</fx:ConformanceLevel>
-        </rdf:Description>
-        <rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">
-            <pdfaid:part>3</pdfaid:part>
-            <pdfaid:conformance>B</pdfaid:conformance>
-        </rdf:Description>
-    </rdf:RDF>
-</x:xmpmeta>
-<?xpacket end="w"?>
-XMP;
     }
 
     /**
@@ -367,23 +315,13 @@ XMP;
         $fontSize = $options['font_size'] ?? 10;
         $pdf->SetFont($fontFamily, '', $fontSize);
 
-        // XMP-Metadaten für ZUGFeRD/Factur-X
-        $this->setZugferdXmpMetadata($pdf, $profile, $options);
-
         return $pdf;
-    }
-
-    /**
-     * Setzt XMP-Metadaten für ZUGFeRD/Factur-X Konformität.
-     */
-    private function setZugferdXmpMetadata(TCPDF $pdf, string $profile, array $options): void {
-        // XMP wird intern von TCPDF verarbeitet
     }
 
     /**
      * Bettet die XML-Rechnung in das PDF ein.
      */
-    private function embedInvoiceXml(TCPDF $pdf, string $xml, array $options): void {
+    private function embedInvoiceXml(TCPDF|Fpdi $pdf, string $xml, array $options): void {
         $isFacturX = $options['facturx'] ?? false;
         $filename = $isFacturX ? 'factur-x.xml' : 'zugferd-invoice.xml';
 

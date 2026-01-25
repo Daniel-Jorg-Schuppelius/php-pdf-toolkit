@@ -14,6 +14,7 @@
     "ext-gd": "*",
     "dompdf/dompdf": "^3.1",
     "dschuppelius/php-common-toolkit": "^1.1",
+    "setasign/fpdi": "^2.3",
     "tecnickcom/tcpdf": "^6.6"
   },
   "autoload": {
