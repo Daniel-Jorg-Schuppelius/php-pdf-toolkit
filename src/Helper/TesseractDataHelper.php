@@ -12,8 +12,8 @@ declare(strict_types=1);
 
 namespace PDFToolkit\Helper;
 
-use CommonToolkit\Helper\FileSystem\File;
-use CommonToolkit\Helper\FileSystem\Folder;
+use CommonToolkit\Helper\Data\NumberHelper;
+use CommonToolkit\Helper\FileSystem\{File, Folder};
 use ERRORToolkit\Traits\ErrorLog;
 
 /**
@@ -108,22 +108,25 @@ final class TesseractDataHelper {
         $tempFile = $targetFile . '.tmp';
 
         try {
-            // Download über File::read() (unterstützt URLs)
-            $data = File::read($url);
+            // Chunk-basierter Download (speichereffizient für große Dateien)
+            $bytesDownloaded = File::download($url, $tempFile);
 
-            // Prüfe ob die Datei gültig ist (mindestens 1MB für traineddata)
-            if (strlen($data) < self::MIN_TRAINEDDATA_SIZE) {
-                self::logError("Heruntergeladene Datei zu klein, möglicherweise ungültig: $language");
+            if ($bytesDownloaded === false) {
+                self::logError("Download fehlgeschlagen: $language");
                 return false;
             }
 
-            // In temporäre Datei schreiben
-            File::write($tempFile, $data);
+            // Prüfe ob die Datei gültig ist (mindestens 1MB für traineddata)
+            if ($bytesDownloaded < self::MIN_TRAINEDDATA_SIZE) {
+                self::logError("Heruntergeladene Datei zu klein, möglicherweise ungültig: $language ($bytesDownloaded Bytes)");
+                File::delete($tempFile);
+                return false;
+            }
 
             // Umbenennen zur Zieldatei (atomar)
             File::rename($tempFile, $targetFile);
 
-            self::logInfo("Trainingsdaten erfolgreich heruntergeladen: $language (" . round(strlen($data) / 1024 / 1024, 1) . " MB)");
+            self::logInfo("Trainingsdaten erfolgreich heruntergeladen: $language (" . NumberHelper::formatBytes($bytesDownloaded) . ")");
             return true;
         } catch (\Throwable $e) {
             if (File::exists($tempFile)) {

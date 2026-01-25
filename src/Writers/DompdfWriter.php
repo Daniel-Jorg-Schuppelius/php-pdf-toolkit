@@ -13,8 +13,7 @@ declare(strict_types=1);
 namespace PDFToolkit\Writers;
 
 use CommonToolkit\Helper\FileSystem\File;
-use Dompdf\Dompdf;
-use Dompdf\Options;
+use Dompdf\{Dompdf, Options};
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Contracts\PDFWriterInterface;
 use PDFToolkit\Entities\PDFContent;

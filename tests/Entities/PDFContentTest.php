@@ -126,7 +126,7 @@ final class PDFContentTest extends TestCase {
         $html = $content->getAsHtml();
 
         $this->assertStringContainsString('<!DOCTYPE html>', $html);
-        $this->assertStringContainsString('<html>', $html);
+        $this->assertStringContainsString('<html', $html);
         $this->assertStringContainsString('Hello World', $html);
     }
 
@@ -146,8 +146,11 @@ final class PDFContentTest extends TestCase {
 
         $html = $content->getAsHtml();
 
-        // nl2br sollte Zeilenumbrüche in <br> umwandeln
-        $this->assertStringContainsString('<br', $html);
+        // pre-Tag bewahrt Zeilenumbrüche, alle Zeilen sollten enthalten sein
+        $this->assertStringContainsString('Line 1', $html);
+        $this->assertStringContainsString('Line 2', $html);
+        $this->assertStringContainsString('Line 3', $html);
+        $this->assertStringContainsString('<pre', $html);
     }
 
     public function testGetAsHtmlFromFile(): void {

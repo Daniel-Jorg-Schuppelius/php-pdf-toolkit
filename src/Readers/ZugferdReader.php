@@ -12,8 +12,7 @@ declare(strict_types=1);
 
 namespace PDFToolkit\Readers;
 
-use CommonToolkit\Helper\FileSystem\File;
-use CommonToolkit\Helper\FileSystem\Folder;
+use CommonToolkit\Helper\FileSystem\{File, Folder};
 use CommonToolkit\Helper\Shell;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
@@ -22,6 +21,11 @@ use PDFToolkit\Config\Config;
  * Reader für ZUGFeRD/Factur-X PDFs.
  * 
  * Extrahiert die eingebettete XML-Rechnung aus PDF/A-3 Dokumenten.
+ * 
+ * HINWEIS: Diese Klasse implementiert NICHT das PDFReaderInterface,
+ * da sie für einen anderen Zweck konzipiert ist:
+ * - PDFReaderInterface: Extrahiert lesbaren TEXT aus PDFs
+ * - ZugferdReader: Extrahiert strukturierte XML-DATEN (E-Rechnungen)
  * 
  * Unterstützte Formate:
  * - ZUGFeRD 1.0/2.0/2.1/2.2 (DE)
@@ -170,7 +174,7 @@ final class ZugferdReader {
         }
 
         $tempDir = sys_get_temp_dir() . '/zugferd_' . uniqid();
-        mkdir($tempDir, 0755, true);
+        Folder::create($tempDir, 0755, true);
         $outputPath = $tempDir . '/' . $filename;
 
         try {
@@ -290,7 +294,7 @@ final class ZugferdReader {
             }
         }
 
-        return File::read($outputPath) ?: null;
+        return File::read($outputPath);
     }
 
     /**
@@ -314,7 +318,7 @@ final class ZugferdReader {
             return null;
         }
 
-        return File::read($outputPath) ?: null;
+        return File::read($outputPath);
     }
 
     /**

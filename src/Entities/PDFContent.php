@@ -12,6 +12,11 @@ declare(strict_types=1);
 
 namespace PDFToolkit\Entities;
 
+use CommonToolkit\Builders\HTMLDocumentBuilder;
+use CommonToolkit\Entities\HTML\Document;
+use CommonToolkit\Helper\FileSystem\File;
+use InvalidArgumentException;
+
 /**
  * Value Object für zu erstellenden PDF-Inhalt.
  * 
@@ -50,10 +55,55 @@ final readonly class PDFContent {
      * Erstellt Content aus einer HTML-Datei.
      */
     public static function fromFile(string $filePath, array $metadata = []): self {
-        if (!file_exists($filePath)) {
-            throw new \InvalidArgumentException("File not found: {$filePath}");
+        if (!File::exists($filePath)) {
+            throw new InvalidArgumentException("File not found: {$filePath}");
         }
         return new self($filePath, self::TYPE_FILE, $metadata);
+    }
+
+    /**
+     * Erstellt Content aus einem HTML-Document-Objekt.
+     * 
+     * Nutzt das CommonToolkit Document für strukturierte HTML-Erstellung.
+     * 
+     * @param Document $document Das HTML-Document-Objekt
+     * @param array $metadata Optionale Metadaten
+     * @return self
+     */
+    public static function fromDocument(Document $document, array $metadata = []): self {
+        // Metadaten aus Document extrahieren falls nicht übergeben
+        if ($document->getTitle() !== null && !isset($metadata['title'])) {
+            $metadata['title'] = $document->getTitle();
+        }
+
+        return new self($document->render(), self::TYPE_HTML, $metadata);
+    }
+
+    /**
+     * Erstellt Content mit dem HTMLDocumentBuilder.
+     * 
+     * Beispiel:
+     * ```php
+     * $content = PDFContent::fromBuilder(function(HTMLDocumentBuilder $builder) {
+     *     $builder->h1('Titel')
+     *         ->p('Ein Absatz.')
+     *         ->table()
+     *             ->tr()->td('Zelle 1')->td('Zelle 2')->end()
+     *         ->endTable();
+     * }, ['title' => 'Mein Dokument']);
+     * ```
+     * 
+     * @param callable(HTMLDocumentBuilder): void $callback Callback der den Builder konfiguriert
+     * @param array $metadata Optionale Metadaten
+     * @return self
+     */
+    public static function fromBuilder(callable $callback, array $metadata = []): self {
+        $title = $metadata['title'] ?? null;
+        $builder = HTMLDocumentBuilder::create($title);
+
+        $callback($builder);
+
+        return self::fromDocument($builder->build(), $metadata);
     }
 
     /**
@@ -79,7 +129,7 @@ final readonly class PDFContent {
 
     /**
      * Gibt den Inhalt als HTML zurück.
-     * Bei Text wird dieser in HTML eingebettet.
+     * Bei Text wird dieser in ein strukturiertes HTML-Dokument eingebettet.
      */
     public function getAsHtml(): string {
         if ($this->isHtml()) {
@@ -87,27 +137,14 @@ final readonly class PDFContent {
         }
 
         if ($this->isFile()) {
-            return file_get_contents($this->content) ?: '';
+            return File::read($this->content);
         }
 
-        // Text zu HTML konvertieren
-        $escaped = htmlspecialchars($this->content, ENT_QUOTES, 'UTF-8');
-        $escaped = nl2br($escaped);
-
-        return <<<HTML
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <style>
-        body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 12pt; line-height: 1.5; }
-    </style>
-</head>
-<body>
-    <pre style="white-space: pre-wrap; font-family: inherit;">{$escaped}</pre>
-</body>
-</html>
-HTML;
+        // Text zu HTML konvertieren mit HTMLDocumentBuilder
+        return HTMLDocumentBuilder::create($this->getTitle())
+            ->addInlineStyle('body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 12pt; line-height: 1.5; }')
+            ->pre($this->content, ['style' => 'white-space: pre-wrap; font-family: inherit;'])
+            ->render();
     }
 
     /**
@@ -119,7 +156,7 @@ HTML;
         }
 
         if ($this->isFile()) {
-            $html = file_get_contents($this->content) ?: '';
+            $html = File::read($this->content);
             return strip_tags($html);
         }
 

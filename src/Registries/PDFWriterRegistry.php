@@ -16,9 +16,7 @@ use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Contracts\PDFWriterInterface;
 use PDFToolkit\Entities\PDFContent;
 use PDFToolkit\Enums\PDFWriterType;
-use PDFToolkit\Writers\DompdfWriter;
-use PDFToolkit\Writers\TcpdfWriter;
-use PDFToolkit\Writers\WkhtmltopdfWriter;
+use PDFToolkit\Writers\{DompdfWriter, TcpdfWriter, WkhtmltopdfWriter};
 
 /**
  * Registry für PDF-Writer.

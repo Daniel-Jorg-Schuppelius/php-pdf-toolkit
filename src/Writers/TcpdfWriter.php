@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 namespace PDFToolkit\Writers;
 
+use CommonToolkit\Helper\FileSystem\File;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Contracts\PDFWriterInterface;
 use PDFToolkit\Entities\PDFContent;
@@ -58,10 +59,10 @@ final class TcpdfWriter implements PDFWriterInterface {
             return false;
         }
 
-        $result = file_put_contents($outputPath, $pdfString);
-
-        if ($result === false) {
-            $this->logError('Failed to write PDF file', ['path' => $outputPath]);
+        try {
+            File::write($outputPath, $pdfString);
+        } catch (\Throwable $e) {
+            $this->logError('Failed to write PDF file', ['path' => $outputPath, 'error' => $e->getMessage()]);
             return false;
         }
 

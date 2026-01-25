@@ -37,7 +37,7 @@ final class PDFHelper {
 
         // PDF-Signatur prüfen (%PDF-)
         $header = File::readPartial($filePath, 8);
-        if ($header === null) {
+        if ($header === false) {
             return false;
         }
 
@@ -145,7 +145,7 @@ final class PDFHelper {
         }
 
         $header = File::readPartial($filePath, 8);
-        if ($header === null) {
+        if ($header === false) {
             return null;
         }
 

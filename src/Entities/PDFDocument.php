@@ -12,6 +12,8 @@ declare(strict_types=1);
 
 namespace PDFToolkit\Entities;
 
+use CommonToolkit\Builders\HTMLDocumentBuilder;
+use CommonToolkit\Entities\HTML\Document;
 use PDFToolkit\Enums\PDFReaderType;
 
 /**
@@ -185,6 +187,83 @@ final readonly class PDFDocument {
         }
 
         return $best;
+    }
+
+    /**
+     * Konvertiert den extrahierten Text in ein HTML-Dokument.
+     * 
+     * Nutzt den HTMLDocumentBuilder für strukturierte HTML-Ausgabe.
+     * Nützlich für die Anzeige oder Weiterverarbeitung des Textes.
+     * 
+     * @param string|null $title Optionaler Titel (Standard: Dateiname)
+     * @param string|null $css Optionales Inline-CSS
+     * @return Document HTML-Dokument
+     */
+    public function getTextAsHtml(?string $title = null, ?string $css = null): Document {
+        $title = $title ?? basename($this->sourcePath);
+
+        $builder = HTMLDocumentBuilder::create($title)
+            ->meta('generator', 'PHP PDF Toolkit')
+            ->meta('source', basename($this->sourcePath));
+
+        // Reader-Info als Meta-Tag
+        if ($this->reader !== null) {
+            $builder->meta('pdf-reader', $this->reader->value);
+        }
+
+        // Standard-CSS für lesbare Darstellung
+        $defaultCss = <<<CSS
+body {
+    font-family: 'DejaVu Sans', Arial, Helvetica, sans-serif;
+    font-size: 12pt;
+    line-height: 1.6;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    color: #333;
+}
+pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: inherit;
+    margin: 0;
+}
+.scanned-notice {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    padding: 10px;
+    margin-bottom: 20px;
+    border-radius: 4px;
+}
+CSS;
+
+        $builder->addInlineStyle($css ?? $defaultCss);
+
+        // Hinweis wenn OCR verwendet wurde
+        if ($this->isScanned) {
+            $builder->div('Dieses Dokument wurde mittels OCR verarbeitet. Der Text kann Erkennungsfehler enthalten.', ['class' => 'scanned-notice']);
+        }
+
+        // Text als pre-formatierter Block (behält Formatierung)
+        if ($this->text !== null) {
+            $builder->pre($this->text);
+        } else {
+            $builder->p('Kein Text verfügbar.', ['style' => 'color: #999; font-style: italic;']);
+        }
+
+        return $builder->build();
+    }
+
+    /**
+     * Rendert den Text als HTML-String.
+     * 
+     * @param string|null $title Optionaler Titel
+     * @param string|null $css Optionales Inline-CSS  
+     * @param bool $pretty Pretty-Print HTML
+     * @return string HTML-String
+     */
+    public function renderAsHtml(?string $title = null, ?string $css = null, bool $pretty = true): string {
+        return $this->getTextAsHtml($title, $css)->render($pretty);
     }
 
     /**
