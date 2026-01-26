@@ -2,7 +2,7 @@
   "name": "daniel-jorg-schuppelius/php-pdf-toolkit",
   "description": "PHP 8.2+ library for PDF text extraction with automatic reader selection. Supports embedded text and scanned documents via OCR.",
   "type": "library",
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "authors": [
     {
       "name": "Daniel Jörg Schuppelius",

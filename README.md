@@ -195,4 +195,4 @@ PDFWriterRegistry → [Writers by Priority] → PDF File
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file.
+AGPL-3.0-or-later - see [LICENSE](LICENSE) file.
