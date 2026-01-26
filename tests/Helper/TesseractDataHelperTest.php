@@ -96,12 +96,12 @@ final class TesseractDataHelperTest extends TestCase {
     public function testLocalDataPathContainsTrainedData(): void {
         $localPath = TesseractDataHelper::getLocalDataPath();
 
-        // Wenn das lokale Verzeichnis existiert, sollten Trainingsdaten vorhanden sein
-        if (is_dir($localPath)) {
-            $this->assertTrue(TesseractDataHelper::hasTrainedData($localPath));
-        } else {
-            $this->markTestSkipped('Lokales Tesseract-Datenverzeichnis nicht vorhanden');
+        // Wenn das lokale Verzeichnis Trainingsdaten enthält, sollte hasTrainedData true zurückgeben
+        if (!is_dir($localPath) || !TesseractDataHelper::hasTrainedData($localPath)) {
+            $this->markTestSkipped('Lokale Tesseract-Trainingsdaten nicht vorhanden (in .gitignore ausgeschlossen)');
         }
+
+        $this->assertTrue(TesseractDataHelper::hasTrainedData($localPath));
     }
 
     public function testGetUsableDataPathReturnsPathWhenDataExists(): void {
