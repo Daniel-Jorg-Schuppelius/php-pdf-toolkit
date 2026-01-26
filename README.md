@@ -49,7 +49,7 @@ A PHP 8.2+ library for extracting text from PDF documents and creating PDFs with
 ### Via Composer
 
 ```bash
-composer require dschuppelius/php-pdf-toolkit
+composer require daniel-jorg-schuppelius/php-pdf-toolkit
 ```
 
 ### Clone with Submodules
