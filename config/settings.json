@@ -1,9 +1,12 @@
 {
     "PDFSettings": [
-        {"key": "tesseract_lang", "value": "eng", "enabled": true},
+        {"key": "tesseract_lang", "value": "deu+eng", "enabled": true},
         {"key": "tesseract_data_path", "value": "", "enabled": false},
         {"key": "tesseract_psm", "value": 3, "enabled": true},
+        {"key": "tesseract_auto_select_language", "value": true, "enabled": true},
         {"key": "ocrmypdf_psm", "value": 11, "enabled": true},
-        {"key": "pdftoppm_dpi", "value": 300, "enabled": true}
+        {"key": "pdftoppm_dpi", "value": 300, "enabled": true},
+        {"key": "quality_check_enabled", "value": true, "enabled": true},
+        {"key": "quality_threshold", "value": 60.0, "enabled": true}
     ]
 }

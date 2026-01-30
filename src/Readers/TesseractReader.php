@@ -18,6 +18,7 @@ use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
 use PDFToolkit\Helper\TesseractDataHelper;
+use PDFToolkit\Helper\TextQualityAnalyzer;
 use ERRORToolkit\Traits\ErrorLog;
 
 /**
@@ -35,6 +36,7 @@ final class TesseractReader implements PDFReaderInterface {
     private string $tessDataPath;
     private int $defaultPsm;
     private int $defaultDpi;
+    private bool $autoSelectBestLanguage;
 
     public function __construct() {
         $this->loadConfig();
@@ -47,6 +49,7 @@ final class TesseractReader implements PDFReaderInterface {
         $this->tessDataPath = $this->config->getConfig('PDFSettings', 'tesseract_data_path') ?? '';
         $this->defaultPsm = (int) ($this->config->getConfig('PDFSettings', 'tesseract_psm') ?? 3);
         $this->defaultDpi = (int) ($this->config->getConfig('PDFSettings', 'pdftoppm_dpi') ?? 300);
+        $this->autoSelectBestLanguage = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_auto_select_language') ?? true);
 
         // Fallback auf lokales data-Verzeichnis mit automatischem Download
         if (empty($this->tessDataPath)) {
@@ -94,6 +97,67 @@ final class TesseractReader implements PDFReaderInterface {
         }
 
         $language = $options['language'] ?? $this->defaultLanguage;
+        $autoSelect = $options['auto_select_language'] ?? $this->autoSelectBestLanguage;
+
+        // Prüfe ob automatische Sprachauswahl aktiviert ist und mehrere Sprachen konfiguriert sind
+        if ($autoSelect && str_contains($language, '+')) {
+            return $this->extractTextWithBestLanguage($pdfPath, $language, $options);
+        }
+
+        return $this->extractTextWithLanguage($pdfPath, $language, $options);
+    }
+
+    /**
+     * Extrahiert Text mit automatischer Auswahl der besten Sprache.
+     * 
+     * Testet jede konfigurierte Sprache separat und wählt das Ergebnis
+     * mit der höchsten Qualität basierend auf TextQualityAnalyzer.
+     */
+    private function extractTextWithBestLanguage(string $pdfPath, string $languages, array $options): ?string {
+        $languageList = array_map('trim', explode('+', $languages));
+
+        if (count($languageList) < 2) {
+            return $this->extractTextWithLanguage($pdfPath, $languages, $options);
+        }
+
+        $this->logInfo("Auto-selecting best language from: " . implode(', ', $languageList));
+
+        // Sammle Ergebnisse für jede Sprache
+        $results = [];
+        foreach ($languageList as $lang) {
+            $text = $this->extractTextWithLanguage($pdfPath, $lang, $options);
+            if ($text !== null && trim($text) !== '') {
+                $results[$lang] = $text;
+            }
+        }
+
+        // Auch kombinierte Sprache testen (kann manchmal besser sein)
+        $combinedText = $this->extractTextWithLanguage($pdfPath, $languages, $options);
+        if ($combinedText !== null && trim($combinedText) !== '') {
+            $results[$languages] = $combinedText;
+        }
+
+        if (empty($results)) {
+            $this->logDebug("No text extracted with any language from: $pdfPath");
+            return null;
+        }
+
+        // Beste Ergebnis auswählen
+        $best = TextQualityAnalyzer::selectBestResult($results);
+
+        if (empty($best['text'])) {
+            return null;
+        }
+
+        $this->logInfo("Selected language '{$best['language']}' with quality score " . round($best['score'], 2));
+
+        return $best['text'];
+    }
+
+    /**
+     * Extrahiert Text mit einer spezifischen Sprache.
+     */
+    private function extractTextWithLanguage(string $pdfPath, string $language, array $options = []): ?string {
         $tempDir = sys_get_temp_dir() . '/tesseract_' . uniqid();
 
         if (!mkdir($tempDir, 0755, true)) {
@@ -158,13 +222,15 @@ final class TesseractReader implements PDFReaderInterface {
             }
 
             if (empty($allText)) {
-                $this->logDebug("Tesseract extracted no text from: $pdfPath");
+                $this->logDebug("Tesseract ($language) extracted no text from: $pdfPath");
                 return null;
             }
 
             $text = implode("\n\n--- Seite ---\n\n", $allText);
 
-            return $this->logDebugAndReturn($text, "Tesseract extracted " . strlen($text) . " chars from " . count($pages) . " pages");
+            $this->logDebug("Tesseract ($language) extracted " . strlen($text) . " chars from " . count($pages) . " pages");
+
+            return $text;
         } finally {
             // Aufräumen - rekursiv löschen
             Folder::delete($tempDir, true);

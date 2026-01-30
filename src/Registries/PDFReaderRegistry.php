@@ -16,6 +16,8 @@ use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Entities\PDFDocument;
 use PDFToolkit\Enums\PDFReaderType;
 use PDFToolkit\Helper\PDFHelper;
+use PDFToolkit\Helper\TextQualityAnalyzer;
+use PDFToolkit\Config\Config;
 use CommonToolkit\Helper\FileSystem\Folder;
 use ERRORToolkit\Traits\ErrorLog;
 use Generator;
@@ -157,14 +159,17 @@ final class PDFReaderRegistry {
     /**
      * Versucht, Text aus einer PDF zu extrahieren.
      * Probiert alle Reader der Reihe nach durch.
-     * OCR wird nur verwendet, wenn kein eingebetteter Text vorhanden ist.
+     * OCR wird nur verwendet, wenn kein eingebetteter Text vorhanden ist
+     * oder wenn die Textqualität unter einem Schwellwert liegt.
      * 
      * @param string $pdfPath Pfad zur PDF-Datei
-     * @param array $options Optionen (z.B. 'language' => 'deu+eng', 'forceOcr' => true)
+     * @param array $options Optionen (z.B. 'language' => 'deu+eng', 'forceOcr' => true, 'qualityThreshold' => 60)
      * @return PDFDocument
      */
     public function extractText(string $pdfPath, array $options = []): PDFDocument {
         $forceOcr = $options['forceOcr'] ?? false;
+        $qualityCheck = $options['qualityCheck'] ?? $this->getQualityCheckSetting();
+        $qualityThreshold = $options['qualityThreshold'] ?? $this->getQualityThresholdSetting();
 
         // Prüfen ob das PDF eingebetteten Text hat
         $hasEmbeddedText = PDFHelper::hasEmbeddedText($pdfPath);
@@ -173,51 +178,44 @@ final class PDFReaderRegistry {
             // PDF hat eingebetteten Text -> nur Text-Reader verwenden (kein OCR)
             $this->logDebug("PDF has embedded text, using text readers only");
 
-            foreach ($this->getTextPdfReaders() as $reader) {
-                // OCR-Reader überspringen wenn Text vorhanden
-                if ($reader::supportsScannedPdfs() && !$reader::supportsTextPdfs()) {
-                    continue;
+            $textResult = $this->extractWithTextReaders($pdfPath, $options);
+
+            if ($textResult !== null) {
+                // Qualitätsprüfung durchführen wenn aktiviert
+                if ($qualityCheck && $textResult->hasText()) {
+                    $language = $options['language'] ?? Config::getInstance()->getConfig('PDFSettings', 'tesseract_lang') ?? 'deu+eng';
+                    $qualityScore = TextQualityAnalyzer::calculateQualityScore($textResult->text, $language);
+
+                    $this->logDebug("Text quality score: " . round($qualityScore, 2) . " (threshold: $qualityThreshold)");
+
+                    if ($qualityScore < $qualityThreshold) {
+                        $this->logInfo("Text quality below threshold ($qualityScore < $qualityThreshold), trying OCR fallback");
+
+                        $ocrResult = $this->extractWithOcrReaders($pdfPath, $options);
+
+                        if ($ocrResult !== null && $ocrResult->hasText()) {
+                            $ocrScore = TextQualityAnalyzer::calculateQualityScore($ocrResult->text, $language);
+                            $this->logDebug("OCR quality score: " . round($ocrScore, 2));
+
+                            if ($ocrScore > $qualityScore) {
+                                $this->logInfo("OCR result better ($ocrScore > $qualityScore), using OCR");
+                                return $ocrResult;
+                            } else {
+                                $this->logDebug("Original text result still better, keeping it");
+                            }
+                        }
+                    }
                 }
 
-                // Reine OCR-Reader überspringen (z.B. tesseract, ocrmypdf)
-                if ($reader::getType()->isOcrOnly()) {
-                    continue;
-                }
-
-                if (!$reader->canHandle($pdfPath)) {
-                    continue;
-                }
-
-                $text = $reader->extractText($pdfPath, $options);
-                if ($text !== null && trim($text) !== '') {
-                    $this->logDebug("Text extracted with " . $reader::getType()->value);
-                    return new PDFDocument(
-                        text: $text,
-                        reader: $reader::getType(),
-                        isScanned: false,
-                        sourcePath: $pdfPath
-                    );
-                }
+                return $textResult;
             }
         } else {
             // Kein eingebetteter Text oder OCR erzwungen -> OCR verwenden
             $this->logDebug($forceOcr ? "OCR forced by option" : "PDF likely scanned, using OCR readers");
 
-            foreach ($this->getScannedPdfReaders() as $reader) {
-                if (!$reader->canHandle($pdfPath)) {
-                    continue;
-                }
-
-                $text = $reader->extractText($pdfPath, $options);
-                if ($text !== null && trim($text) !== '') {
-                    $this->logDebug("Text extracted via OCR with " . $reader::getType()->value);
-                    return new PDFDocument(
-                        text: $text,
-                        reader: $reader::getType(),
-                        isScanned: true,
-                        sourcePath: $pdfPath
-                    );
-                }
+            $ocrResult = $this->extractWithOcrReaders($pdfPath, $options);
+            if ($ocrResult !== null) {
+                return $ocrResult;
             }
         }
 
@@ -228,6 +226,78 @@ final class PDFReaderRegistry {
             isScanned: false,
             sourcePath: $pdfPath
         );
+    }
+
+    /**
+     * Extrahiert Text mit Text-Readern (pdftotext, pdfbox, etc.).
+     */
+    private function extractWithTextReaders(string $pdfPath, array $options): ?PDFDocument {
+        foreach ($this->getTextPdfReaders() as $reader) {
+            // OCR-Reader überspringen wenn Text vorhanden
+            if ($reader::supportsScannedPdfs() && !$reader::supportsTextPdfs()) {
+                continue;
+            }
+
+            // Reine OCR-Reader überspringen (z.B. tesseract, ocrmypdf)
+            if ($reader::getType()->isOcrOnly()) {
+                continue;
+            }
+
+            if (!$reader->canHandle($pdfPath)) {
+                continue;
+            }
+
+            $text = $reader->extractText($pdfPath, $options);
+            if ($text !== null && trim($text) !== '') {
+                $this->logDebug("Text extracted with " . $reader::getType()->value);
+                return new PDFDocument(
+                    text: $text,
+                    reader: $reader::getType(),
+                    isScanned: false,
+                    sourcePath: $pdfPath
+                );
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Extrahiert Text mit OCR-Readern (tesseract, ocrmypdf).
+     */
+    private function extractWithOcrReaders(string $pdfPath, array $options): ?PDFDocument {
+        foreach ($this->getScannedPdfReaders() as $reader) {
+            if (!$reader->canHandle($pdfPath)) {
+                continue;
+            }
+
+            $text = $reader->extractText($pdfPath, $options);
+            if ($text !== null && trim($text) !== '') {
+                $this->logDebug("Text extracted via OCR with " . $reader::getType()->value);
+                return new PDFDocument(
+                    text: $text,
+                    reader: $reader::getType(),
+                    isScanned: true,
+                    sourcePath: $pdfPath
+                );
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Holt die Einstellung für automatische Qualitätsprüfung aus der Config.
+     */
+    private function getQualityCheckSetting(): bool {
+        return (bool) (Config::getInstance()->getConfig('PDFSettings', 'quality_check_enabled') ?? true);
+    }
+
+    /**
+     * Holt den Qualitätsschwellwert aus der Config.
+     */
+    private function getQualityThresholdSetting(): float {
+        return (float) (Config::getInstance()->getConfig('PDFSettings', 'quality_threshold') ?? 60.0);
     }
 
     /**
