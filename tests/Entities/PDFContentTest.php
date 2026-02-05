@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 namespace Tests\Entities;
 
+use InvalidArgumentException;
 use PDFToolkit\Entities\PDFContent;
 use PHPUnit\Framework\TestCase;
 
@@ -56,7 +57,7 @@ final class PDFContentTest extends TestCase {
     }
 
     public function testFromFileThrowsExceptionForNonExistentFile(): void {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('File not found');
 
         PDFContent::fromFile('/nonexistent/file.html');

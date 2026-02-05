@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 namespace Tests\Registries;
 
+use InvalidArgumentException;
 use PDFToolkit\Entities\PDFContent;
 use PDFToolkit\Enums\PDFWriterType;
 use PDFToolkit\Registries\PDFWriterRegistry;
@@ -131,7 +132,7 @@ final class PDFWriterRegistryTest extends TestCase {
     }
 
     public function testPdfContentFromNonExistentFileThrows(): void {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         PDFContent::fromFile('/nonexistent/file.html');
     }
