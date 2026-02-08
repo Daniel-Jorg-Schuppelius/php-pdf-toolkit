@@ -46,16 +46,10 @@ class Config extends ConfigAbstract {
         parent::__construct($configDir);
     }
 
-    /**
-     * {@inheritdoc}
-     */
     protected static function getDefaultConfigDir(): string {
         return __DIR__ . '/../../config';
     }
 
-    /**
-     * {@inheritdoc}
-     */
     protected static function getProjectName(): string {
         return 'php-pdf-toolkit';
     }
@@ -209,16 +203,10 @@ class Config extends ConfigAbstract {
         return LogType::fromString(parent::getLogType());
     }
 
-    /**
-     * {@inheritdoc}
-     */
     protected static function getComposerFilePath(): string {
         return __DIR__ . '/../../composer.json';
     }
 
-    /**
-     * {@inheritdoc}
-     */
     protected static function getVersionFilePath(): string {
         return __DIR__ . '/../../VERSION';
     }
