@@ -12,7 +12,9 @@ declare(strict_types=1);
 
 namespace PDFToolkit\Registries;
 
+use CommonToolkit\Helper\FileSystem\File;
 use ERRORToolkit\Traits\ErrorLog;
+use InvalidArgumentException;
 use PDFToolkit\Contracts\PDFWriterInterface;
 use PDFToolkit\Entities\PDFContent;
 use PDFToolkit\Enums\PDFWriterType;
@@ -23,9 +25,21 @@ use PDFToolkit\Writers\{DompdfWriter, TcpdfWriter, WkhtmltopdfWriter};
  * 
  * Verwaltet alle verfügbaren Writer und wählt automatisch
  * den besten verfügbaren Writer für die Erstellung aus.
+ * 
+ * Diese Klasse verwendet das Singleton-Pattern, da die Writer-Liste
+ * beim ersten Laden initialisiert wird und danach wiederverwendet werden kann.
+ * 
+ * @example
+ * ```php
+ * $registry = PDFWriterRegistry::getInstance();
+ * $registry->htmlToPdf('<h1>Test</h1>', '/path/to/output.pdf');
+ * ```
  */
 final class PDFWriterRegistry {
     use ErrorLog;
+
+    /** @var self|null Singleton-Instanz */
+    private static ?self $instance = null;
 
     /** @var PDFWriterInterface[] */
     private array $writers = [];
@@ -37,8 +51,30 @@ final class PDFWriterRegistry {
         WkhtmltopdfWriter::class,
     ];
 
-    public function __construct() {
+    /**
+     * Private constructor - use getInstance() instead.
+     */
+    private function __construct() {
         $this->loadWriters();
+    }
+
+    /**
+     * Gibt die Singleton-Instanz der Registry zurück.
+     * 
+     * @return self Die einzige Instanz der Registry
+     */
+    public static function getInstance(): self {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    /**
+     * Setzt die Singleton-Instanz zurück (nur für Tests).
+     */
+    public static function resetInstance(): void {
+        self::$instance = null;
     }
 
     /**
@@ -223,8 +259,18 @@ final class PDFWriterRegistry {
 
     /**
      * Schnelle Methode: HTML-Datei zu PDF.
+     * 
+     * @param string $htmlFilePath Absoluter Pfad zur HTML-Eingabedatei
+     * @param string $outputPath Absoluter Pfad für die PDF-Ausgabedatei
+     * @param array $options Optionale Konfiguration:
+     *        - metadata: Array mit PDF-Metadaten (title, author, subject)
+     * @return bool true wenn erfolgreich
+     * @throws InvalidArgumentException Wenn die HTML-Datei nicht existiert
      */
     public function fileToPdf(string $htmlFilePath, string $outputPath, array $options = []): bool {
+        if (!File::exists($htmlFilePath)) {
+            throw new InvalidArgumentException("HTML-Datei nicht gefunden: {$htmlFilePath}");
+        }
         $content = PDFContent::fromFile($htmlFilePath, $options['metadata'] ?? []);
         return $this->createPdf($content, $outputPath, $options);
     }

@@ -151,7 +151,8 @@ final class MyReader implements PDFReaderInterface {
 ```php
 use PDFToolkit\Registries\PDFReaderRegistry;
 
-$registry = new PDFReaderRegistry();
+// Singleton-Pattern
+$registry = PDFReaderRegistry::getInstance();
 $document = $registry->extractText('/path/to/file.pdf', [
     'language' => 'deu+eng'
 ]);
@@ -161,4 +162,9 @@ if ($document->hasText()) {
     echo "Reader: " . $document->reader;
     echo "Gescannt: " . ($document->isScanned ? 'Ja' : 'Nein');
 }
+
+// Ohne OCR-Fallback (schneller für Text-PDFs wie Kontoauszüge)
+$document = $registry->extractTextOnly('/path/to/bankstatement.pdf', [
+    'layout' => false  // Ohne Layout-Formatierung für bessere Regex-Extraktion
+]);
 ```

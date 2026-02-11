@@ -23,7 +23,15 @@ final class PDFWriterRegistryTest extends TestCase {
     private PDFWriterRegistry $registry;
 
     protected function setUp(): void {
-        $this->registry = new PDFWriterRegistry();
+        PDFWriterRegistry::resetInstance();
+        $this->registry = PDFWriterRegistry::getInstance();
+    }
+
+    public function testSingletonReturnsSameInstance(): void {
+        $instance1 = PDFWriterRegistry::getInstance();
+        $instance2 = PDFWriterRegistry::getInstance();
+
+        $this->assertSame($instance1, $instance2);
     }
 
     public function testRegistryLoadsWriters(): void {

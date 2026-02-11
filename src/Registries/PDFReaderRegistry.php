@@ -18,26 +18,56 @@ use PDFToolkit\Enums\PDFReaderType;
 use PDFToolkit\Helper\PDFHelper;
 use PDFToolkit\Helper\TextQualityAnalyzer;
 use PDFToolkit\Config\Config;
+use CommonToolkit\Helper\FileSystem\File;
 use CommonToolkit\Helper\FileSystem\Folder;
 use ERRORToolkit\Traits\ErrorLog;
 use Generator;
+use InvalidArgumentException;
 
 /**
- * Registry für PDF-Reader.
+ * Registry für PDF-Reader (Singleton).
  * 
  * Lädt automatisch alle Reader aus dem Readers-Verzeichnis
  * und stellt sie nach Priorität sortiert zur Verfügung.
+ * 
+ * Verwendung:
+ * ```php
+ * $registry = PDFReaderRegistry::getInstance();
+ * $document = $registry->extractText('/path/to/file.pdf');
+ * ```
  */
 final class PDFReaderRegistry {
     use ErrorLog;
+
+    private static ?self $instance = null;
 
     /** @var PDFReaderInterface[] */
     private array $readers = [];
 
     private bool $loaded = false;
 
-    public function __construct() {
+    /**
+     * Privater Konstruktor für Singleton-Pattern.
+     */
+    private function __construct() {
         $this->loadReaders();
+    }
+
+    /**
+     * Gibt die Singleton-Instanz zurück.
+     */
+    public static function getInstance(): self {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    /**
+     * Setzt die Singleton-Instanz zurück (nur für Tests).
+     */
+    public static function resetInstance(): void {
+        self::$instance = null;
     }
 
     /**
@@ -163,10 +193,20 @@ final class PDFReaderRegistry {
      * oder wenn die Textqualität unter einem Schwellwert liegt.
      * 
      * @param string $pdfPath Pfad zur PDF-Datei
-     * @param array $options Optionen (z.B. 'language' => 'deu+eng', 'forceOcr' => true, 'qualityThreshold' => 60)
+     * @param array $options Optionen:
+     *   - 'language': Sprache für OCR (z.B. 'deu+eng')
+     *   - 'forceOcr': OCR erzwingen auch bei Text-PDFs (Standard: false)
+     *   - 'qualityCheck': Qualitätsprüfung aktivieren (Standard: Config)
+     *   - 'qualityThreshold': Schwellwert für OCR-Fallback (Standard: 60)
+     *   - 'layout': Layout-Modus für pdftotext (Standard: true)
      * @return PDFDocument
+     * @throws InvalidArgumentException wenn die Datei nicht existiert
      */
     public function extractText(string $pdfPath, array $options = []): PDFDocument {
+        if (!File::exists($pdfPath)) {
+            self::logErrorAndThrow(InvalidArgumentException::class, "PDF-Datei existiert nicht: $pdfPath");
+        }
+
         $forceOcr = $options['forceOcr'] ?? false;
         $qualityCheck = $options['qualityCheck'] ?? $this->getQualityCheckSetting();
         $qualityThreshold = $options['qualityThreshold'] ?? $this->getQualityThresholdSetting();
@@ -305,6 +345,40 @@ final class PDFReaderRegistry {
      */
     public function count(): int {
         return count($this->readers);
+    }
+
+    /**
+     * Extrahiert Text nur mit Text-Readern (kein OCR).
+     * 
+     * Ideal für PDFs mit eingebettetem Text wie z.B. Bank-Kontoauszüge.
+     * Schneller als extractText(), da kein OCR-Fallback versucht wird.
+     * 
+     * @param string $pdfPath Pfad zur PDF-Datei
+     * @param array $options Optionen:
+     *   - 'layout': Layout-Modus für pdftotext (Standard: true)
+     *              Bei false wird der Text ohne Layout-Formatierung extrahiert,
+     *              was für Regex-basierte Transaktions-Extraktion besser geeignet ist.
+     * @return PDFDocument
+     * @throws InvalidArgumentException wenn die Datei nicht existiert
+     */
+    public function extractTextOnly(string $pdfPath, array $options = []): PDFDocument {
+        if (!File::exists($pdfPath)) {
+            self::logErrorAndThrow(InvalidArgumentException::class, "PDF-Datei existiert nicht: $pdfPath");
+        }
+
+        $result = $this->extractWithTextReaders($pdfPath, $options);
+
+        if ($result !== null) {
+            return $result;
+        }
+
+        $this->logDebug("No text reader could extract text from: $pdfPath");
+        return new PDFDocument(
+            text: null,
+            reader: null,
+            isScanned: false,
+            sourcePath: $pdfPath
+        );
     }
 
     /**

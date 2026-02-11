@@ -3,9 +3,16 @@
         "pdftotext": {
             "path": "pdftotext",
             "required": true,
-            "description": "PDF to Text Converter",
+            "description": "PDF to Text Converter (with layout)",
             "package": "poppler-utils",
             "arguments": ["-layout", "-enc", "UTF-8", "[PDF-FILE]", "[TEXT-FILE]"]
+        },
+        "pdftotext-raw": {
+            "path": "pdftotext",
+            "required": false,
+            "description": "PDF to Text Converter (raw, without layout)",
+            "package": "poppler-utils",
+            "arguments": ["-enc", "UTF-8", "[PDF-FILE]", "[TEXT-FILE]"]
         },
         "pdfinfo": {
             "path": "pdfinfo",

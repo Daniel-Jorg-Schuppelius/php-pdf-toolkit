@@ -93,7 +93,7 @@ sudo apt install wkhtmltopdf
 ```php
 use PDFToolkit\Registries\PDFReaderRegistry;
 
-$registry = new PDFReaderRegistry();
+$registry = PDFReaderRegistry::getInstance();
 $document = $registry->extractText('/path/to/file.pdf', [
     'language' => 'deu+eng'
 ]);
@@ -103,6 +103,11 @@ if ($document->hasText()) {
     echo "Reader: " . $document->reader;
     echo "Scanned: " . ($document->isScanned ? 'Yes' : 'No');
 }
+
+// Ohne OCR-Fallback (schneller für Text-PDFs wie Kontoauszüge)
+$document = $registry->extractTextOnly('/path/to/bankstatement.pdf', [
+    'layout' => false  // Ohne Layout-Formatierung für bessere Regex-Extraktion
+]);
 ```
 
 ### PDF Creation
@@ -111,7 +116,7 @@ if ($document->hasText()) {
 use PDFToolkit\Registries\PDFWriterRegistry;
 use PDFToolkit\Entities\PDFContent;
 
-$registry = new PDFWriterRegistry();
+$registry = PDFWriterRegistry::getInstance();
 
 // Simple: HTML to PDF
 $registry->htmlToPdf('<h1>Hello World</h1><p>Content</p>', '/path/to/output.pdf');
@@ -145,13 +150,14 @@ echo $pdfString;
 
 ```php
 // Readers
-$readerRegistry = new PDFReaderRegistry();
+$readerRegistry = PDFReaderRegistry::getInstance();
 foreach ($readerRegistry->getReaderInfo() as $info) {
     echo "{$info['name']}: " . ($info['available'] ? '✓' : '✗') . "\n";
 }
+}
 
 // Writers
-$writerRegistry = new PDFWriterRegistry();
+$writerRegistry = PDFWriterRegistry::getInstance();
 foreach ($writerRegistry->getWriterInfo() as $info) {
     echo "{$info['name']}: " . ($info['available'] ? '✓' : '✗') . "\n";
 }

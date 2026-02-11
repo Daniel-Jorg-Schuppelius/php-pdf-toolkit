@@ -20,18 +20,29 @@ use PHPUnit\Framework\TestCase;
 final class PDFReaderRegistryTest extends TestCase {
     private const SAMPLE_PDF = __DIR__ . '/../../.samples/PDF/test-text.pdf';
 
+    protected function setUp(): void {
+        // Singleton vor jedem Test zurücksetzen für Isolation
+        PDFReaderRegistry::resetInstance();
+    }
+
     public function testCanInstantiate(): void {
-        $registry = new PDFReaderRegistry();
+        $registry = PDFReaderRegistry::getInstance();
         $this->assertInstanceOf(PDFReaderRegistry::class, $registry);
     }
 
+    public function testSingletonReturnsSameInstance(): void {
+        $registry1 = PDFReaderRegistry::getInstance();
+        $registry2 = PDFReaderRegistry::getInstance();
+        $this->assertSame($registry1, $registry2);
+    }
+
     public function testCountReturnsInteger(): void {
-        $registry = new PDFReaderRegistry();
+        $registry = PDFReaderRegistry::getInstance();
         $this->assertIsInt($registry->count());
     }
 
     public function testGetAvailableReaderTypesReturnsArray(): void {
-        $registry = new PDFReaderRegistry();
+        $registry = PDFReaderRegistry::getInstance();
         $types = $registry->getAvailableReaderTypes();
         $this->assertIsArray($types);
         foreach ($types as $type) {
@@ -40,12 +51,12 @@ final class PDFReaderRegistryTest extends TestCase {
     }
 
     public function testHasAvailableReaders(): void {
-        $registry = new PDFReaderRegistry();
+        $registry = PDFReaderRegistry::getInstance();
         $this->assertGreaterThan(0, $registry->count(), 'Mindestens ein Reader sollte verfügbar sein');
     }
 
     public function testPdftotextReaderIsAvailable(): void {
-        $registry = new PDFReaderRegistry();
+        $registry = PDFReaderRegistry::getInstance();
         $types = $registry->getAvailableReaderTypes();
         $this->assertContains(PDFReaderType::Pdftotext, $types, 'pdftotext-Reader sollte verfügbar sein');
     }
@@ -55,7 +66,7 @@ final class PDFReaderRegistryTest extends TestCase {
             $this->markTestSkipped('Sample PDF nicht vorhanden: ' . self::SAMPLE_PDF);
         }
 
-        $registry = new PDFReaderRegistry();
+        $registry = PDFReaderRegistry::getInstance();
         $doc = $registry->extractText(self::SAMPLE_PDF);
 
         $this->assertInstanceOf(PDFDocument::class, $doc);
@@ -68,7 +79,7 @@ final class PDFReaderRegistryTest extends TestCase {
             $this->markTestSkipped('Sample PDF nicht vorhanden: ' . self::SAMPLE_PDF);
         }
 
-        $registry = new PDFReaderRegistry();
+        $registry = PDFReaderRegistry::getInstance();
         $doc = $registry->extractText(self::SAMPLE_PDF);
 
         $this->assertInstanceOf(PDFDocument::class, $doc);
@@ -81,7 +92,7 @@ final class PDFReaderRegistryTest extends TestCase {
             $this->markTestSkipped('Sample PDF nicht vorhanden: ' . self::SAMPLE_PDF);
         }
 
-        $registry = new PDFReaderRegistry();
+        $registry = PDFReaderRegistry::getInstance();
         $doc = $registry->extractText(self::SAMPLE_PDF);
 
         $this->assertInstanceOf(PDFDocument::class, $doc);
@@ -95,7 +106,7 @@ final class PDFReaderRegistryTest extends TestCase {
             $this->markTestSkipped('Scanned PDF nicht vorhanden: ' . $scannedPdf);
         }
 
-        $registry = new PDFReaderRegistry();
+        $registry = PDFReaderRegistry::getInstance();
 
         // Prüfen ob OCR-Reader verfügbar sind
         $types = $registry->getAvailableReaderTypes();
@@ -117,7 +128,7 @@ final class PDFReaderRegistryTest extends TestCase {
             $this->markTestSkipped('Scanned PDF nicht vorhanden');
         }
 
-        $registry = new PDFReaderRegistry();
+        $registry = PDFReaderRegistry::getInstance();
         $doc = $registry->extractText($scannedPdf);
 
         if ($doc->reader === null) {

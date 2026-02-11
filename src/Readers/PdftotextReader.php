@@ -78,8 +78,18 @@ final class PdftotextReader implements PDFReaderInterface {
 
         $tempFile = sys_get_temp_dir() . '/pdftotext_' . uniqid() . '.txt';
 
-        // Befehl aus Config bauen (enthält -layout -enc UTF-8)
-        $command = $this->config->buildCommand('pdftotext', [
+        // Option für Layout-Modus (Standard: true für Abwärtskompatibilität)
+        // Bank-PDFs benötigen oft layout: false für korrekte Transaktions-Extraktion
+        $useLayout = $options['layout'] ?? true;
+        $configKey = $useLayout ? 'pdftotext' : 'pdftotext-raw';
+
+        // Fallback auf pdftotext falls pdftotext-raw nicht konfiguriert
+        if (!$useLayout && !$this->config->isExecutableAvailable('pdftotext-raw')) {
+            $configKey = 'pdftotext';
+            $this->logDebug('pdftotext-raw not available, using pdftotext with layout');
+        }
+
+        $command = $this->config->buildCommand($configKey, [
             '[PDF-FILE]' => $pdfPath,
             '[TEXT-FILE]' => $tempFile,
         ]);
