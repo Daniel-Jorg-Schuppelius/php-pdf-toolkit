@@ -23,6 +23,16 @@ use ERRORToolkit\Traits\ErrorLog;
 final class PDFHelper {
     use ErrorLog;
 
+    /** Cache für hasEmbeddedText() Ergebnisse (filePath:minChars => bool) */
+    private static array $embeddedTextCache = [];
+
+    /**
+     * Löscht den Cache für hasEmbeddedText().
+     */
+    public static function clearCache(): void {
+        self::$embeddedTextCache = [];
+    }
+
     /**
      * Prüft ob eine Datei ein gültiges PDF ist.
      */
@@ -94,8 +104,36 @@ final class PDFHelper {
     /**
      * Prüft ob das PDF Text enthält (nicht nur Bilder).
      * Nutzt pdftotext für einen schnellen Check der ersten Seite.
+     * Ergebnis wird gecacht um redundante Shell-Aufrufe zu vermeiden.
      */
     public static function hasEmbeddedText(string $filePath, int $minChars = 20): bool {
+        $cacheKey = $filePath . ':' . $minChars;
+        if (isset(self::$embeddedTextCache[$cacheKey])) {
+            return self::$embeddedTextCache[$cacheKey];
+        }
+
+        // Optimierung: Wenn ein höherer minChars-Wert schon true war,
+        // dann ist ein niedrigerer Wert garantiert auch true.
+        foreach (self::$embeddedTextCache as $key => $value) {
+            if ($value && str_starts_with($key, $filePath . ':')) {
+                $cachedMinChars = (int) substr($key, strlen($filePath) + 1);
+                if ($cachedMinChars >= $minChars) {
+                    self::$embeddedTextCache[$cacheKey] = true;
+                    return true;
+                }
+            }
+        }
+
+        $result = self::checkEmbeddedText($filePath, $minChars);
+        self::$embeddedTextCache[$cacheKey] = $result;
+
+        return $result;
+    }
+
+    /**
+     * Tatsächliche Prüfung ob das PDF eingebetteten Text enthält (ohne Cache).
+     */
+    private static function checkEmbeddedText(string $filePath, int $minChars): bool {
         if (!self::isValidPdf($filePath)) {
             return false;
         }
