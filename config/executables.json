@@ -5,91 +5,185 @@
             "required": true,
             "description": "PDF to Text Converter (with layout)",
             "package": "poppler-utils",
-            "arguments": ["-layout", "-enc", "UTF-8", "[PDF-FILE]", "[TEXT-FILE]"]
+            "arguments": [
+                "-layout",
+                "-enc",
+                "UTF-8",
+                "[PDF-FILE]",
+                "[TEXT-FILE]"
+            ]
         },
         "pdftotext-raw": {
             "path": "pdftotext",
             "required": false,
             "description": "PDF to Text Converter (raw, without layout)",
             "package": "poppler-utils",
-            "arguments": ["-enc", "UTF-8", "[PDF-FILE]", "[TEXT-FILE]"]
+            "arguments": [
+                "-enc",
+                "UTF-8",
+                "[PDF-FILE]",
+                "[TEXT-FILE]"
+            ]
         },
         "pdfinfo": {
             "path": "pdfinfo",
             "required": true,
             "description": "PDF Metadata Extractor",
             "package": "poppler-utils",
-            "arguments": ["[PDF-FILE]"]
+            "arguments": [
+                "[PDF-FILE]"
+            ]
         },
         "pdftoppm": {
             "path": "pdftoppm",
             "required": true,
             "description": "PDF to PPM/PNG/JPEG Converter",
             "package": "poppler-utils",
-            "arguments": ["-png", "-r", "[DPI]", "[PDF-FILE]", "[OUTPUT-PREFIX]"]
+            "arguments": [
+                "-png",
+                "-r",
+                "[DPI]",
+                "[PDF-FILE]",
+                "[OUTPUT-PREFIX]"
+            ]
         },
         "pdfdetach-list": {
             "path": "pdfdetach",
             "required": false,
             "description": "PDF Attachment Extractor - List mode",
             "package": "poppler-utils",
-            "arguments": ["-list", "[PDF-FILE]"]
+            "arguments": [
+                "-list",
+                "[PDF-FILE]"
+            ]
         },
         "pdfdetach-savefile": {
             "path": "pdfdetach",
             "required": false,
             "description": "PDF Attachment Extractor - Save single file",
             "package": "poppler-utils",
-            "arguments": ["-savefile", "[FILENAME]", "-o", "[OUTPUT-FILE]", "[PDF-FILE]"]
+            "arguments": [
+                "-savefile",
+                "[FILENAME]",
+                "-o",
+                "[OUTPUT-FILE]",
+                "[PDF-FILE]"
+            ]
         },
         "pdfdetach-saveall": {
             "path": "pdfdetach",
             "required": false,
             "description": "PDF Attachment Extractor - Save all files",
             "package": "poppler-utils",
-            "arguments": ["-saveall", "-o", "[OUTPUT-DIR]", "[PDF-FILE]"]
+            "arguments": [
+                "-saveall",
+                "-o",
+                "[OUTPUT-DIR]",
+                "[PDF-FILE]"
+            ]
         },
         "pdftk-dump": {
             "path": "pdftk",
             "required": false,
             "description": "PDF Toolkit - Dump metadata",
             "package": "pdftk-java",
-            "arguments": ["[PDF-FILE]", "dump_data"]
+            "arguments": [
+                "[PDF-FILE]",
+                "dump_data"
+            ]
         },
         "pdftk-unpack": {
             "path": "pdftk",
             "required": false,
             "description": "PDF Toolkit - Unpack attachments",
             "package": "pdftk-java",
-            "arguments": ["[PDF-FILE]", "unpack_files", "output", "[OUTPUT-DIR]"]
+            "arguments": [
+                "[PDF-FILE]",
+                "unpack_files",
+                "output",
+                "[OUTPUT-DIR]"
+            ]
         },
         "tesseract": {
             "path": "tesseract",
             "required": true,
             "description": "OCR Engine",
             "package": "tesseract-ocr",
-            "arguments": ["[INPUT]", "[OUTPUT]", "-l", "[LANG]", "--psm", "[PSM]"]
+            "arguments": [
+                "[INPUT]",
+                "[OUTPUT]",
+                "-l",
+                "[LANG]",
+                "--psm",
+                "[PSM]"
+            ]
         },
         "ocrmypdf": {
             "path": "ocrmypdf",
             "required": true,
             "description": "PDF OCR via OCRmyPDF",
             "package": "ocrmypdf",
-            "arguments": ["-q", "--tesseract-pagesegmode", "[PSM]", "--language", "[LANG]", "--deskew", "--clean", "--skip-text", "--output-type", "pdf", "[INPUT]", "[OUTPUT]"]
+            "arguments": [
+                "-q",
+                "--tesseract-pagesegmode",
+                "[PSM]",
+                "--language",
+                "[LANG]",
+                "--deskew",
+                "--clean",
+                "--skip-text",
+                "--output-type",
+                "pdf",
+                "[INPUT]",
+                "[OUTPUT]"
+            ]
         },
         "wkhtmltopdf": {
             "path": "wkhtmltopdf",
             "required": false,
             "description": "HTML to PDF Converter (WebKit-based)",
             "package": "wkhtmltopdf",
-            "arguments": ["--page-size", "[SIZE]", "--encoding", "UTF-8", "--quiet", "[INPUT]", "[OUTPUT]"]
+            "arguments": [
+                "--page-size",
+                "[SIZE]",
+                "--encoding",
+                "UTF-8",
+                "--quiet",
+                "[INPUT]",
+                "[OUTPUT]"
+            ]
+        },
+        "gs-crop": {
+            "path": "gs",
+            "required": false,
+            "description": "Ghostscript PDF Crop (Zuschnitt)",
+            "package": "ghostscript",
+            "arguments": [
+                "-sDEVICE=pdfwrite",
+                "-dNOPAUSE",
+                "-dBATCH",
+                "-dQUIET",
+                "-dDEVICEWIDTHPOINTS=[WIDTH]",
+                "-dDEVICEHEIGHTPOINTS=[HEIGHT]",
+                "-dFIXEDMEDIA",
+                "[FIRST-PAGE]",
+                "[LAST-PAGE]",
+                "-sOutputFile=[OUTPUT]",
+                "-c",
+                "'[POSTSCRIPT]'",
+                "-f",
+                "[INPUT]"
+            ]
         },
         "java": {
             "path": "java",
             "required": true,
             "description": "Java Runtime Environment",
             "package": "default-jre",
-            "arguments": ["-jar", "[JAR]"]
+            "arguments": [
+                "-jar",
+                "[JAR]"
+            ]
         }
     },
     "javaExecutables": {
@@ -98,7 +192,13 @@
             "required": true,
             "description": "Apache PDFBox Tool",
             "url": "https://dlcdn.apache.org/pdfbox/3.0.0-alpha2/pdfbox-app-3.0.0-alpha2.jar",
-            "arguments": ["export:text", "-i", "[INPUT]", "-o", "[OUTPUT]"]
+            "arguments": [
+                "export:text",
+                "-i",
+                "[INPUT]",
+                "-o",
+                "[OUTPUT]"
+            ]
         }
     }
 }
