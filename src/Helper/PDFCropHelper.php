@@ -196,7 +196,7 @@ final class PDFCropHelper {
      * 
      * @return array{width: float, height: float}|null null bei Fehler
      */
-    private static function getPageDimensions(string $inputPath): ?array {
+    public static function getPageDimensions(string $inputPath): ?array {
         $metadata = PDFHelper::getMetadata($inputPath);
         if (empty($metadata['Page size'])) {
             self::logError('Konnte Seitengröße nicht ermitteln', ['path' => $inputPath]);
