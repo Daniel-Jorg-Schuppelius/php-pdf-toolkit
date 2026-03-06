@@ -205,6 +205,19 @@
                 "[OUTPUT]"
             ]
         },
+        "pdftk-cat": {
+            "path": "pdftk",
+            "required": false,
+            "description": "PDF Toolkit - Seitenbereich extrahieren",
+            "package": "pdftk-java",
+            "arguments": [
+                "[INPUT]",
+                "cat",
+                "[PAGE-RANGE]",
+                "output",
+                "[OUTPUT]"
+            ]
+        },
         "java": {
             "path": "java",
             "required": true,
