@@ -175,6 +175,26 @@
                 "[INPUT]"
             ]
         },
+        "gs-resize": {
+            "path": "gs",
+            "required": false,
+            "description": "Ghostscript PDF Resize (Skalierung auf Zielgröße)",
+            "package": "ghostscript",
+            "arguments": [
+                "-sDEVICE=pdfwrite",
+                "-dNOPAUSE",
+                "-dBATCH",
+                "-dQUIET",
+                "-dDEVICEWIDTHPOINTS=[WIDTH]",
+                "-dDEVICEHEIGHTPOINTS=[HEIGHT]",
+                "-dFIXEDMEDIA",
+                "-dPDFFitPage",
+                "-dCompatibilityLevel=1.4",
+                "-sOutputFile=[OUTPUT]",
+                "-f",
+                "[INPUT]"
+            ]
+        },
         "java": {
             "path": "java",
             "required": true,

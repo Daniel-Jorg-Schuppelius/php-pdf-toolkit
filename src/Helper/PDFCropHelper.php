@@ -215,6 +215,71 @@ final class PDFCropHelper {
     }
 
     /**
+     * Skaliert eine PDF-Seite auf eine Zielgröße (FitPage).
+     *
+     * Das bestehende PDF wird proportional auf die angegebene Größe skaliert.
+     * 1 cm = 28.3465 PDF-Punkte (72/2.54).
+     *
+     * @param string $inputPath Pfad zur Quell-PDF
+     * @param string $outputPath Pfad zur Ziel-PDF
+     * @param float $widthPt Zielbreite in PDF-Punkten
+     * @param float $heightPt Zielhöhe in PDF-Punkten
+     * @return bool true bei Erfolg
+     */
+    public static function resizeToFit(
+        string $inputPath,
+        string $outputPath,
+        float $widthPt,
+        float $heightPt
+    ): bool {
+        if (!PDFHelper::isValidPdf($inputPath)) {
+            self::logError('Ungültige PDF-Datei', ['path' => $inputPath]);
+            return false;
+        }
+
+        $config = Config::getInstance();
+        if (!$config->isExecutableAvailable('gs-resize')) {
+            self::logError('Ghostscript (gs-resize) ist nicht konfiguriert oder nicht verfügbar');
+            return false;
+        }
+
+        $command = $config->buildCommand('gs-resize', [
+            '[WIDTH]' => number_format($widthPt, 2, '.', ''),
+            '[HEIGHT]' => number_format($heightPt, 2, '.', ''),
+            '[OUTPUT]' => $outputPath,
+            '[INPUT]' => $inputPath,
+        ]);
+
+        if ($command === null) {
+            self::logError('Konnte gs-resize Befehl nicht erstellen');
+            return false;
+        }
+
+        $output = [];
+        $returnCode = 0;
+        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0) {
+            self::logError('Ghostscript-Resize fehlgeschlagen', [
+                'returnCode' => $returnCode,
+                'output' => implode("\n", $output),
+            ]);
+            return false;
+        }
+
+        if (!File::exists($outputPath)) {
+            self::logError('Resized PDF wurde nicht erstellt', ['path' => $outputPath]);
+            return false;
+        }
+
+        self::logInfo('PDF erfolgreich skaliert', [
+            'input' => $inputPath,
+            'output' => $outputPath,
+            'targetSize' => sprintf('%.0fx%.0f pt', $widthPt, $heightPt),
+        ]);
+
+        return true;
+    }
+
+    /**
      * Prüft ob Ghostscript für Cropping verfügbar ist.
      */
     public static function isAvailable(): bool {
