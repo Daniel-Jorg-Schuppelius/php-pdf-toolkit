@@ -195,6 +195,16 @@
                 "[INPUT]"
             ]
         },
+        "pdfunite": {
+            "path": "pdfunite",
+            "required": false,
+            "description": "PDF Merge (Zusammenführen mehrerer PDFs)",
+            "package": "poppler-utils",
+            "arguments": [
+                "[INPUT-FILES]",
+                "[OUTPUT]"
+            ]
+        },
         "java": {
             "path": "java",
             "required": true,
