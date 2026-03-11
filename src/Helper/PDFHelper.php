@@ -15,6 +15,8 @@ namespace PDFToolkit\Helper;
 use CommonToolkit\Helper\FileSystem\File;
 use CommonToolkit\Helper\Shell;
 use PDFToolkit\Config\Config;
+use PDFToolkit\Entities\PageSize;
+use PDFToolkit\Enums\PaperFormat;
 use ERRORToolkit\Traits\ErrorLog;
 
 /**
@@ -192,5 +194,178 @@ final class PDFHelper {
         }
 
         return null;
+    }
+
+    /**
+     * Gibt die Seitengröße einer bestimmten Seite zurück.
+     * 
+     * @param string $filePath Pfad zur PDF-Datei
+     * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
+     * @return PageSize|null Die Seitengröße oder null bei Fehler
+     */
+    public static function getPageSize(string $filePath, int $pageNumber = 1): ?PageSize {
+        $metadata = self::getMetadata($filePath);
+
+        if (empty($metadata) || !isset($metadata['Page size'])) {
+            return null;
+        }
+
+        // pdfinfo gibt "Page size" im Format "595.3 x 841.9 pts (A4)" zurück
+        return PageSize::fromPdfInfoString($metadata['Page size'], $pageNumber);
+    }
+
+    /**
+     * Gibt die Seitengrößen aller Seiten zurück.
+     * 
+     * Nutzt pdfinfo -l für seitenweise Metadaten (nur wenn pdfinfo verfügbar).
+     * 
+     * @return array<int, PageSize> Array mit PageSize-Objekten, indiziert nach Seitennummer (1-basiert)
+     */
+    public static function getAllPageSizes(string $filePath): array {
+        if (!self::isValidPdf($filePath)) {
+            return [];
+        }
+
+        $config = Config::getInstance();
+        if ($config->getShellExecutable('pdfinfo') === null) {
+            return [];
+        }
+
+        $pageCount = self::getPageCount($filePath);
+        if ($pageCount === 0) {
+            return [];
+        }
+
+        // pdfinfo -l N gibt detaillierte Info pro Seite
+        $command = $config->buildCommand('pdfinfo', [
+            '[PDF-FILE]' => $filePath,
+        ], ['-l', (string) $pageCount]);
+
+        $output = [];
+        $returnCode = 0;
+        Shell::executeShellCommand($command, $output, $returnCode);
+
+        if ($returnCode !== 0) {
+            return [];
+        }
+
+        $sizes = [];
+        $currentPage = null;
+        $currentWidth = null;
+        $currentHeight = null;
+
+        foreach ($output as $line) {
+            // "Page    1 size:  ..." oder "Page   12 size:  ..."
+            if (preg_match('/^Page\s+(\d+)\s+size:\s*([0-9.]+)\s*x\s*([0-9.]+)\s*pts/i', $line, $matches)) {
+                $pageNum = (int) $matches[1];
+                $sizes[$pageNum] = new PageSize(
+                    widthPt: (float) $matches[2],
+                    heightPt: (float) $matches[3],
+                    pageNumber: $pageNum
+                );
+            }
+        }
+
+        // Fallback auf Standard-Seitengröße wenn keine seitenweisen Daten
+        if (empty($sizes)) {
+            $defaultSize = self::getPageSize($filePath, 1);
+            if ($defaultSize !== null) {
+                for ($i = 1; $i <= $pageCount; $i++) {
+                    $sizes[$i] = new PageSize(
+                        widthPt: $defaultSize->widthPt,
+                        heightPt: $defaultSize->heightPt,
+                        pageNumber: $i
+                    );
+                }
+            }
+        }
+
+        return $sizes;
+    }
+
+    /**
+     * Prüft ob das PDF ein bestimmtes Format hat.
+     * 
+     * @param string $filePath Pfad zur PDF-Datei
+     * @param PaperFormat|string $format Format-Enum oder String (z.B. "A4", "letter")
+     * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
+     * @param float $tolerancePt Toleranz in Points (Standard: 5.0 ≈ 1.8mm)
+     */
+    public static function isFormat(string $filePath, PaperFormat|string $format, int $pageNumber = 1, float $tolerancePt = 5.0): bool {
+        $pageSize = self::getPageSize($filePath, $pageNumber);
+        if ($pageSize === null) {
+            return false;
+        }
+        return $pageSize->isFormat($format, $tolerancePt);
+    }
+
+    /**
+     * Erkennt automatisch das Papierformat einer Seite.
+     * 
+     * @param string $filePath Pfad zur PDF-Datei
+     * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
+     * @param float $tolerancePt Toleranz in Points
+     * @return PaperFormat|null Das erkannte Format oder null
+     */
+    public static function detectFormat(string $filePath, int $pageNumber = 1, float $tolerancePt = 5.0): ?PaperFormat {
+        $pageSize = self::getPageSize($filePath, $pageNumber);
+        if ($pageSize === null) {
+            return null;
+        }
+        return $pageSize->detectFormat($tolerancePt);
+    }
+
+    /**
+     * Prüft ob das PDF im Landscape-Format ist.
+     * 
+     * @param string $filePath Pfad zur PDF-Datei
+     * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
+     */
+    public static function isLandscape(string $filePath, int $pageNumber = 1): bool {
+        $pageSize = self::getPageSize($filePath, $pageNumber);
+        return $pageSize?->isLandscape() ?? false;
+    }
+
+    /**
+     * Prüft ob das PDF im Portrait-Format ist.
+     * 
+     * @param string $filePath Pfad zur PDF-Datei
+     * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
+     */
+    public static function isPortrait(string $filePath, int $pageNumber = 1): bool {
+        $pageSize = self::getPageSize($filePath, $pageNumber);
+        return $pageSize?->isPortrait() ?? false;
+    }
+
+    /**
+     * Prüft ob alle Seiten das gleiche Format haben.
+     * 
+     * @param float $tolerancePt Toleranz in Points
+     */
+    public static function hasUniformPageSize(string $filePath, float $tolerancePt = 5.0): bool {
+        $sizes = self::getAllPageSizes($filePath);
+        if (count($sizes) <= 1) {
+            return true;
+        }
+
+        $firstSize = reset($sizes);
+        foreach ($sizes as $size) {
+            if (abs($size->widthPt - $firstSize->widthPt) > $tolerancePt ||
+                abs($size->heightPt - $firstSize->heightPt) > $tolerancePt) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Gibt eine lesbare Beschreibung des PDF-Formats zurück.
+     * 
+     * @param string $filePath Pfad zur PDF-Datei
+     * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
+     */
+    public static function getFormatDescription(string $filePath, int $pageNumber = 1): string {
+        $pageSize = self::getPageSize($filePath, $pageNumber);
+        return $pageSize?->description() ?? 'Unbekannt';
     }
 }

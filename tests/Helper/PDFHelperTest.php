@@ -13,6 +13,8 @@ declare(strict_types=1);
 namespace Tests\Helper;
 
 use PDFToolkit\Helper\PDFHelper;
+use PDFToolkit\Entities\PageSize;
+use PDFToolkit\Enums\PaperFormat;
 use PHPUnit\Framework\TestCase;
 
 final class PDFHelperTest extends TestCase {
@@ -100,5 +102,127 @@ final class PDFHelperTest extends TestCase {
         }
 
         $this->assertFalse(PDFHelper::hasEmbeddedText($scannedPdf));
+    }
+
+    // === Format-Tests ===
+
+    public function testGetPageSizeReturnsPageSize(): void {
+        if (!file_exists(self::SAMPLE_PDF)) {
+            $this->markTestSkipped('Sample PDF nicht vorhanden');
+        }
+
+        $size = PDFHelper::getPageSize(self::SAMPLE_PDF);
+        $this->assertInstanceOf(PageSize::class, $size);
+        $this->assertGreaterThan(0, $size->widthPt);
+        $this->assertGreaterThan(0, $size->heightPt);
+    }
+
+    public function testGetPageSizeReturnsNullForInvalidFile(): void {
+        $size = PDFHelper::getPageSize('/nonexistent/file.pdf');
+        $this->assertNull($size);
+    }
+
+    public function testIsFormatWithEnum(): void {
+        if (!file_exists(self::SAMPLE_PDF)) {
+            $this->markTestSkipped('Sample PDF nicht vorhanden');
+        }
+
+        // Prüfen ob die Methode funktioniert (Ergebnis hängt vom konkreten PDF ab)
+        $result = PDFHelper::isFormat(self::SAMPLE_PDF, PaperFormat::A4);
+        $this->assertIsBool($result);
+    }
+
+    public function testIsFormatWithString(): void {
+        if (!file_exists(self::SAMPLE_PDF)) {
+            $this->markTestSkipped('Sample PDF nicht vorhanden');
+        }
+
+        $result = PDFHelper::isFormat(self::SAMPLE_PDF, 'A4');
+        $this->assertIsBool($result);
+    }
+
+    public function testIsFormatReturnsFalseForInvalidFile(): void {
+        $result = PDFHelper::isFormat('/nonexistent/file.pdf', 'A4');
+        $this->assertFalse($result);
+    }
+
+    public function testDetectFormatReturnsFormat(): void {
+        if (!file_exists(self::SAMPLE_PDF)) {
+            $this->markTestSkipped('Sample PDF nicht vorhanden');
+        }
+
+        $format = PDFHelper::detectFormat(self::SAMPLE_PDF);
+        // Kann PaperFormat oder null sein (je nach PDF)
+        $this->assertTrue($format === null || $format instanceof PaperFormat);
+    }
+
+    public function testDetectFormatReturnsNullForInvalidFile(): void {
+        $format = PDFHelper::detectFormat('/nonexistent/file.pdf');
+        $this->assertNull($format);
+    }
+
+    public function testIsLandscapeReturnsBool(): void {
+        if (!file_exists(self::SAMPLE_PDF)) {
+            $this->markTestSkipped('Sample PDF nicht vorhanden');
+        }
+
+        $result = PDFHelper::isLandscape(self::SAMPLE_PDF);
+        $this->assertIsBool($result);
+    }
+
+    public function testIsPortraitReturnsBool(): void {
+        if (!file_exists(self::SAMPLE_PDF)) {
+            $this->markTestSkipped('Sample PDF nicht vorhanden');
+        }
+
+        $result = PDFHelper::isPortrait(self::SAMPLE_PDF);
+        $this->assertIsBool($result);
+    }
+
+    public function testIsLandscapeAndIsPortraitAreMutuallyExclusive(): void {
+        if (!file_exists(self::SAMPLE_PDF)) {
+            $this->markTestSkipped('Sample PDF nicht vorhanden');
+        }
+
+        $isLandscape = PDFHelper::isLandscape(self::SAMPLE_PDF);
+        $isPortrait = PDFHelper::isPortrait(self::SAMPLE_PDF);
+
+        // Genau eines sollte true sein (außer bei quadratischen PDFs)
+        $size = PDFHelper::getPageSize(self::SAMPLE_PDF);
+        if ($size !== null && !$size->isSquare()) {
+            $this->assertNotEquals($isLandscape, $isPortrait);
+        }
+    }
+
+    public function testGetAllPageSizesReturnsArray(): void {
+        if (!file_exists(self::SAMPLE_PDF)) {
+            $this->markTestSkipped('Sample PDF nicht vorhanden');
+        }
+
+        $sizes = PDFHelper::getAllPageSizes(self::SAMPLE_PDF);
+        $this->assertIsArray($sizes);
+        $this->assertNotEmpty($sizes);
+
+        $pageCount = PDFHelper::getPageCount(self::SAMPLE_PDF);
+        $this->assertCount($pageCount, $sizes);
+    }
+
+    public function testHasUniformPageSizeReturnsBool(): void {
+        if (!file_exists(self::SAMPLE_PDF)) {
+            $this->markTestSkipped('Sample PDF nicht vorhanden');
+        }
+
+        $result = PDFHelper::hasUniformPageSize(self::SAMPLE_PDF);
+        $this->assertIsBool($result);
+    }
+
+    public function testGetFormatDescriptionReturnsString(): void {
+        if (!file_exists(self::SAMPLE_PDF)) {
+            $this->markTestSkipped('Sample PDF nicht vorhanden');
+        }
+
+        $desc = PDFHelper::getFormatDescription(self::SAMPLE_PDF);
+        $this->assertIsString($desc);
+        $this->assertNotEmpty($desc);
     }
 }
