@@ -48,12 +48,14 @@ final class PDFHelper {
         }
 
         // PDF-Signatur prüfen (%PDF-)
-        $header = File::readPartial($filePath, 8);
+        // Manche PDFs haben führende Whitespace-Bytes vor der Signatur.
+        // Laut PDF-Spec sollte %PDF- innerhalb der ersten 1024 Bytes stehen.
+        $header = File::readPartial($filePath, 1024);
         if ($header === false) {
             return false;
         }
 
-        return str_starts_with($header, '%PDF-');
+        return str_contains($header, '%PDF-');
     }
 
     /**
