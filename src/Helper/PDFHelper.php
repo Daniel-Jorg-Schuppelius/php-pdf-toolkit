@@ -352,8 +352,10 @@ final class PDFHelper {
 
         $firstSize = reset($sizes);
         foreach ($sizes as $size) {
-            if (abs($size->widthPt - $firstSize->widthPt) > $tolerancePt ||
-                abs($size->heightPt - $firstSize->heightPt) > $tolerancePt) {
+            if (
+                abs($size->widthPt - $firstSize->widthPt) > $tolerancePt ||
+                abs($size->heightPt - $firstSize->heightPt) > $tolerancePt
+            ) {
                 return false;
             }
         }
@@ -395,8 +397,10 @@ final class PDFHelper {
         }
 
         $config = Config::getInstance();
-        if ($config->getShellExecutable('pdftoppm-page') === null 
-            && $config->getShellExecutable('pdftoppm') === null) {
+        if (
+            $config->getShellExecutable('pdftoppm-page') === null
+            && $config->getShellExecutable('pdftoppm') === null
+        ) {
             self::logError('pdftoppm ist nicht konfiguriert oder nicht verfügbar');
             return null;
         }
