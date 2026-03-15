@@ -370,4 +370,118 @@ final class PDFHelper {
         $pageSize = self::getPageSize($filePath, $pageNumber);
         return $pageSize?->description() ?? 'Unbekannt';
     }
+
+    /**
+     * Rendert eine einzelne PDF-Seite als PNG-Bild.
+     * 
+     * Nutzt pdftoppm für die Konvertierung. Die Ausgabedatei wird automatisch
+     * generiert wenn kein outputPath angegeben wird.
+     * 
+     * @param string $filePath Pfad zur PDF-Datei
+     * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
+     * @param int $dpi Auflösung in DPI (Standard: 72 für Vorschau, 150 für bessere Qualität)
+     * @param string|null $outputPath Optionaler Ausgabepfad (ohne Extension)
+     * @return string|null Pfad zur PNG-Datei oder null bei Fehler
+     */
+    public static function renderPageToImage(
+        string $filePath,
+        int $pageNumber = 1,
+        int $dpi = 72,
+        ?string $outputPath = null
+    ): ?string {
+        if (!self::isValidPdf($filePath)) {
+            self::logError('Ungültige PDF-Datei', ['path' => $filePath]);
+            return null;
+        }
+
+        $config = Config::getInstance();
+        if ($config->getShellExecutable('pdftoppm-page') === null 
+            && $config->getShellExecutable('pdftoppm') === null) {
+            self::logError('pdftoppm ist nicht konfiguriert oder nicht verfügbar');
+            return null;
+        }
+
+        // Seitenzahl prüfen
+        $pageCount = self::getPageCount($filePath);
+        if ($pageNumber < 1 || $pageNumber > $pageCount) {
+            self::logError('Ungültige Seitennummer', [
+                'page' => $pageNumber,
+                'totalPages' => $pageCount,
+            ]);
+            return null;
+        }
+
+        // Ausgabepfad generieren
+        $outputPrefix = $outputPath ?? sys_get_temp_dir() . '/pdf_preview_' . uniqid();
+
+        // Versuche zuerst pdftoppm-page (Einzelseiten-Modus)
+        $command = $config->buildCommand('pdftoppm-page', [
+            '[DPI]' => (string) $dpi,
+            '[PAGE]' => (string) $pageNumber,
+            '[PDF-FILE]' => $filePath,
+            '[OUTPUT-PREFIX]' => $outputPrefix,
+        ]);
+
+        if ($command === null) {
+            self::logError('Konnte pdftoppm-page Befehl nicht erstellen');
+            return null;
+        }
+
+        $output = [];
+        $returnCode = 0;
+        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0) {
+            self::logError('pdftoppm fehlgeschlagen', [
+                'returnCode' => $returnCode,
+                'output' => implode("\n", $output),
+            ]);
+            return null;
+        }
+
+        // pdftoppm mit -singlefile erzeugt: {prefix}.png
+        $outputFile = $outputPrefix . '.png';
+        if (!File::exists($outputFile)) {
+            self::logError('Vorschau-Bild wurde nicht erstellt', ['path' => $outputFile]);
+            return null;
+        }
+
+        self::logDebug('PDF-Seite gerendert', [
+            'input' => $filePath,
+            'page' => $pageNumber,
+            'output' => $outputFile,
+            'dpi' => $dpi,
+        ]);
+
+        return $outputFile;
+    }
+
+    /**
+     * Rendert eine PDF-Seite als Base64-kodiertes PNG.
+     * 
+     * Praktisch für API-Responses ohne temporäre Dateien.
+     * 
+     * @param string $filePath Pfad zur PDF-Datei
+     * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
+     * @param int $dpi Auflösung in DPI (Standard: 72)
+     * @return string|null Base64-kodierter PNG-String oder null bei Fehler
+     */
+    public static function renderPageToBase64(
+        string $filePath,
+        int $pageNumber = 1,
+        int $dpi = 72
+    ): ?string {
+        $imagePath = self::renderPageToImage($filePath, $pageNumber, $dpi);
+        if ($imagePath === null) {
+            return null;
+        }
+
+        try {
+            $imageData = File::read($imagePath);
+            return base64_encode($imageData);
+        } finally {
+            // Temporäre Datei aufräumen
+            if (str_starts_with($imagePath, sys_get_temp_dir())) {
+                File::delete($imagePath);
+            }
+        }
+    }
 }

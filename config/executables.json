@@ -47,6 +47,24 @@
                 "[OUTPUT-PREFIX]"
             ]
         },
+        "pdftoppm-page": {
+            "path": "pdftoppm",
+            "required": false,
+            "description": "PDF to PNG - Single Page",
+            "package": "poppler-utils",
+            "arguments": [
+                "-png",
+                "-singlefile",
+                "-r",
+                "[DPI]",
+                "-f",
+                "[PAGE]",
+                "-l",
+                "[PAGE]",
+                "[PDF-FILE]",
+                "[OUTPUT-PREFIX]"
+            ]
+        },
         "pdfdetach-list": {
             "path": "pdfdetach",
             "required": false,
