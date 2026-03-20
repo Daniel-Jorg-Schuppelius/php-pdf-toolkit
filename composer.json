@@ -10,7 +10,7 @@
     }
   ],
   "require": {
-    "php": ">=8.2 <=8.5",
+    "php": ">=8.1 <8.6",
     "ext-gd": "*",
     "dompdf/dompdf": "^3.1",
     "dschuppelius/php-common-toolkit": "^1.1",
