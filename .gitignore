@@ -24,3 +24,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# PHPStan
+/var/phpstan
