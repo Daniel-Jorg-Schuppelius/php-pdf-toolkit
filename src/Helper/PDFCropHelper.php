@@ -141,29 +141,63 @@ final class PDFCropHelper {
     }
 
     /**
+     * Normalisiert ein Margin-Array nach CSS-Shorthand-Konvention.
+     *
+     * - 1 Wert:  [all]                     → [all, all, all, all]
+     * - 2 Werte: [top/bottom, left/right]   → [top/bottom, left/right, top/bottom, left/right]
+     * - 3 Werte: [top, left/right, bottom]  → [top, left/right, bottom, left/right]
+     * - 4 Werte: [top, right, bottom, left] → [top, right, bottom, left]
+     *
+     * @param array<float> $margins 1–4 Werte (Einheit beliebig, z.B. cm oder pt)
+     * @return array{0: float, 1: float, 2: float, 3: float} [top, right, bottom, left]
+     */
+    public static function normalizeMargins(array $margins): array {
+        $margins = array_values($margins);
+
+        return match (count($margins)) {
+            1 => [$margins[0], $margins[0], $margins[0], $margins[0]],
+            2 => [$margins[0], $margins[1], $margins[0], $margins[1]],
+            3 => [$margins[0], $margins[1], $margins[2], $margins[1]],
+            4 => [$margins[0], $margins[1], $margins[2], $margins[3]],
+            default => [0.0, 0.0, 0.0, 0.0],
+        };
+    }
+
+    /**
      * Schneidet den oberen Bereich einer Seite mit prozentualer Angabe aus.
      * 
      * @param string $inputPath Pfad zur Quell-PDF
      * @param string $outputPath Pfad zur Ziel-PDF
      * @param float $percent Prozent der Seite von oben (z.B. 50.0 = obere Hälfte)
      * @param int $page Seitennummer (1-basiert)
+     * @param array<float> $margins CSS-Shorthand-Margins in Punkten (1–4 Werte: top, right, bottom, left)
      * @return bool true bei Erfolg
      */
     public static function cropUpperPercent(
         string $inputPath,
         string $outputPath,
         float $percent,
-        int $page = 1
+        int $page = 1,
+        array $margins = []
     ): bool {
         $dimensions = self::getPageDimensions($inputPath);
         if ($dimensions === null) {
             return false;
         }
 
+        [$mTop, $mRight, $mBottom, $mLeft] = !empty($margins)
+            ? self::normalizeMargins($margins)
+            : [0.0, 0.0, 0.0, 0.0];
+
         $cropHeight = $dimensions['height'] * ($percent / 100);
         $yOffset = $dimensions['height'] - $cropHeight;
 
-        return self::cropToBox($inputPath, $outputPath, 0, $yOffset, $dimensions['width'], $cropHeight, $page);
+        $x = $mLeft;
+        $y = $yOffset + $mBottom;
+        $width = $dimensions['width'] - $mLeft - $mRight;
+        $height = $cropHeight - $mTop - $mBottom;
+
+        return self::cropToBox($inputPath, $outputPath, $x, $y, $width, $height, $page);
     }
 
     /**
@@ -173,22 +207,33 @@ final class PDFCropHelper {
      * @param string $outputPath Pfad zur Ziel-PDF
      * @param float $percent Prozent der Seite von unten (z.B. 50.0 = untere Hälfte)
      * @param int $page Seitennummer (1-basiert)
+     * @param array<float> $margins CSS-Shorthand-Margins in Punkten (1–4 Werte: top, right, bottom, left)
      * @return bool true bei Erfolg
      */
     public static function cropLowerPercent(
         string $inputPath,
         string $outputPath,
         float $percent,
-        int $page = 1
+        int $page = 1,
+        array $margins = []
     ): bool {
         $dimensions = self::getPageDimensions($inputPath);
         if ($dimensions === null) {
             return false;
         }
 
+        [$mTop, $mRight, $mBottom, $mLeft] = !empty($margins)
+            ? self::normalizeMargins($margins)
+            : [0.0, 0.0, 0.0, 0.0];
+
         $cropHeight = $dimensions['height'] * ($percent / 100);
 
-        return self::cropToBox($inputPath, $outputPath, 0, 0, $dimensions['width'], $cropHeight, $page);
+        $x = $mLeft;
+        $y = $mBottom;
+        $width = $dimensions['width'] - $mLeft - $mRight;
+        $height = $cropHeight - $mTop - $mBottom;
+
+        return self::cropToBox($inputPath, $outputPath, $x, $y, $width, $height, $page);
     }
 
     /**
