@@ -181,6 +181,7 @@
                 "-dNOPAUSE",
                 "-dBATCH",
                 "-dQUIET",
+                "-dAutoRotatePages=/None",
                 "-dDEVICEWIDTHPOINTS=[WIDTH]",
                 "-dDEVICEHEIGHTPOINTS=[HEIGHT]",
                 "-dFIXEDMEDIA",
@@ -207,6 +208,7 @@
                 "-dDEVICEHEIGHTPOINTS=[HEIGHT]",
                 "-dFIXEDMEDIA",
                 "-dPDFFitPage",
+                "-dAutoRotatePages=/None",
                 "-dCompatibilityLevel=1.4",
                 "-sOutputFile=[OUTPUT]",
                 "-f",
@@ -233,6 +235,18 @@
                 "cat",
                 "[PAGE-RANGE]",
                 "output",
+                "[OUTPUT]"
+            ]
+        },
+        "qpdf-rotate": {
+            "path": "qpdf",
+            "required": false,
+            "description": "QPDF PDF Rotation mit physischer Transformation",
+            "package": "qpdf",
+            "arguments": [
+                "--rotate=[ANGLE]:1",
+                "--flatten-rotation",
+                "[INPUT]",
                 "[OUTPUT]"
             ]
         },

@@ -239,6 +239,9 @@ final class PDFCropHelper {
     /**
      * Ermittelt die Seitenmaße einer PDF in Punkten.
      * 
+     * Berücksichtigt die PDF-Rotation: Bei Rotate 90° oder 270° werden
+     * Breite und Höhe getauscht, sodass die effektiven Anzeigemaße zurückgegeben werden.
+     * 
      * @return array{width: float, height: float}|null null bei Fehler
      */
     public static function getPageDimensions(string $inputPath): ?array {
@@ -253,9 +256,18 @@ final class PDFCropHelper {
             return null;
         }
 
+        $width = (float) $matches[1];
+        $height = (float) $matches[2];
+
+        // Bei Rotation 90°/270° effektive Breite/Höhe tauschen
+        $rotation = (int) ($metadata['Page rot'] ?? 0);
+        if ($rotation === 90 || $rotation === 270) {
+            [$width, $height] = [$height, $width];
+        }
+
         return [
-            'width' => (float) $matches[1],
-            'height' => (float) $matches[2],
+            'width' => $width,
+            'height' => $height,
         ];
     }
 
@@ -322,8 +334,10 @@ final class PDFCropHelper {
     /**
      * Skaliert eine PDF-Seite proportional auf eine Zielgröße und zentriert den Inhalt.
      *
-     * Im Gegensatz zu resizeToFit() wird der Inhalt nicht an der unteren linken Ecke
-     * ausgerichtet, sondern mittig auf der Zielseite platziert.
+     * Mehrstufiges Verfahren:
+     * 1. Bei Orientierungs-Mismatch (Landscape→Portrait oder umgekehrt): Seite physisch rotieren
+     * 2. resizeToFit() mit -dPDFFitPage skaliert korrekt (positioniert unten-links)
+     * 3. PageOffset verschiebt den Inhalt zur Mitte (funktioniert zuverlässig mit pdfwrite)
      *
      * @param string $inputPath Pfad zur Quell-PDF
      * @param string $outputPath Pfad zur Ziel-PDF
@@ -337,53 +351,152 @@ final class PDFCropHelper {
             return false;
         }
 
-        if (!self::isAvailable()) {
-            self::logError('Ghostscript (gs-crop) ist nicht konfiguriert oder nicht verfügbar');
-            return false;
-        }
-
+        // Quelldimensionen für Offset-Berechnung
         $dims = self::getPageDimensions($inputPath);
         if ($dims === null) {
             return false;
         }
 
-        // Proportionalen Skalierungsfaktor berechnen
-        $scale = min($widthPt / $dims['width'], $heightPt / $dims['height']);
+        // Bei Orientierungs-Mismatch: Seite physisch rotieren
+        $sourceIsLandscape = $dims['width'] > $dims['height'];
+        $targetIsLandscape = $widthPt > $heightPt;
+        $rotatedTempPath = null;
 
-        // Zentrierungsoffset berechnen
-        $scaledW = $dims['width'] * $scale;
-        $scaledH = $dims['height'] * $scale;
-        $offsetX = ($widthPt - $scaledW) / 2;
-        $offsetY = ($heightPt - $scaledH) / 2;
+        if ($sourceIsLandscape !== $targetIsLandscape) {
+            $rotatedTempPath = $outputPath . '.rotated.tmp.pdf';
+            if (!self::rotatePage($inputPath, $rotatedTempPath, 90)) {
+                self::logWarning('Rotation fehlgeschlagen, fahre ohne Rotation fort');
+            } else {
+                $inputPath = $rotatedTempPath;
+                $dims = self::getPageDimensions($inputPath);
+                if ($dims === null) {
+                    if (File::exists($rotatedTempPath)) {
+                        File::delete($rotatedTempPath);
+                    }
+                    return false;
+                }
+            }
+        }
 
-        // PostScript: Verschieben zum Zentrum, dann gleichmäßig skalieren
-        $postscript = sprintf(
-            '<</Install {%s %s translate %s dup scale}>> setpagedevice',
-            number_format($offsetX, 4, '.', ''),
-            number_format($offsetY, 4, '.', ''),
-            number_format($scale, 6, '.', '')
-        );
+        try {
+            // Skalierungsfaktor und Zentrierungsoffset berechnen
+            $scale = min($widthPt / $dims['width'], $heightPt / $dims['height']);
+            $scaledW = $dims['width'] * $scale;
+            $scaledH = $dims['height'] * $scale;
+            $offsetX = ($widthPt - $scaledW) / 2;
+            $offsetY = ($heightPt - $scaledH) / 2;
+
+            // Kein Offset nötig → einfach resizeToFit
+            if ($offsetX < 1.0 && $offsetY < 1.0) {
+                return self::resizeToFit($inputPath, $outputPath, $widthPt, $heightPt);
+            }
+
+            // Schritt 1: FitPage-Skalierung (positioniert unten-links)
+            $tempPath = $outputPath . '.fitpage.tmp.pdf';
+            if (!self::resizeToFit($inputPath, $tempPath, $widthPt, $heightPt)) {
+                return false;
+            }
+
+            try {
+                // Schritt 2: Mit PageOffset zentrieren
+                // FitPage platziert den Inhalt am oberen Rand. Zum Zentrieren muss
+                // er nach UNTEN verschoben werden → negative Y-Offset-Werte.
+                $postscript = sprintf(
+                    '<</PageOffset [%s %s]>> setpagedevice',
+                    number_format(-$offsetX, 4, '.', ''),
+                    number_format(-$offsetY, 4, '.', '')
+                );
+
+                $config = Config::getInstance();
+                $command = $config->buildCommand('gs-crop', [
+                    '[WIDTH]' => number_format($widthPt, 2, '.', ''),
+                    '[HEIGHT]' => number_format($heightPt, 2, '.', ''),
+                    '[FIRST-PAGE]' => '',
+                    '[LAST-PAGE]' => '',
+                    '[OUTPUT]' => $outputPath,
+                    '[POSTSCRIPT]' => $postscript,
+                    '[INPUT]' => $tempPath,
+                ]);
+
+                if ($command === null) {
+                    self::logError('Konnte Zentrierungs-Befehl nicht erstellen');
+                    return false;
+                }
+
+                $output = [];
+                $returnCode = 0;
+                if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0) {
+                    self::logError('Ghostscript-Zentrierung fehlgeschlagen', [
+                        'returnCode' => $returnCode,
+                        'output' => implode("\n", $output),
+                    ]);
+                    return false;
+                }
+
+                if (!File::exists($outputPath)) {
+                    self::logError('Zentrierte PDF wurde nicht erstellt', ['path' => $outputPath]);
+                    return false;
+                }
+
+                self::logInfo('PDF proportional skaliert und zentriert', [
+                    'input' => $inputPath,
+                    'output' => $outputPath,
+                    'scale' => round($scale, 4),
+                    'offset' => sprintf('%.1f, %.1f', $offsetX, $offsetY),
+                    'targetSize' => sprintf('%.0fx%.0f pt', $widthPt, $heightPt),
+                ]);
+
+                return true;
+            } finally {
+                if (File::exists($tempPath)) {
+                    File::delete($tempPath);
+                }
+            }
+        } finally {
+            if ($rotatedTempPath !== null && File::exists($rotatedTempPath)) {
+                File::delete($rotatedTempPath);
+            }
+        }
+    }
+
+    /**
+     * Rotiert eine PDF-Seite physisch um den angegebenen Winkel.
+     *
+     * Nutzt qpdf mit --flatten-rotation um die Rotation physisch in das
+     * Koordinatensystem der Seite einzuarbeiten (keine /Rotate-Metadaten).
+     *
+     * @param string $inputPath Pfad zur Quell-PDF
+     * @param string $outputPath Pfad zur Ziel-PDF
+     * @param int $angle Rotationswinkel (90, 180, 270)
+     * @return bool true bei Erfolg
+     */
+    public static function rotatePage(string $inputPath, string $outputPath, int $angle): bool {
+        if (!in_array($angle, [90, 180, 270], true)) {
+            self::logError('Ungültiger Rotationswinkel', ['angle' => $angle]);
+            return false;
+        }
 
         $config = Config::getInstance();
-        $command = $config->buildCommand('gs-crop', [
-            '[WIDTH]' => number_format($widthPt, 2, '.', ''),
-            '[HEIGHT]' => number_format($heightPt, 2, '.', ''),
-            '[FIRST-PAGE]' => '',
-            '[LAST-PAGE]' => '',
-            '[OUTPUT]' => $outputPath,
-            '[POSTSCRIPT]' => $postscript,
+        if (!$config->isExecutableAvailable('qpdf-rotate')) {
+            self::logError('qpdf ist nicht konfiguriert oder nicht verfügbar');
+            return false;
+        }
+
+        $command = $config->buildCommand('qpdf-rotate', [
+            '[ANGLE]' => "+{$angle}",
             '[INPUT]' => $inputPath,
+            '[OUTPUT]' => $outputPath,
         ]);
 
         if ($command === null) {
-            self::logError('Konnte Resize-Befehl nicht erstellen');
+            self::logError('Konnte qpdf-rotate Befehl nicht erstellen');
             return false;
         }
 
         $output = [];
         $returnCode = 0;
         if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0) {
-            self::logError('Ghostscript-Resize (zentriert) fehlgeschlagen', [
+            self::logError('PDF-Rotation fehlgeschlagen', [
                 'returnCode' => $returnCode,
                 'output' => implode("\n", $output),
             ]);
@@ -391,16 +504,14 @@ final class PDFCropHelper {
         }
 
         if (!File::exists($outputPath)) {
-            self::logError('Resized PDF wurde nicht erstellt', ['path' => $outputPath]);
+            self::logError('Rotierte PDF wurde nicht erstellt', ['path' => $outputPath]);
             return false;
         }
 
-        self::logInfo('PDF proportional skaliert und zentriert', [
+        self::logInfo('PDF erfolgreich rotiert', [
             'input' => $inputPath,
             'output' => $outputPath,
-            'scale' => round($scale, 4),
-            'offset' => sprintf('%.1f, %.1f', $offsetX, $offsetY),
-            'targetSize' => sprintf('%.0fx%.0f pt', $widthPt, $heightPt),
+            'angle' => $angle,
         ]);
 
         return true;
