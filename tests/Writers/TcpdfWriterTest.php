@@ -16,9 +16,9 @@ use PDFToolkit\Entities\PDFContent;
 use PDFToolkit\Enums\PDFWriterType;
 use PDFToolkit\Writers\TcpdfWriter;
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\TestCase;
+use Tests\Contracts\BaseTestCase;
 
-final class TcpdfWriterTest extends TestCase {
+final class TcpdfWriterTest extends BaseTestCase {
     private TcpdfWriter $writer;
     private string $tempDir;
 

@@ -13,12 +13,12 @@ declare(strict_types=1);
 namespace Tests\Readers;
 
 use PDFToolkit\Readers\ZugferdReader;
-use PHPUnit\Framework\TestCase;
+use Tests\Contracts\BaseTestCase;
 
 /**
  * Tests for ZUGFeRD PDF Reader.
  */
-class ZugferdReaderTest extends TestCase {
+class ZugferdReaderTest extends BaseTestCase {
     private ZugferdReader $reader;
 
     protected function setUp(): void {

@@ -14,9 +14,9 @@ namespace Tests\Entities;
 
 use InvalidArgumentException;
 use PDFToolkit\Entities\PDFContent;
-use PHPUnit\Framework\TestCase;
+use Tests\Contracts\BaseTestCase;
 
-final class PDFContentTest extends TestCase {
+final class PDFContentTest extends BaseTestCase {
     public function testFromHtmlCreatesHtmlContent(): void {
         $html = '<h1>Test</h1><p>Content</p>';
         $content = PDFContent::fromHtml($html);

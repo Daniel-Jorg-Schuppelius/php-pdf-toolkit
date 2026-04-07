@@ -13,9 +13,9 @@ declare(strict_types=1);
 namespace Tests\Enums;
 
 use PDFToolkit\Enums\PaperFormat;
-use PHPUnit\Framework\TestCase;
+use Tests\Contracts\BaseTestCase;
 
-final class PaperFormatTest extends TestCase {
+final class PaperFormatTest extends BaseTestCase {
     public function testA4Dimensions(): void {
         // A4 ist 210 x 297 mm = 595.28 x 841.89 pts
         $this->assertEqualsWithDelta(595.28, PaperFormat::A4->widthPt(), 0.1);

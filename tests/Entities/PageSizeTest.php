@@ -14,9 +14,9 @@ namespace Tests\Entities;
 
 use PDFToolkit\Entities\PageSize;
 use PDFToolkit\Enums\PaperFormat;
-use PHPUnit\Framework\TestCase;
+use Tests\Contracts\BaseTestCase;
 
-final class PageSizeTest extends TestCase {
+final class PageSizeTest extends BaseTestCase {
     public function testConstructor(): void {
         $size = new PageSize(595.28, 841.89, 1);
 

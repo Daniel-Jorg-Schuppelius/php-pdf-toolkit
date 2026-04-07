@@ -16,9 +16,9 @@ use PDFToolkit\Entities\PDFContent;
 use PDFToolkit\Enums\PDFWriterType;
 use PDFToolkit\Writers\WkhtmltopdfWriter;
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\TestCase;
+use Tests\Contracts\BaseTestCase;
 
-final class WkhtmltopdfWriterTest extends TestCase {
+final class WkhtmltopdfWriterTest extends BaseTestCase {
     private WkhtmltopdfWriter $writer;
     private string $tempDir;
 

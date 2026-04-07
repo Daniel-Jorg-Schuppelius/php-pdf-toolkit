@@ -17,9 +17,9 @@ use PDFToolkit\Entities\PDFContent;
 use PDFToolkit\Enums\PDFWriterType;
 use PDFToolkit\Registries\PDFWriterRegistry;
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\TestCase;
+use Tests\Contracts\BaseTestCase;
 
-final class PDFWriterRegistryTest extends TestCase {
+final class PDFWriterRegistryTest extends BaseTestCase {
     private PDFWriterRegistry $registry;
 
     protected function setUp(): void {

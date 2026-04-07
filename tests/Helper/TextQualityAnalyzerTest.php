@@ -13,12 +13,12 @@ declare(strict_types=1);
 namespace Tests\Helper;
 
 use PDFToolkit\Helper\TextQualityAnalyzer;
-use PHPUnit\Framework\TestCase;
+use Tests\Contracts\BaseTestCase;
 
 /**
  * Tests für TextQualityAnalyzer.
  */
-final class TextQualityAnalyzerTest extends TestCase {
+final class TextQualityAnalyzerTest extends BaseTestCase {
     public function testCalculateQualityScoreWithGermanText(): void {
         $germanText = "Dies ist ein deutscher Text mit Umlauten wie ä, ö, ü und ß. " .
             "Die Gesellschaft hat den Jahresabschluss geprüft und für ordnungsgemäß befunden. " .

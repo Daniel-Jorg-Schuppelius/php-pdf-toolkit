@@ -15,9 +15,9 @@ namespace Tests\Registries;
 use PDFToolkit\Entities\PDFDocument;
 use PDFToolkit\Enums\PDFReaderType;
 use PDFToolkit\Registries\PDFReaderRegistry;
-use PHPUnit\Framework\TestCase;
+use Tests\Contracts\BaseTestCase;
 
-final class PDFReaderRegistryTest extends TestCase {
+final class PDFReaderRegistryTest extends BaseTestCase {
     private const SAMPLE_PDF = __DIR__ . '/../../.samples/PDF/test-text.pdf';
 
     protected function setUp(): void {

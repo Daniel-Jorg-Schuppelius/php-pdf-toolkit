@@ -271,12 +271,7 @@ final class PDFCropHelper {
      * @param float $heightPt Zielhöhe in PDF-Punkten
      * @return bool true bei Erfolg
      */
-    public static function resizeToFit(
-        string $inputPath,
-        string $outputPath,
-        float $widthPt,
-        float $heightPt
-    ): bool {
+    public static function resizeToFit(string $inputPath, string $outputPath, float $widthPt, float $heightPt): bool {
         if (!PDFHelper::isValidPdf($inputPath)) {
             self::logError('Ungültige PDF-Datei', ['path' => $inputPath]);
             return false;
@@ -318,6 +313,93 @@ final class PDFCropHelper {
         self::logInfo('PDF erfolgreich skaliert', [
             'input' => $inputPath,
             'output' => $outputPath,
+            'targetSize' => sprintf('%.0fx%.0f pt', $widthPt, $heightPt),
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Skaliert eine PDF-Seite proportional auf eine Zielgröße und zentriert den Inhalt.
+     *
+     * Im Gegensatz zu resizeToFit() wird der Inhalt nicht an der unteren linken Ecke
+     * ausgerichtet, sondern mittig auf der Zielseite platziert.
+     *
+     * @param string $inputPath Pfad zur Quell-PDF
+     * @param string $outputPath Pfad zur Ziel-PDF
+     * @param float $widthPt Zielbreite in PDF-Punkten
+     * @param float $heightPt Zielhöhe in PDF-Punkten
+     * @return bool true bei Erfolg
+     */
+    public static function resizeToFitCentered(string $inputPath, string $outputPath, float $widthPt, float $heightPt): bool {
+        if (!PDFHelper::isValidPdf($inputPath)) {
+            self::logError('Ungültige PDF-Datei', ['path' => $inputPath]);
+            return false;
+        }
+
+        if (!self::isAvailable()) {
+            self::logError('Ghostscript (gs-crop) ist nicht konfiguriert oder nicht verfügbar');
+            return false;
+        }
+
+        $dims = self::getPageDimensions($inputPath);
+        if ($dims === null) {
+            return false;
+        }
+
+        // Proportionalen Skalierungsfaktor berechnen
+        $scale = min($widthPt / $dims['width'], $heightPt / $dims['height']);
+
+        // Zentrierungsoffset berechnen
+        $scaledW = $dims['width'] * $scale;
+        $scaledH = $dims['height'] * $scale;
+        $offsetX = ($widthPt - $scaledW) / 2;
+        $offsetY = ($heightPt - $scaledH) / 2;
+
+        // PostScript: Verschieben zum Zentrum, dann gleichmäßig skalieren
+        $postscript = sprintf(
+            '<</Install {%s %s translate %s dup scale}>> setpagedevice',
+            number_format($offsetX, 4, '.', ''),
+            number_format($offsetY, 4, '.', ''),
+            number_format($scale, 6, '.', '')
+        );
+
+        $config = Config::getInstance();
+        $command = $config->buildCommand('gs-crop', [
+            '[WIDTH]' => number_format($widthPt, 2, '.', ''),
+            '[HEIGHT]' => number_format($heightPt, 2, '.', ''),
+            '[FIRST-PAGE]' => '',
+            '[LAST-PAGE]' => '',
+            '[OUTPUT]' => $outputPath,
+            '[POSTSCRIPT]' => $postscript,
+            '[INPUT]' => $inputPath,
+        ]);
+
+        if ($command === null) {
+            self::logError('Konnte Resize-Befehl nicht erstellen');
+            return false;
+        }
+
+        $output = [];
+        $returnCode = 0;
+        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0) {
+            self::logError('Ghostscript-Resize (zentriert) fehlgeschlagen', [
+                'returnCode' => $returnCode,
+                'output' => implode("\n", $output),
+            ]);
+            return false;
+        }
+
+        if (!File::exists($outputPath)) {
+            self::logError('Resized PDF wurde nicht erstellt', ['path' => $outputPath]);
+            return false;
+        }
+
+        self::logInfo('PDF proportional skaliert und zentriert', [
+            'input' => $inputPath,
+            'output' => $outputPath,
+            'scale' => round($scale, 4),
+            'offset' => sprintf('%.1f, %.1f', $offsetX, $offsetY),
             'targetSize' => sprintf('%.0fx%.0f pt', $widthPt, $heightPt),
         ]);
 

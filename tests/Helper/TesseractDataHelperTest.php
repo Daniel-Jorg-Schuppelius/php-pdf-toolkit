@@ -13,9 +13,9 @@ declare(strict_types=1);
 namespace Tests\Helper;
 
 use PDFToolkit\Helper\TesseractDataHelper;
-use PHPUnit\Framework\TestCase;
+use Tests\Contracts\BaseTestCase;
 
-final class TesseractDataHelperTest extends TestCase {
+final class TesseractDataHelperTest extends BaseTestCase {
     private string $tempDir;
 
     protected function setUp(): void {

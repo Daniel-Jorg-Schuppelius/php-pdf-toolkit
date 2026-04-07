@@ -15,9 +15,9 @@ namespace Tests\Helper;
 use PDFToolkit\Helper\PDFHelper;
 use PDFToolkit\Entities\PageSize;
 use PDFToolkit\Enums\PaperFormat;
-use PHPUnit\Framework\TestCase;
+use Tests\Contracts\BaseTestCase;
 
-final class PDFHelperTest extends TestCase {
+final class PDFHelperTest extends BaseTestCase {
     private const SAMPLE_PDF = __DIR__ . '/../../.samples/PDF/test-text.pdf';
 
     public function testIsValidPdfWithValidFile(): void {
