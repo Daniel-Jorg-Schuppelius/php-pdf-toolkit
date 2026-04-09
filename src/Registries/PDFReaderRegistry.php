@@ -198,12 +198,21 @@ final class PDFReaderRegistry {
      *   - 'qualityCheck': Qualitätsprüfung aktivieren (Standard: Config)
      *   - 'qualityThreshold': Schwellwert für OCR-Fallback (Standard: 60)
      *   - 'layout': Layout-Modus für pdftotext (Standard: true)
+     *   - 'preferredReader': PDFReaderType – diesen Reader bevorzugt verwenden.
+     *                        Bei Erfolg wird sofort das Ergebnis zurückgegeben.
+     *                        Bei Fehler/nicht verfügbar: normaler Ablauf als Fallback.
      * @return PDFDocument
      * @throws InvalidArgumentException wenn die Datei nicht existiert
      */
     public function extractText(string $pdfPath, array $options = []): PDFDocument {
         if (!File::exists($pdfPath)) {
             self::logErrorAndThrow(InvalidArgumentException::class, "PDF-Datei existiert nicht: $pdfPath");
+        }
+
+        // Bevorzugten Reader zuerst versuchen
+        $preferredResult = $this->tryPreferredReader($pdfPath, $options);
+        if ($preferredResult !== null) {
+            return $preferredResult;
         }
 
         $forceOcr = $options['forceOcr'] ?? false;
@@ -340,6 +349,60 @@ final class PDFReaderRegistry {
     }
 
     /**
+     * Versucht den bevorzugten Reader aus den Optionen zu verwenden.
+     *
+     * Wenn 'preferredReader' in $options gesetzt ist, wird dieser Reader
+     * zuerst versucht. Bei Erfolg wird das Ergebnis sofort zurückgegeben.
+     * Bei Fehler, nicht verfügbar, oder leerem Ergebnis wird null zurückgegeben
+     * und der normale Ablauf greift als Fallback.
+     *
+     * @param string $pdfPath Pfad zur PDF-Datei
+     * @param array $options Optionen (inkl. 'preferredReader')
+     * @param bool $textOnly Wenn true, werden OCR-Reader abgelehnt
+     * @return PDFDocument|null Ergebnis oder null wenn Fallback nötig
+     */
+    private function tryPreferredReader(string $pdfPath, array $options, bool $textOnly = false): ?PDFDocument {
+        $preferredType = $options['preferredReader'] ?? null;
+
+        if (!$preferredType instanceof PDFReaderType) {
+            return null;
+        }
+
+        // Bei textOnly dürfen keine reinen OCR-Reader verwendet werden
+        if ($textOnly && $preferredType->isOcrOnly()) {
+            $this->logDebug("Preferred reader {$preferredType->value} is OCR-only, skipped in textOnly mode");
+            return null;
+        }
+
+        $reader = $this->getByType($preferredType);
+        if ($reader === null) {
+            $this->logDebug("Preferred reader {$preferredType->value} not available, falling back to default");
+            return null;
+        }
+
+        if (!$reader->canHandle($pdfPath)) {
+            $this->logDebug("Preferred reader {$preferredType->value} cannot handle file, falling back to default");
+            return null;
+        }
+
+        $text = $reader->extractText($pdfPath, $options);
+        if ($text === null || trim($text) === '') {
+            $this->logDebug("Preferred reader {$preferredType->value} returned empty result, falling back to default");
+            return null;
+        }
+
+        $isScanned = $reader::supportsScannedPdfs() && !$reader::supportsTextPdfs();
+        $this->logDebug("Text extracted with preferred reader: {$preferredType->value}");
+
+        return new PDFDocument(
+            text: $text,
+            reader: $preferredType,
+            isScanned: $isScanned,
+            sourcePath: $pdfPath
+        );
+    }
+
+    /**
      * Gibt die Anzahl verfügbarer Reader zurück.
      */
     public function count(): int {
@@ -357,12 +420,21 @@ final class PDFReaderRegistry {
      *   - 'layout': Layout-Modus für pdftotext (Standard: true)
      *              Bei false wird der Text ohne Layout-Formatierung extrahiert,
      *              was für Regex-basierte Transaktions-Extraktion besser geeignet ist.
+     *   - 'preferredReader': PDFReaderType – diesen Reader bevorzugt verwenden.
+     *                        Bei Erfolg wird sofort das Ergebnis zurückgegeben.
+     *                        Bei Fehler/nicht verfügbar: normaler Text-Reader-Ablauf als Fallback.
      * @return PDFDocument
      * @throws InvalidArgumentException wenn die Datei nicht existiert
      */
     public function extractTextOnly(string $pdfPath, array $options = []): PDFDocument {
         if (!File::exists($pdfPath)) {
             self::logErrorAndThrow(InvalidArgumentException::class, "PDF-Datei existiert nicht: $pdfPath");
+        }
+
+        // Bevorzugten Reader zuerst versuchen (nur wenn es ein Text-Reader ist)
+        $preferredResult = $this->tryPreferredReader($pdfPath, $options, textOnly: true);
+        if ($preferredResult !== null) {
+            return $preferredResult;
         }
 
         $result = $this->extractWithTextReaders($pdfPath, $options);

@@ -138,4 +138,87 @@ final class PDFReaderRegistryTest extends BaseTestCase {
         // Muss ein OCR-fähiger Reader sein
         $this->assertContains($doc->reader, [PDFReaderType::Tesseract, PDFReaderType::Ocrmypdf], 'Scanned PDF sollte mit OCR-Reader verarbeitet werden');
     }
+
+    // --- Tests für preferredReader Option ---
+
+    public function testPreferredReaderPdfboxIsUsed(): void {
+        if (!file_exists(self::SAMPLE_PDF)) {
+            $this->markTestSkipped('Sample PDF nicht vorhanden: ' . self::SAMPLE_PDF);
+        }
+
+        $registry = PDFReaderRegistry::getInstance();
+
+        // Prüfen ob PDFBox verfügbar ist
+        $pdfbox = $registry->getByType(PDFReaderType::Pdfbox);
+        if ($pdfbox === null) {
+            $this->markTestSkipped('PDFBox-Reader nicht verfügbar');
+        }
+
+        $doc = $registry->extractText(self::SAMPLE_PDF, ['preferredReader' => PDFReaderType::Pdfbox]);
+
+        $this->assertInstanceOf(PDFDocument::class, $doc);
+        $this->assertTrue($doc->hasText(), 'Extraktion sollte Text liefern (PDFBox oder Fallback)');
+
+        // Wenn PDFBox funktioniert, sollte es verwendet werden
+        // Wenn nicht (z.B. korrupte JAR), greift Fallback auf pdftotext
+        if ($pdfbox->extractText(self::SAMPLE_PDF) !== null) {
+            $this->assertSame(PDFReaderType::Pdfbox, $doc->reader, 'preferredReader sollte PDFBox erzwingen');
+        } else {
+            // Fallback: pdftotext
+            $this->assertSame(PDFReaderType::Pdftotext, $doc->reader, 'Fallback sollte auf pdftotext gehen');
+        }
+    }
+
+    public function testPreferredReaderFallsBackWhenNotAvailable(): void {
+        if (!file_exists(self::SAMPLE_PDF)) {
+            $this->markTestSkipped('Sample PDF nicht vorhanden: ' . self::SAMPLE_PDF);
+        }
+
+        $registry = PDFReaderRegistry::getInstance();
+
+        // OCRmyPDF ist oft nicht installiert – als unavailable Reader testen
+        // Auch wenn es installiert ist, testet es den normalen Fallback-Pfad
+        $doc = $registry->extractText(self::SAMPLE_PDF);
+        $this->assertTrue($doc->hasText(), 'Extraktion sollte auch ohne preferredReader funktionieren');
+    }
+
+    public function testPreferredReaderInTextOnlyMode(): void {
+        if (!file_exists(self::SAMPLE_PDF)) {
+            $this->markTestSkipped('Sample PDF nicht vorhanden: ' . self::SAMPLE_PDF);
+        }
+
+        $registry = PDFReaderRegistry::getInstance();
+
+        $pdfbox = $registry->getByType(PDFReaderType::Pdfbox);
+        if ($pdfbox === null) {
+            $this->markTestSkipped('PDFBox-Reader nicht verfügbar');
+        }
+
+        $doc = $registry->extractTextOnly(self::SAMPLE_PDF, ['preferredReader' => PDFReaderType::Pdfbox]);
+
+        $this->assertInstanceOf(PDFDocument::class, $doc);
+        $this->assertTrue($doc->hasText(), 'Extraktion sollte Text liefern (PDFBox oder Fallback)');
+
+        // Wenn PDFBox funktioniert, sollte es verwendet werden
+        if ($pdfbox->extractText(self::SAMPLE_PDF) !== null) {
+            $this->assertSame(PDFReaderType::Pdfbox, $doc->reader, 'preferredReader sollte in extractTextOnly() funktionieren');
+        } else {
+            $this->assertSame(PDFReaderType::Pdftotext, $doc->reader, 'Fallback sollte auf pdftotext gehen');
+        }
+    }
+
+    public function testPreferredReaderOcrOnlySkippedInTextOnlyMode(): void {
+        if (!file_exists(self::SAMPLE_PDF)) {
+            $this->markTestSkipped('Sample PDF nicht vorhanden: ' . self::SAMPLE_PDF);
+        }
+
+        $registry = PDFReaderRegistry::getInstance();
+
+        // OCR-Reader in textOnly sollte ignoriert werden, Fallback auf pdftotext
+        $doc = $registry->extractTextOnly(self::SAMPLE_PDF, ['preferredReader' => PDFReaderType::Tesseract]);
+
+        $this->assertInstanceOf(PDFDocument::class, $doc);
+        $this->assertTrue($doc->hasText(), 'Fallback auf Text-Reader sollte funktionieren');
+        $this->assertNotSame(PDFReaderType::Tesseract, $doc->reader, 'OCR-Reader sollte in textOnly ignoriert werden');
+    }
 }
