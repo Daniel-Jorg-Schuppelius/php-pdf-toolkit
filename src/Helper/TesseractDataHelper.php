@@ -26,6 +26,7 @@ final class TesseractDataHelper {
 
     private const TESSDATA_BASE_URL = 'https://github.com/tesseract-ocr/tessdata/raw/main/';
     private const DEFAULT_LANGUAGES = ['deu', 'eng'];
+    private const REQUIRED_DATA_FILES = ['osd']; // Für Auto-Orientation/Script-Detection
     private const MIN_TRAINEDDATA_SIZE = 1024 * 1024; // 1 MB
 
     /**
@@ -75,6 +76,9 @@ final class TesseractDataHelper {
         $languages = $language !== null
             ? array_map('trim', explode('+', $language))
             : self::DEFAULT_LANGUAGES;
+
+        // osd.traineddata ist Pflicht für Auto-Orientation/Script-Detection
+        $languages = array_unique(array_merge(self::REQUIRED_DATA_FILES, $languages));
 
         $success = true;
         foreach ($languages as $lang) {

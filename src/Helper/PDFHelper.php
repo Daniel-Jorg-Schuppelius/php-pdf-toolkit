@@ -28,11 +28,28 @@ final class PDFHelper {
     /** Cache für hasEmbeddedText() Ergebnisse (filePath:minChars => bool) */
     private static array $embeddedTextCache = [];
 
+    /** Cache für den bei hasEmbeddedText() extrahierten Text (filePath => string) */
+    private static array $extractedTextCache = [];
+
     /**
-     * Löscht den Cache für hasEmbeddedText().
+     * Löscht den Cache für hasEmbeddedText() und den Text-Cache.
      */
     public static function clearCache(): void {
         self::$embeddedTextCache = [];
+        self::$extractedTextCache = [];
+    }
+
+    /**
+     * Gibt den gecacheten Text vom hasEmbeddedText()-Check zurück.
+     * 
+     * Der Text wurde bereits beim Check extrahiert. Statt ihn nochmal
+     * zu extrahieren, kann er direkt wiederverwendet werden.
+     * 
+     * @param string $filePath Pfad zur PDF-Datei
+     * @return string|null Der gecachte Text oder null wenn nicht verfügbar
+     */
+    public static function getCachedExtractedText(string $filePath): ?string {
+        return self::$extractedTextCache[$filePath] ?? null;
     }
 
     /**
@@ -143,17 +160,25 @@ final class PDFHelper {
         }
 
         $config = Config::getInstance();
-        if ($config->getShellExecutable('pdftotext') === null) {
-            return false;
-        }
 
         $tempFile = sys_get_temp_dir() . '/pdf_check_' . uniqid() . '.txt';
 
-        // Nur erste Seite prüfen für Geschwindigkeit (-l 1)
-        $command = $config->buildCommand('pdftotext', [
-            '[PDF-FILE]' => $filePath,
-            '[TEXT-FILE]' => $tempFile,
-        ], ['-q', '-l', '1']);
+        // pdftotext-check nutzen (Optionen VOR Dateinamen für korrekte Verarbeitung)
+        // Fallback auf pdftotext (extrahiert dann alle Seiten statt nur Seite 1)
+        if ($config->getShellExecutable('pdftotext-check') !== null) {
+            $command = $config->buildCommand('pdftotext-check', [
+                '[LAST-PAGE]' => '1',
+                '[PDF-FILE]' => $filePath,
+                '[TEXT-FILE]' => $tempFile,
+            ]);
+        } elseif ($config->getShellExecutable('pdftotext') !== null) {
+            $command = $config->buildCommand('pdftotext', [
+                '[PDF-FILE]' => $filePath,
+                '[TEXT-FILE]' => $tempFile,
+            ]);
+        } else {
+            return false;
+        }
 
         $output = [];
         $returnCode = 0;
@@ -166,6 +191,11 @@ final class PDFHelper {
         $text = File::read($tempFile);
         File::delete($tempFile);
 
+        // Text cachen für spätere Wiederverwendung durch Reader
+        if (trim($text) !== '') {
+            self::$extractedTextCache[$filePath] = $text;
+        }
+
         // Whitespace entfernen und Länge prüfen
         $text = preg_replace('/\s+/', '', $text);
         return strlen($text) >= $minChars;
@@ -176,6 +206,64 @@ final class PDFHelper {
      */
     public static function isLikelyScanned(string $filePath): bool {
         return self::isValidPdf($filePath) && !self::hasEmbeddedText($filePath);
+    }
+
+    /**
+     * Versucht die Sprache aus den PDF-Metadaten zu erkennen.
+     * 
+     * Prüft das "Language"-Tag aus pdfinfo. Gibt ein Tesseract-kompatibles
+     * Sprachkürzel zurück (z.B. 'deu', 'eng', 'fra') oder null.
+     * 
+     * @return string|null Tesseract-Sprachkürzel oder null
+     */
+    public static function detectLanguage(string $filePath): ?string {
+        $metadata = self::getMetadata($filePath);
+        $language = $metadata['Language'] ?? null;
+
+        if ($language === null || trim($language) === '') {
+            return null;
+        }
+
+        // ISO 639-1 (2-stellig) oder ISO 639-2 (3-stellig) zu Tesseract-Kürzel
+        $language = strtolower(trim($language));
+        $map = [
+            'de' => 'deu',
+            'deu' => 'deu',
+            'ger' => 'deu',
+            'german' => 'deu',
+            'deutsch' => 'deu',
+            'en' => 'eng',
+            'eng' => 'eng',
+            'english' => 'eng',
+            'fr' => 'fra',
+            'fra' => 'fra',
+            'fre' => 'fra',
+            'french' => 'fra',
+            'es' => 'spa',
+            'spa' => 'spa',
+            'spanish' => 'spa',
+            'it' => 'ita',
+            'ita' => 'ita',
+            'italian' => 'ita',
+            'nl' => 'nld',
+            'nld' => 'nld',
+            'dut' => 'nld',
+            'dutch' => 'nld',
+            'pt' => 'por',
+            'por' => 'por',
+            'portuguese' => 'por',
+            'pl' => 'pol',
+            'pol' => 'pol',
+            'polish' => 'pol',
+            'ru' => 'rus',
+            'rus' => 'rus',
+            'russian' => 'rus',
+            'tr' => 'tur',
+            'tur' => 'tur',
+            'turkish' => 'tur',
+        ];
+
+        return $map[$language] ?? null;
     }
 
     /**
@@ -252,9 +340,6 @@ final class PDFHelper {
         }
 
         $sizes = [];
-        $currentPage = null;
-        $currentWidth = null;
-        $currentHeight = null;
 
         foreach ($output as $line) {
             // "Page    1 size:  ..." oder "Page   12 size:  ..."

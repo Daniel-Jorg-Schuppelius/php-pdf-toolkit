@@ -15,8 +15,7 @@ namespace PDFToolkit\Registries;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Entities\PDFDocument;
 use PDFToolkit\Enums\PDFReaderType;
-use PDFToolkit\Helper\PDFHelper;
-use PDFToolkit\Helper\TextQualityAnalyzer;
+use PDFToolkit\Helper\{PDFHelper, PDFSplitHelper, TextQualityAnalyzer};
 use PDFToolkit\Config\Config;
 use CommonToolkit\Helper\FileSystem\{File, Folder};
 use ERRORToolkit\Traits\ErrorLog;
@@ -312,26 +311,194 @@ final class PDFReaderRegistry {
 
     /**
      * Extrahiert Text mit OCR-Readern (tesseract, ocrmypdf).
+     * 
+     * Bei aktivierter Qualitätsprüfung werden OCR-Ergebnisse verglichen:
+     * - Wenn der erste Reader einen ausreichenden Score liefert (>= Schwellwert),
+     *   wird das Ergebnis sofort zurückgegeben (Performance).
+     * - Liegt der Score unter dem Schwellwert, werden weitere Reader getestet
+     *   und das beste Ergebnis zurückgegeben.
      */
     private function extractWithOcrReaders(string $pdfPath, array $options): ?PDFDocument {
+        $qualityCheck = $options['qualityCheck'] ?? $this->getQualityCheckSetting();
+        $qualityThreshold = $options['qualityThreshold'] ?? $this->getQualityThresholdSetting();
+
+        $bestResult = null;
+        $bestScore = -1.0;
+
         foreach ($this->getScannedPdfReaders() as $reader) {
             if (!$reader->canHandle($pdfPath)) {
                 continue;
             }
 
             $text = $reader->extractText($pdfPath, $options);
-            if ($text !== null && trim($text) !== '') {
+            if ($text === null || trim($text) === '') {
+                continue;
+            }
+
+            $result = new PDFDocument(
+                text: $text,
+                reader: $reader::getType(),
+                isScanned: true,
+                sourcePath: $pdfPath
+            );
+
+            // Ohne Qualitätsprüfung: erstes erfolgreiches Ergebnis zurückgeben (Originalverhalten)
+            if (!$qualityCheck) {
                 $this->logDebug("Text extracted via OCR with " . $reader::getType()->value);
-                return new PDFDocument(
-                    text: $text,
-                    reader: $reader::getType(),
-                    isScanned: true,
-                    sourcePath: $pdfPath
-                );
+                return $result;
+            }
+
+            // Mit Qualitätsprüfung: OCR-Reader vergleichen
+            $language = $options['language'] ?? Config::getInstance()->getConfig('PDFSettings', 'tesseract_lang') ?? 'deu+eng';
+            $score = TextQualityAnalyzer::calculateQualityScore($text, $language);
+            $this->logDebug("OCR reader {$reader::getType()->value}: quality score " . round($score, 2) . ", " . strlen($text) . " bytes");
+
+            if ($score > $bestScore) {
+                $bestResult = $result;
+                $bestScore = $score;
+            }
+
+            // Bei ausreichender Qualität sofort zurückgeben (kein unnötiges OCR)
+            if ($score >= $qualityThreshold) {
+                $this->logDebug("OCR quality above threshold ($score >= $qualityThreshold), using {$reader::getType()->value}");
+                return $result;
             }
         }
 
-        return null;
+        if ($bestResult !== null) {
+            $this->logInfo("Best OCR result: {$bestResult->reader->value} with score " . round($bestScore, 2));
+        }
+
+        return $bestResult;
+    }
+
+    /**
+     * Extrahiert Text mit selektivem seitenweisen OCR-Fallback.
+     * 
+     * Kombiniert Text-Reader und OCR-Reader auf Seitenebene:
+     * 1. Text-Extraktion für das gesamte Dokument
+     * 2. Seitenweise Qualitätsbewertung
+     * 3. Nur für Seiten mit niedriger Qualität: OCR-Fallback
+     * 4. Merge der besten Ergebnisse pro Seite
+     * 
+     * Voraussetzung: pdftk muss verfügbar sein (für Seiten-Extraktion).
+     * Wenn pdftk nicht verfügbar ist, wird auf den normalen extractText() Fallback zurückgegriffen.
+     * 
+     * @param string $pdfPath Pfad zur PDF-Datei
+     * @param array $options Optionen (wie bei extractText)
+     * @return PDFDocument
+     * @throws InvalidArgumentException wenn die Datei nicht existiert
+     */
+    public function extractWithSelectiveOcr(string $pdfPath, array $options = []): PDFDocument {
+        if (!File::exists($pdfPath)) {
+            self::logErrorAndThrow(InvalidArgumentException::class, "PDF-Datei existiert nicht: $pdfPath");
+        }
+
+        // Zuerst Text mit normalen Readern extrahieren
+        $textResult = $this->extractWithTextReaders($pdfPath, $options);
+        if ($textResult === null || !$textResult->hasText()) {
+            // Kein Text gefunden, Fallback auf Standard-OCR
+            return $this->extractText($pdfPath, array_merge($options, ['forceOcr' => true]));
+        }
+
+        $language = $options['language'] ?? Config::getInstance()->getConfig('PDFSettings', 'tesseract_lang') ?? 'deu+eng';
+        $qualityThreshold = $options['qualityThreshold'] ?? $this->getQualityThresholdSetting();
+
+        // Seitenweise Qualitätsbewertung
+        $pageScores = TextQualityAnalyzer::calculatePageQualityScores($textResult->text, $language);
+        $lowQualityPages = $pageScores['lowQualityPages'];
+
+        if (empty($lowQualityPages)) {
+            $this->logDebug("All pages above quality threshold, no selective OCR needed");
+            return $textResult;
+        }
+
+        // pdftk muss verfügbar sein für Seiten-Extraktion
+        if (!PDFSplitHelper::isAvailable()) {
+            $this->logDebug("pdftk not available, falling back to full OCR");
+            return $this->extractText($pdfPath, $options);
+        }
+
+        $totalPages = count($pageScores['scores']);
+
+        // Wenn mehr als 50% der Seiten schlecht sind, lohnt sich selektives OCR nicht
+        if (count($lowQualityPages) > $totalPages * 0.5) {
+            $this->logDebug(sprintf(
+                "Too many low-quality pages (%d/%d), falling back to full OCR",
+                count($lowQualityPages),
+                $totalPages
+            ));
+            return $this->extractText($pdfPath, $options);
+        }
+
+        $this->logInfo(sprintf(
+            "Selective OCR: %d/%d pages need OCR (pages: %s)",
+            count($lowQualityPages),
+            $totalPages,
+            implode(', ', $lowQualityPages)
+        ));
+
+        // Text in Seiten aufteilen
+        $textPages = explode("\f", $textResult->text);
+        $ocrUsed = false;
+        $tempDir = sys_get_temp_dir() . '/selective_ocr_' . uniqid();
+
+        try {
+            Folder::create($tempDir);
+
+            foreach ($lowQualityPages as $pageNum) {
+                $pageIndex = $pageNum - 1; // 0-basiert
+
+                if ($pageIndex >= count($textPages)) {
+                    continue;
+                }
+
+                // Einzelne Seite als PDF extrahieren
+                $pagePdf = $tempDir . "/page_{$pageNum}.pdf";
+                if (!PDFSplitHelper::extractPages($pdfPath, $pagePdf, $pageNum, $pageNum)) {
+                    $this->logDebug("Could not extract page $pageNum for selective OCR");
+                    continue;
+                }
+
+                // OCR für diese einzelne Seite
+                $ocrResult = $this->extractWithOcrReaders($pagePdf, $options);
+                if ($ocrResult !== null && $ocrResult->hasText()) {
+                    $ocrScore = TextQualityAnalyzer::calculateQualityScore($ocrResult->text, $language);
+                    $originalScore = $pageScores['scores'][$pageIndex] ?? 0.0;
+
+                    if ($ocrScore > $originalScore) {
+                        $this->logDebug(sprintf(
+                            "Page %d: OCR better (%.2f > %.2f), replacing",
+                            $pageNum,
+                            $ocrScore,
+                            $originalScore
+                        ));
+                        $textPages[$pageIndex] = trim($ocrResult->text);
+                        $ocrUsed = true;
+                    } else {
+                        $this->logDebug(sprintf(
+                            "Page %d: Original text still better (%.2f >= %.2f)",
+                            $pageNum,
+                            $originalScore,
+                            $ocrScore
+                        ));
+                    }
+                }
+            }
+        } finally {
+            Folder::delete($tempDir, true);
+        }
+
+        // Seiten mit Form-Feed wieder zusammensetzen
+        $mergedText = implode("\f", $textPages);
+
+        return new PDFDocument(
+            text: $mergedText,
+            reader: $ocrUsed ? null : $textResult->reader,
+            isScanned: $ocrUsed,
+            sourcePath: $pdfPath,
+            metadata: ['selectiveOcr' => $ocrUsed, 'lowQualityPages' => $lowQualityPages]
+        );
     }
 
     /**

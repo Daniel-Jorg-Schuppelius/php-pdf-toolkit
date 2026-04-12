@@ -25,6 +25,21 @@
                 "[TEXT-FILE]"
             ]
         },
+        "pdftotext-check": {
+            "path": "pdftotext",
+            "required": false,
+            "description": "PDF embedded text check (first page only, quiet)",
+            "package": "poppler-utils",
+            "arguments": [
+                "-q",
+                "-l",
+                "[LAST-PAGE]",
+                "-enc",
+                "UTF-8",
+                "[PDF-FILE]",
+                "[TEXT-FILE]"
+            ]
+        },
         "pdfinfo": {
             "path": "pdfinfo",
             "required": true,
@@ -150,6 +165,28 @@
                 "--deskew",
                 "--clean",
                 "--skip-text",
+                "--output-type",
+                "pdf",
+                "[INPUT]",
+                "[OUTPUT]"
+            ]
+        },
+        "ocrmypdf-sidecar": {
+            "path": "ocrmypdf",
+            "required": false,
+            "description": "PDF OCR via OCRmyPDF mit Sidecar-Textausgabe (vermeidet erneutes pdftotext)",
+            "package": "ocrmypdf",
+            "arguments": [
+                "-q",
+                "--tesseract-pagesegmode",
+                "[PSM]",
+                "--language",
+                "[LANG]",
+                "--deskew",
+                "--clean",
+                "--skip-text",
+                "--sidecar",
+                "[SIDECAR]",
                 "--output-type",
                 "pdf",
                 "[INPUT]",

@@ -17,7 +17,7 @@ use CommonToolkit\Helper\Shell;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
-use PDFToolkit\Helper\PDFHelper;
+use PDFToolkit\Helper\{PDFHelper, TextQualityAnalyzer};
 use ERRORToolkit\Traits\ErrorLog;
 
 /**
@@ -76,11 +76,46 @@ final class PdftotextReader implements PDFReaderInterface {
             return null;
         }
 
-        $tempFile = sys_get_temp_dir() . '/pdftotext_' . uniqid() . '.txt';
-
         // Option für Layout-Modus (Standard: true für Abwärtskompatibilität)
         // Bank-PDFs benötigen oft layout: false für korrekte Transaktions-Extraktion
         $useLayout = $options['layout'] ?? true;
+        $dualStrategy = $options['dualStrategy'] ?? true;
+
+        // Primäre Extraktion
+        $text = $this->extractWithMode($pdfPath, $useLayout);
+        if ($text === null) {
+            return null;
+        }
+
+        // Doppelstrategie: Wenn aktiviert und Raw-Modus verfügbar,
+        // beide Modi vergleichen und den besseren zurückgeben
+        if ($dualStrategy && $this->config->isExecutableAvailable('pdftotext-raw')) {
+            $altText = $this->extractWithMode($pdfPath, !$useLayout);
+            if ($altText !== null) {
+                $language = $options['language'] ?? Config::getInstance()->getConfig('PDFSettings', 'tesseract_lang') ?? 'deu+eng';
+                $primaryScore = TextQualityAnalyzer::calculateQualityScore($text, $language);
+                $altScore = TextQualityAnalyzer::calculateQualityScore($altText, $language);
+
+                $primaryMode = $useLayout ? 'layout' : 'raw';
+                $altMode = $useLayout ? 'raw' : 'layout';
+                $this->logDebug("pdftotext dual strategy: $primaryMode=" . round($primaryScore, 2) . ", $altMode=" . round($altScore, 2));
+
+                if ($altScore > $primaryScore) {
+                    $this->logDebug("Using $altMode result (better score)");
+                    return $altText;
+                }
+            }
+        }
+
+        return $text;
+    }
+
+    /**
+     * Extrahiert Text in einem bestimmten Modus (Layout oder Raw).
+     */
+    private function extractWithMode(string $pdfPath, bool $useLayout): ?string {
+        $tempFile = sys_get_temp_dir() . '/pdftotext_' . uniqid() . '.txt';
+
         $configKey = $useLayout ? 'pdftotext' : 'pdftotext-raw';
 
         // Fallback auf pdftotext falls pdftotext-raw nicht konfiguriert
@@ -99,13 +134,13 @@ final class PdftotextReader implements PDFReaderInterface {
         Shell::executeShellCommand($command, $output, $returnCode);
 
         if ($returnCode !== 0) {
-            $this->logDebug("pdftotext failed with code $returnCode for: $pdfPath");
+            $this->logDebug("pdftotext ($configKey) failed with code $returnCode for: $pdfPath");
             File::delete($tempFile);
             return null;
         }
 
         if (!File::exists($tempFile)) {
-            $this->logDebug("pdftotext produced no output for: $pdfPath");
+            $this->logDebug("pdftotext ($configKey) produced no output for: $pdfPath");
             return null;
         }
 
@@ -115,10 +150,11 @@ final class PdftotextReader implements PDFReaderInterface {
         // Prüfen ob relevanter Text extrahiert wurde
         $trimmed = preg_replace('/\s+/', '', $text);
         if (strlen($trimmed) < 10) {
-            $this->logDebug("pdftotext extracted too little text from: $pdfPath");
+            $this->logDebug("pdftotext ($configKey) extracted too little text from: $pdfPath");
             return null;
         }
 
-        return $this->logDebugAndReturn($text, "pdftotext successfully extracted " . strlen($text) . " chars from: $pdfPath");
+        $mode = $useLayout ? 'layout' : 'raw';
+        return $this->logDebugAndReturn($text, "pdftotext ($mode) successfully extracted " . strlen($text) . " chars from: $pdfPath");
     }
 }

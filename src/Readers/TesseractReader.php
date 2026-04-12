@@ -17,8 +17,7 @@ use CommonToolkit\Helper\Shell;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
-use PDFToolkit\Helper\TesseractDataHelper;
-use PDFToolkit\Helper\TextQualityAnalyzer;
+use PDFToolkit\Helper\{PDFHelper, TesseractDataHelper, TextQualityAnalyzer};
 use ERRORToolkit\Traits\ErrorLog;
 
 /**
@@ -99,6 +98,13 @@ final class TesseractReader implements PDFReaderInterface {
         $language = $options['language'] ?? $this->defaultLanguage;
         $autoSelect = $options['auto_select_language'] ?? $this->autoSelectBestLanguage;
 
+        // Sprache aus PDF-Metadaten als Hinweis verwenden
+        $detectedLang = PDFHelper::detectLanguage($pdfPath);
+        if ($detectedLang !== null && !str_contains($language, $detectedLang)) {
+            $language = $detectedLang . '+' . $language;
+            $this->logDebug("Added detected language '$detectedLang' from PDF metadata: $language");
+        }
+
         // Prüfe ob automatische Sprachauswahl aktiviert ist und mehrere Sprachen konfiguriert sind
         if ($autoSelect && str_contains($language, '+')) {
             return $this->extractTextWithBestLanguage($pdfPath, $language, $options);
@@ -156,8 +162,83 @@ final class TesseractReader implements PDFReaderInterface {
 
     /**
      * Extrahiert Text mit einer spezifischen Sprache.
+     * 
+     * Bei aktivierter Qualitätsprüfung wird bei niedrigem Score:
+     * - Erst mit einem anderen PSM-Modus versucht (PSM-Fallback)
+     * - Dann mit höherer DPI versucht (Adaptive DPI)
      */
     private function extractTextWithLanguage(string $pdfPath, string $language, array $options = []): ?string {
+        $psm = $options['psm'] ?? $this->defaultPsm;
+        $dpi = $options['dpi'] ?? $this->defaultDpi;
+        $qualityCheck = $options['qualityCheck'] ?? true;
+        $qualityThreshold = (float) ($options['qualityThreshold'] ?? Config::getInstance()->getConfig('PDFSettings', 'quality_threshold') ?? 60.0);
+
+        $text = $this->extractTextWithSettings($pdfPath, $language, $psm, $dpi);
+
+        if ($text === null || !$qualityCheck) {
+            return $text;
+        }
+
+        $score = TextQualityAnalyzer::calculateQualityScore($text, $language);
+        $this->logDebug("Tesseract ($language, PSM=$psm, DPI=$dpi): quality score " . round($score, 2));
+
+        if ($score >= $qualityThreshold) {
+            return $text;
+        }
+
+        // PSM-Fallback: Verschiedene PSM-Modi probieren
+        $psmFallbacks = $this->getPsmFallbacks($psm);
+        foreach ($psmFallbacks as $altPsm) {
+            $altText = $this->extractTextWithSettings($pdfPath, $language, $altPsm, $dpi);
+            if ($altText !== null) {
+                $altScore = TextQualityAnalyzer::calculateQualityScore($altText, $language);
+                $this->logDebug("Tesseract PSM fallback ($language, PSM=$altPsm, DPI=$dpi): score " . round($altScore, 2));
+
+                if ($altScore > $score) {
+                    $text = $altText;
+                    $score = $altScore;
+                    if ($score >= $qualityThreshold) {
+                        return $text;
+                    }
+                }
+            }
+        }
+
+        // Adaptive DPI: Bei immer noch niedrigem Score mit höherer DPI versuchen
+        if ($score < $qualityThreshold && $dpi < 600) {
+            $higherDpi = min($dpi + 150, 600);
+            $this->logDebug("Adaptive DPI: retrying with DPI=$higherDpi (current score: " . round($score, 2) . ")");
+
+            $altText = $this->extractTextWithSettings($pdfPath, $language, $psm, $higherDpi);
+            if ($altText !== null) {
+                $altScore = TextQualityAnalyzer::calculateQualityScore($altText, $language);
+                $this->logDebug("Tesseract adaptive DPI ($language, PSM=$psm, DPI=$higherDpi): score " . round($altScore, 2));
+
+                if ($altScore > $score) {
+                    $text = $altText;
+                }
+            }
+        }
+
+        return $text;
+    }
+
+    /**
+     * Gibt alternative PSM-Modi zurück, sortiert nach Wahrscheinlichkeit für bessere Ergebnisse.
+     * 
+     * @param int $currentPsm Aktueller PSM-Modus
+     * @return int[] Alternative PSM-Modi
+     */
+    private function getPsmFallbacks(int $currentPsm): array {
+        // PSM 3 = Auto, PSM 6 = Uniform Block, PSM 4 = Single Column, PSM 1 = Auto + OSD
+        $all = [3, 6, 4, 1];
+        return array_values(array_filter($all, fn(int $psm) => $psm !== $currentPsm));
+    }
+
+    /**
+     * Extrahiert Text mit spezifischen Tesseract-Einstellungen (Sprache, PSM, DPI).
+     */
+    private function extractTextWithSettings(string $pdfPath, string $language, int $psm, int $dpi): ?string {
         $tempDir = sys_get_temp_dir() . '/tesseract_' . uniqid();
 
         if (!mkdir($tempDir, 0755, true)) {
@@ -168,7 +249,7 @@ final class TesseractReader implements PDFReaderInterface {
         try {
             // 1. PDF zu PNG konvertieren
             $command = $this->config->buildCommand('pdftoppm', [
-                '[DPI]' => (string) $this->defaultDpi,
+                '[DPI]' => (string) $dpi,
                 '[PDF-FILE]' => $pdfPath,
                 '[OUTPUT-PREFIX]' => $tempDir . '/page',
             ]);
@@ -201,13 +282,16 @@ final class TesseractReader implements PDFReaderInterface {
                     '[INPUT]' => $pagePath,
                     '[OUTPUT]' => $textFile,
                     '[LANG]' => $language,
-                    '[PSM]' => (string) $this->defaultPsm,
+                    '[PSM]' => (string) $psm,
                 ]);
 
                 // TESSDATA_PREFIX setzen falls eigene Trainingsdaten vorhanden
                 if (!empty($this->tessDataPath) && Folder::exists($this->tessDataPath)) {
                     $command = "TESSDATA_PREFIX=" . escapeshellarg($this->tessDataPath) . " " . $command;
                 }
+
+                // stderr unterdrücken (OSD "Weak margin" Warnungen sind harmlos)
+                $command .= ' 2>/dev/null';
 
                 $output = [];
                 $returnCode = 0;
@@ -222,13 +306,13 @@ final class TesseractReader implements PDFReaderInterface {
             }
 
             if (empty($allText)) {
-                $this->logDebug("Tesseract ($language) extracted no text from: $pdfPath");
+                $this->logDebug("Tesseract ($language, PSM=$psm, DPI=$dpi) extracted no text from: $pdfPath");
                 return null;
             }
 
             $text = implode("\n\n--- Seite ---\n\n", $allText);
 
-            $this->logDebug("Tesseract ($language) extracted " . strlen($text) . " chars from " . count($pages) . " pages");
+            $this->logDebug("Tesseract ($language, PSM=$psm, DPI=$dpi) extracted " . strlen($text) . " chars from " . count($pages) . " pages");
 
             return $text;
         } finally {

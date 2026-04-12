@@ -56,6 +56,23 @@ final class TextQualityAnalyzer {
         'gegen',
         'ohne',
         'während',
+        'werden',
+        'wurde',
+        'wird',
+        'sind',
+        'ist',
+        'hat',
+        'haben',
+        'kann',
+        'nach',
+        'vom',
+        'zum',
+        'zur',
+        'bei',
+        'mit',
+        'auf',
+        'aus',
+        'von',
         // Wörter mit Umlauten (wichtig für Erkennung)
         'für',
         'über',
@@ -65,6 +82,7 @@ final class TextQualityAnalyzer {
         'größe',
         'größer',
         'größte',
+        'größten',
         'fähig',
         'tätig',
         'mäßig',
@@ -83,7 +101,6 @@ final class TextQualityAnalyzer {
         'nötig',
         'höher',
         'höchst',
-        'größten',
         'prüfung',
         'geprüft',
         'erfüllt',
@@ -110,6 +127,67 @@ final class TextQualityAnalyzer {
         'rechnung',
         'anhang',
         'lagebericht',
+        // Bank- und Finanzbegriffe
+        'kontoauszug',
+        'kontostand',
+        'buchungsdatum',
+        'wertstellung',
+        'valuta',
+        'umsatz',
+        'betrag',
+        'saldo',
+        'haben',
+        'soll',
+        'gutschrift',
+        'lastschrift',
+        'verwendungszweck',
+        'empfänger',
+        'auftraggeber',
+        'zahlungseingang',
+        'überweisung',
+        'dauerauftrag',
+        'abbuchung',
+        'einzahlung',
+        'auszahlung',
+        'bankleitzahl',
+        'kontonummer',
+        'kreditkarte',
+        'girokonto',
+        'abrechnung',
+        'kartenabrechnung',
+        'kreditkartenabrechnung',
+        'buchungstext',
+        'buchung',
+        'transaktion',
+        'transaktionsdatum',
+        'zinsen',
+        'gebühren',
+        'entgelt',
+        'provision',
+        'kontoinhaber',
+        'bankverbindung',
+        'zahlungsverkehr',
+        'rechnungsnummer',
+        'rechnungsdatum',
+        'fälligkeitsdatum',
+        'steuernummer',
+        'umsatzsteuer',
+        'mehrwertsteuer',
+        'nettobetrag',
+        'bruttobetrag',
+        'gesamtbetrag',
+        'zwischensumme',
+        'einzelpreis',
+        'menge',
+        'lieferdatum',
+        'bestellnummer',
+        'kundennummer',
+        'anschrift',
+        'telefon',
+        'datum',
+        'seite',
+        'blatt',
+        'euro',
     ];
 
     /**
@@ -153,6 +231,7 @@ final class TextQualityAnalyzer {
         'know',
         'take',
         'come',
+        // Business & Finance
         'financial',
         'statement',
         'report',
@@ -165,6 +244,24 @@ final class TextQualityAnalyzer {
         'audit',
         'auditor',
         'opinion',
+        'account',
+        'transaction',
+        'payment',
+        'transfer',
+        'amount',
+        'total',
+        'invoice',
+        'credit',
+        'debit',
+        'date',
+        'number',
+        'reference',
+        'bank',
+        'customer',
+        'order',
+        'price',
+        'quantity',
+        'description',
     ];
 
     /**
@@ -222,6 +319,58 @@ final class TextQualityAnalyzer {
         self::logDebug("Quality score for '$language': " . round($totalScore, 2) . " (word: {$scores['wordMatch']}, umlaut: {$scores['umlaut']}, clean: {$scores['cleanChars']}, length: {$scores['wordLength']}, missing: {$scores['missingChars']})");
 
         return $totalScore;
+    }
+
+    /**
+     * Berechnet Qualitätsscores für jede einzelne Seite des Textes.
+     * 
+     * pdftotext trennt Seiten mit Form-Feed (\f). Diese Methode
+     * nutzt das, um jede Seite einzeln zu bewerten.
+     * 
+     * @param string $text Der gesamte extrahierte Text
+     * @param string $language Die verwendete Sprache
+     * @return array{scores: float[], averageScore: float, lowQualityPages: int[]}
+     */
+    public static function calculatePageQualityScores(string $text, string $language): array {
+        $pages = explode("\f", $text);
+        $scores = [];
+        $lowQualityPages = [];
+        $threshold = (float) (\PDFToolkit\Config\Config::getInstance()->getConfig('PDFSettings', 'quality_threshold') ?? 60.0);
+
+        foreach ($pages as $index => $pageText) {
+            $pageText = trim($pageText);
+            if ($pageText === '') {
+                $scores[$index] = 0.0;
+                $lowQualityPages[] = $index + 1; // 1-basiert
+                continue;
+            }
+
+            $score = self::calculateQualityScore($pageText, $language);
+            $scores[$index] = $score;
+
+            if ($score < $threshold) {
+                $lowQualityPages[] = $index + 1; // 1-basiert
+            }
+        }
+
+        $nonEmptyScores = array_filter($scores, fn(float $s) => $s > 0.0);
+        $averageScore = count($nonEmptyScores) > 0
+            ? array_sum($nonEmptyScores) / count($nonEmptyScores)
+            : 0.0;
+
+        self::logDebug(sprintf(
+            "Page-level quality: %d pages, avg score %.2f, %d low-quality pages: [%s]",
+            count($pages),
+            $averageScore,
+            count($lowQualityPages),
+            implode(', ', $lowQualityPages)
+        ));
+
+        return [
+            'scores' => $scores,
+            'averageScore' => $averageScore,
+            'lowQualityPages' => $lowQualityPages,
+        ];
     }
 
     /**
@@ -379,14 +528,24 @@ final class TextQualityAnalyzer {
      * - "f r" statt "für"
      * - "G bH" statt "GmbH"
      * - Einzelne Buchstaben umgeben von Leerzeichen
+     * 
+     * Layout-Whitespace (von pdftotext -layout) wird vor der Analyse normalisiert,
+     * damit absichtliche Spaltenausrichtung nicht als Encoding-Fehler gewertet wird.
      */
     private static function calculateMissingCharsScore(string $text): float {
         $issues = 0;
 
+        // Layout-Whitespace normalisieren: Mehrfach-Leerzeichen auf eines reduzieren,
+        // Zeilenumbrüche beibehalten. Damit wird die Layout-Formatierung von
+        // pdftotext entfernt, aber echte Encoding-Fehler (z.B. "f r" statt "für")
+        // bleiben als einzelne Leerzeichen erhalten.
+        $normalizedText = preg_replace('/[^\S\n]+/', ' ', $text);
+        $normalizedText = preg_replace('/^ | $/m', '', $normalizedText);
+
         // Muster für fehlende Zeichen: einzelner Buchstabe umgeben von Leerzeichen
-        // z.B. " r " (sollte "ür" sein), " f " (sollte "äf" sein)
-        $singleLetterPattern = '/\s[a-zA-Z]\s[a-zA-Z]{2,}/';
-        $issues += preg_match_all($singleLetterPattern, $text) * 2;
+        // innerhalb eines Wortkontexts (z.B. "Vermögens" → "Verm gens")
+        $singleLetterPattern = '/(?<=\p{L}) \p{L} (?=\p{L}{2})/u';
+        $issues += preg_match_all($singleLetterPattern, $normalizedText) * 2;
 
         // Muster für bekannte Encoding-Probleme bei deutschen Texten
         $knownPatterns = [
@@ -410,20 +569,31 @@ final class TextQualityAnalyzer {
             '/verf\s+gbar/i',         // verfügbar
             '/Verm\s+gens/i',         // Vermögens
             '/Finanz\s+bersicht/i',   // Finanzübersicht
+            // Häufige OCR-Verwechslungen (Zeichen → ähnliches Zeichen)
+            '/\bUberweisung/i',       // Ü→U: Überweisung
+            '/\bUbersicht/i',         // Ü→U: Übersicht
+            '/\bUber\b/i',            // Ü→U: Über (alleinstehend)
+            '/\b0ffentlich/i',        // ö→0: öffentlich
+            '/Geb\s+hren/i',         // Gebühren
+            '/Kontoaus\s+ge/i',      // Kontoauszüge
+            '/Empf\s+nger/i',        // Empfänger
+            '/Beg\s+nstigter/i',     // Begünstigter
+            '/Auftr\s+ge/i',         // Aufträge
+            '/Betr\s+ge/i',          // Beträge
+            '/R\s+ckbuchung/i',      // Rückbuchung
+            '/Geb\s+hr/i',          // Gebühr
+            '/Stra\s+e\b/i',        // Straße (ß→Leerzeichen)
+            '/Ma\s+nahme/i',        // Maßnahme
         ];
 
         foreach ($knownPatterns as $pattern) {
-            $matches = preg_match_all($pattern, $text);
+            $matches = preg_match_all($pattern, $normalizedText);
             $issues += $matches * 3; // Jedes bekannte Muster zählt stark
         }
 
-        // Sehr viele aufeinanderfolgende Leerzeichen deuten auf fehlende Zeichen hin
-        $multiSpacePattern = '/\s{3,}/';
-        $issues += preg_match_all($multiSpacePattern, $text);
-
         // Score berechnen (mehr Issues = niedrigerer Score)
         // Bei 10+ Issues pro 1000 Zeichen ist der Score 0
-        $textLength = mb_strlen($text, 'UTF-8');
+        $textLength = mb_strlen($normalizedText, 'UTF-8');
         $issueRate = $issues / max(1, $textLength / 1000); // Pro 1000 Zeichen
 
         // Strenge Bewertung: schon wenige Issues = deutlich niedrigerer Score
