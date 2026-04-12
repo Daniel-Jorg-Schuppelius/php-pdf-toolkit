@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace Tests\Enums;
 
 use PDFToolkit\Enums\PaperFormat;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Contracts\BaseTestCase;
 
 final class PaperFormatTest extends BaseTestCase {
@@ -101,9 +102,7 @@ final class PaperFormatTest extends BaseTestCase {
         $this->assertStringContainsString('297', $desc);
     }
 
-    /**
-     * @dataProvider allFormatsProvider
-     */
+    #[DataProvider('allFormatsProvider')]
     public function testAllFormatsHaveValidDimensions(PaperFormat $format): void {
         $this->assertGreaterThan(0, $format->widthPt());
         $this->assertGreaterThan(0, $format->heightPt());
