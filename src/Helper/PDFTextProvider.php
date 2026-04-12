@@ -122,11 +122,13 @@ final class PDFTextProvider {
      * durch Whitespace erhalten bleiben muss.
      *
      * Nur Text-Reader, kein OCR-Fallback.
+     * Dual-Strategy ist deaktiviert, damit garantiert der Layout-Text zurückkommt.
      */
     public function layoutText(): ?string {
         return $this->getCachedOrExtract(PDFTextVariant::Layout, [
             'layout' => true,
             'textOnly' => true,
+            'dualStrategy' => false,
         ]);
     }
 
@@ -135,11 +137,13 @@ final class PDFTextProvider {
      *
      * Ideal für Regex-basierte Extraktion, da keine Whitespace-Spalten stören.
      * Nur Text-Reader, kein OCR-Fallback.
+     * Dual-Strategy ist deaktiviert, damit garantiert der Raw-Text zurückkommt.
      */
     public function rawText(): ?string {
         return $this->getCachedOrExtract(PDFTextVariant::Raw, [
             'layout' => false,
             'textOnly' => true,
+            'dualStrategy' => false,
         ]);
     }
 
@@ -449,6 +453,9 @@ final class PDFTextProvider {
         }
         if (isset($options['layout'])) {
             $parts[] = 'layout=' . ($options['layout'] ? '1' : '0');
+        }
+        if (isset($options['dualStrategy']) && !$options['dualStrategy']) {
+            $parts[] = 'nodual';
         }
         if (isset($options['qualityCheck'])) {
             $parts[] = 'qc=' . ($options['qualityCheck'] ? '1' : '0');
