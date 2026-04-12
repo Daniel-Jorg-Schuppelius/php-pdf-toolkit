@@ -263,10 +263,10 @@
     },
     "javaExecutables": {
         "pdfbox": {
-            "path": "/usr/local/bin/pdfbox-app-3.0.0-alpha2.jar",
+            "path": "/usr/local/bin/pdfbox-app-3.0.7.jar",
             "required": true,
             "description": "Apache PDFBox Tool",
-            "url": "https://dlcdn.apache.org/pdfbox/3.0.0-alpha2/pdfbox-app-3.0.0-alpha2.jar",
+            "url": "https://dlcdn.apache.org/pdfbox/3.0.7/pdfbox-app-3.0.7.jar",
             "arguments": [
                 "export:text",
                 "-i",
