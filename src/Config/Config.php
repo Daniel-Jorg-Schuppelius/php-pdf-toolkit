@@ -39,8 +39,7 @@ class Config extends ConfigAbstract {
         $configDir = $configDir ?? static::getDefaultConfigDir();
 
         if (!Folder::exists($configDir)) {
-            self::logError("Invalid config directory: $configDir");
-            throw new InvalidArgumentException("Invalid config directory: $configDir");
+            self::logErrorAndThrow(InvalidArgumentException::class, "Invalid config directory: $configDir");
         }
 
         parent::__construct($configDir);

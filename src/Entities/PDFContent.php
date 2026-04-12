@@ -23,6 +23,7 @@ use InvalidArgumentException;
  * Unterstützt verschiedene Quellformate: HTML, Text, Datei.
  */
 final readonly class PDFContent {
+
     public const TYPE_HTML = 'html';
     public const TYPE_TEXT = 'text';
     public const TYPE_FILE = 'file';
