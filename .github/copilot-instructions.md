@@ -9,10 +9,10 @@ PHP 8.2+ Bibliothek zur Text-Extraktion aus PDF-Dokumenten mit intelligenter Rea
 ```
 PDFReaderRegistry → [Reader nach Priorität] → PDFDocument
                           ↓
-              PdftotextReader (10)     # Schnell, für Text-PDFs
-              PdfboxReader (30)        # Komplexe Layouts
+              PDFToTextReader (10)     # Schnell, für Text-PDFs
+              PDFBoxReader (30)        # Komplexe Layouts
               TesseractReader (50)     # OCR für Scans
-              OcrmypdfReader (60)      # Beste OCR-Qualität
+              OcrMyPDFReader (60)      # Beste OCR-Qualität
 ```
 
 ### Workflow
@@ -37,10 +37,10 @@ php-pdf-toolkit/
 │   ├── Helper/
 │   │   └── PDFHelper.php        # Validierung, Metadaten
 │   ├── Readers/
-│   │   ├── PdftotextReader.php
-│   │   ├── PdfboxReader.php
+│   │   ├── PDFToTextReader.php
+│   │   ├── PDFBoxReader.php
 │   │   ├── TesseractReader.php
-│   │   └── OcrmypdfReader.php
+│   │   └── OcrMyPDFReader.php
 │   └── Registries/
 │       └── PDFReaderRegistry.php
 └── tests/

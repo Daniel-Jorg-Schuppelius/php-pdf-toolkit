@@ -187,10 +187,10 @@ Tool paths can be configured in `config/executables.json`:
 ```text
 PDFReaderRegistry → [Readers by Priority] → PDFDocument
                           ↓
-              PdftotextReader (10)     # Fast, for text PDFs
-              PdfboxReader (30)        # Complex layouts
+              PDFToTextReader (10)     # Fast, for text PDFs
+              PDFBoxReader (30)        # Complex layouts
               TesseractReader (50)     # OCR for scans
-              OcrmypdfReader (60)      # Best OCR quality
+              OcrMyPDFReader (60)      # Best OCR quality
 
 PDFWriterRegistry → [Writers by Priority] → PDF File
                           ↓

@@ -39,8 +39,11 @@ final class PDFReaderRegistry {
 
     private static ?self $instance = null;
 
-    /** @var PDFReaderInterface[] */
-    private array $readers = [];
+    /** @var class-string<PDFReaderInterface>[] Entdeckte Reader-Klassen (sortiert nach Priorität) */
+    private array $readerClasses = [];
+
+    /** @var array<string, PDFReaderInterface|null> Lazy-geladene Reader-Instanzen (null = nicht verfügbar) */
+    private array $readerInstances = [];
 
     private bool $loaded = false;
 
@@ -48,7 +51,7 @@ final class PDFReaderRegistry {
      * Privater Konstruktor für Singleton-Pattern.
      */
     private function __construct() {
-        $this->loadReaders();
+        $this->discoverReaders();
     }
 
     /**
@@ -69,9 +72,13 @@ final class PDFReaderRegistry {
     }
 
     /**
-     * Lädt alle verfügbaren PDF-Reader.
+     * Entdeckt alle Reader-Klassen (ohne Instanziierung).
+     * 
+     * Nur die Klassennamen werden gesammelt und nach Priorität sortiert.
+     * Die eigentliche Instanziierung und Verfügbarkeitsprüfung erfolgt
+     * lazy beim ersten Zugriff auf einen Reader.
      */
-    private function loadReaders(): void {
+    private function discoverReaders(): void {
         if ($this->loaded) {
             return;
         }
@@ -87,25 +94,44 @@ final class PDFReaderRegistry {
         foreach (Folder::findByPattern($readersDir, '*.php') as $file) {
             $className = $this->getClassFromFile($file);
             if ($className && is_subclass_of($className, PDFReaderInterface::class)) {
-                try {
-                    $reader = new $className();
-                    if ($reader->isAvailable()) {
-                        $this->readers[] = $reader;
-                        $this->logDebug("Loaded PDF reader: " . $className::getType()->value);
-                    } else {
-                        $this->logDebug("PDF reader not available: " . $className::getType()->value);
-                    }
-                } catch (\Throwable $e) {
-                    $this->logWarning("Failed to load PDF reader $className: " . $e->getMessage());
-                }
+                $this->readerClasses[] = $className;
             }
         }
 
-        // Nach Priorität sortieren (niedrig = zuerst)
-        usort($this->readers, fn($a, $b) => $a::getPriority() <=> $b::getPriority());
+        // Nach Priorität sortieren (statische Methode, keine Instanziierung nötig)
+        usort($this->readerClasses, fn($a, $b) => $a::getPriority() <=> $b::getPriority());
 
         $this->loaded = true;
-        $this->logInfo("Loaded " . count($this->readers) . " PDF readers");
+        $this->logInfo("Discovered " . count($this->readerClasses) . " PDF reader classes");
+    }
+
+    /**
+     * Gibt eine Reader-Instanz zurück (lazy-loaded mit Verfügbarkeitsprüfung).
+     * 
+     * @param class-string<PDFReaderInterface> $className
+     * @return PDFReaderInterface|null null wenn nicht verfügbar
+     */
+    private function getReaderInstance(string $className): ?PDFReaderInterface {
+        if (array_key_exists($className, $this->readerInstances)) {
+            return $this->readerInstances[$className];
+        }
+
+        try {
+            $reader = new $className();
+            if ($reader->isAvailable()) {
+                $this->readerInstances[$className] = $reader;
+                $this->logDebug("Loaded PDF reader: " . $className::getType()->value);
+                return $reader;
+            } else {
+                $this->readerInstances[$className] = null;
+                $this->logDebug("PDF reader not available: " . $className::getType()->value);
+                return null;
+            }
+        } catch (\Throwable $e) {
+            $this->readerInstances[$className] = null;
+            $this->logWarning("Failed to load PDF reader $className: " . $e->getMessage());
+            return null;
+        }
     }
 
     /**
@@ -123,13 +149,16 @@ final class PDFReaderRegistry {
     }
 
     /**
-     * Gibt alle verfügbaren Reader als Generator zurück (nach Priorität sortiert).
+     * Gibt alle verfügbaren Reader als Generator zurück (nach Priorität sortiert, lazy-loaded).
      * 
      * @return Generator<PDFReaderInterface>
      */
     public function getReaders(): Generator {
-        foreach ($this->readers as $reader) {
-            yield $reader;
+        foreach ($this->readerClasses as $className) {
+            $reader = $this->getReaderInstance($className);
+            if ($reader !== null) {
+                yield $reader;
+            }
         }
     }
 
@@ -140,8 +169,11 @@ final class PDFReaderRegistry {
      */
     public function getAvailableReaders(): array {
         $result = [];
-        foreach ($this->readers as $reader) {
-            $result[$reader::getType()->value] = $reader;
+        foreach ($this->readerClasses as $className) {
+            $reader = $this->getReaderInstance($className);
+            if ($reader !== null) {
+                $result[$reader::getType()->value] = $reader;
+            }
         }
         return $result;
     }
@@ -149,11 +181,18 @@ final class PDFReaderRegistry {
     /**
      * Gibt nur Reader zurück, die für Text-PDFs geeignet sind.
      * 
+     * Filtert zuerst nach statischer Typ-Information (keine Instanziierung nötig),
+     * dann lazy-loaded die passenden Reader-Instanzen.
+     * 
      * @return Generator<PDFReaderInterface>
      */
     public function getTextPdfReaders(): Generator {
-        foreach ($this->readers as $reader) {
-            if ($reader::supportsTextPdfs()) {
+        foreach ($this->readerClasses as $className) {
+            if (!$className::supportsTextPdfs()) {
+                continue;
+            }
+            $reader = $this->getReaderInstance($className);
+            if ($reader !== null) {
                 yield $reader;
             }
         }
@@ -162,23 +201,30 @@ final class PDFReaderRegistry {
     /**
      * Gibt nur Reader zurück, die für gescannte PDFs (OCR) geeignet sind.
      * 
+     * Filtert zuerst nach statischer Typ-Information (keine Instanziierung nötig),
+     * dann lazy-loaded die passenden Reader-Instanzen.
+     * 
      * @return Generator<PDFReaderInterface>
      */
     public function getScannedPdfReaders(): Generator {
-        foreach ($this->readers as $reader) {
-            if ($reader::supportsScannedPdfs()) {
+        foreach ($this->readerClasses as $className) {
+            if (!$className::supportsScannedPdfs()) {
+                continue;
+            }
+            $reader = $this->getReaderInstance($className);
+            if ($reader !== null) {
                 yield $reader;
             }
         }
     }
 
     /**
-     * Gibt einen Reader nach Typ zurück.
+     * Gibt einen Reader nach Typ zurück (lazy-loaded).
      */
     public function getByType(PDFReaderType $type): ?PDFReaderInterface {
-        foreach ($this->readers as $reader) {
-            if ($reader::getType() === $type) {
-                return $reader;
+        foreach ($this->readerClasses as $className) {
+            if ($className::getType() === $type) {
+                return $this->getReaderInstance($className);
             }
         }
         return null;
@@ -571,9 +617,17 @@ final class PDFReaderRegistry {
 
     /**
      * Gibt die Anzahl verfügbarer Reader zurück.
+     * 
+     * Hinweis: Instanziiert alle Reader um Verfügbarkeit zu prüfen.
      */
     public function count(): int {
-        return count($this->readers);
+        $count = 0;
+        foreach ($this->readerClasses as $className) {
+            if ($this->getReaderInstance($className) !== null) {
+                $count++;
+            }
+        }
+        return $count;
     }
 
     /**
@@ -688,6 +742,13 @@ final class PDFReaderRegistry {
      * @return PDFReaderType[]
      */
     public function getAvailableReaderTypes(): array {
-        return array_map(fn($r) => $r::getType(), $this->readers);
+        $types = [];
+        foreach ($this->readerClasses as $className) {
+            $reader = $this->getReaderInstance($className);
+            if ($reader !== null) {
+                $types[] = $reader::getType();
+            }
+        }
+        return $types;
     }
 }

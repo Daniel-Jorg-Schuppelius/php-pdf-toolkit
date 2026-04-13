@@ -55,7 +55,7 @@ final class PDFReaderRegistryTest extends BaseTestCase {
         $this->assertGreaterThan(0, $registry->count(), 'Mindestens ein Reader sollte verfügbar sein');
     }
 
-    public function testPdftotextReaderIsAvailable(): void {
+    public function testPDFToTextReaderIsAvailable(): void {
         $registry = PDFReaderRegistry::getInstance();
         $types = $registry->getAvailableReaderTypes();
         $this->assertContains(PDFReaderType::Pdftotext, $types, 'pdftotext-Reader sollte verfügbar sein');

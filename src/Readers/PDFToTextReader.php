@@ -3,7 +3,7 @@
  * Created on   : Wed Jan 22 2026
  * Author       : Daniel Jörg Schuppelius
  * Author Uri   : https://schuppelius.org
- * Filename     : PdftotextReader.php
+ * Filename     : PDFToTextReader.php
  * License      : AGPL-3.0-or-later
  * License Uri  : https://www.gnu.org/licenses/agpl-3.0.html
  */
@@ -26,7 +26,7 @@ use ERRORToolkit\Traits\ErrorLog;
  * Schnellste Option für PDFs mit eingebettetem Text.
  * Funktioniert NICHT für gescannte Dokumente.
  */
-final class PdftotextReader implements PDFReaderInterface {
+final class PDFToTextReader implements PDFReaderInterface {
     use ErrorLog;
 
     private ?bool $available = null;
@@ -67,8 +67,11 @@ final class PdftotextReader implements PDFReaderInterface {
             return false;
         }
 
-        // Schneller Check ob PDF Text enthält
-        return PDFHelper::hasEmbeddedText($pdfPath, 10);
+        // Keine hasEmbeddedText()-Prüfung mehr:
+        // - extractText() validiert selbst, ob genug Text extrahiert wurde
+        // - extractText() der Registry prüft hasEmbeddedText() bereits auf Orchestrierungs-Ebene
+        // - Spart einen redundanten pdftotext-Shell-Call (~11ms)
+        return PDFHelper::isValidPdf($pdfPath);
     }
 
     public function extractText(string $pdfPath, array $options = []): ?string {

@@ -3,7 +3,7 @@
  * Created on   : Wed Jan 22 2026
  * Author       : Daniel Jörg Schuppelius
  * Author Uri   : https://schuppelius.org
- * Filename     : PdfboxReader.php
+ * Filename     : PDFBoxReader.php
  * License      : AGPL-3.0-or-later
  * License Uri  : https://www.gnu.org/licenses/agpl-3.0.html
  */
@@ -25,7 +25,7 @@ use ERRORToolkit\Traits\ErrorLog;
  * Bessere Ergebnisse bei komplexen Layouts als pdftotext.
  * Benötigt Java und pdfbox-app.jar.
  */
-final class PdfboxReader implements PDFReaderInterface {
+final class PDFBoxReader implements PDFReaderInterface {
     use ErrorLog;
 
     private ?bool $available = null;

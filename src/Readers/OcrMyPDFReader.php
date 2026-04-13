@@ -3,7 +3,7 @@
  * Created on   : Wed Jan 22 2026
  * Author       : Daniel Jörg Schuppelius
  * Author Uri   : https://schuppelius.org
- * Filename     : OcrmypdfReader.php
+ * Filename     : OcrMyPDFReader.php
  * License      : AGPL-3.0-or-later
  * License Uri  : https://www.gnu.org/licenses/agpl-3.0.html
  */
@@ -26,7 +26,7 @@ use ERRORToolkit\Traits\ErrorLog;
  * Erstellt ein durchsuchbares PDF aus gescannten Dokumenten.
  * Kombiniert mehrere Tools (Tesseract, unpaper, etc.) für beste Ergebnisse.
  */
-final class OcrmypdfReader implements PDFReaderInterface {
+final class OcrMyPDFReader implements PDFReaderInterface {
     use ErrorLog;
 
     private ?bool $available = null;
