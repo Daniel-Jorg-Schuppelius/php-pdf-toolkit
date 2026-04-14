@@ -518,7 +518,7 @@ final class PDFHelper {
 
         $output = [];
         $returnCode = 0;
-        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0) {
+        if (!Shell::executeShellCommand($command, $output, $returnCode) || $returnCode !== 0) {
             self::logError('pdftoppm fehlgeschlagen', [
                 'returnCode' => $returnCode,
                 'output' => implode("\n", $output),

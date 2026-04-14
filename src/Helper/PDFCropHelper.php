@@ -89,7 +89,7 @@ final class PDFCropHelper {
 
         $output = [];
         $returnCode = 0;
-        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0) {
+        if (!Shell::executeShellCommand($command, $output, $returnCode) || $returnCode !== 0) {
             self::logError('Ghostscript-Cropping fehlgeschlagen', [
                 'returnCode' => $returnCode,
                 'output' => implode("\n", $output),
@@ -309,7 +309,7 @@ final class PDFCropHelper {
 
         $output = [];
         $returnCode = 0;
-        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0) {
+        if (!Shell::executeShellCommand($command, $output, $returnCode) || $returnCode !== 0) {
             self::logError('Ghostscript-Resize fehlgeschlagen', [
                 'returnCode' => $returnCode,
                 'output' => implode("\n", $output),
@@ -425,7 +425,7 @@ final class PDFCropHelper {
 
                 $output = [];
                 $returnCode = 0;
-                if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0) {
+                if (!Shell::executeShellCommand($command, $output, $returnCode) || $returnCode !== 0) {
                     self::logError('Ghostscript-Zentrierung fehlgeschlagen', [
                         'returnCode' => $returnCode,
                         'output' => implode("\n", $output),
@@ -495,7 +495,7 @@ final class PDFCropHelper {
 
         $output = [];
         $returnCode = 0;
-        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0) {
+        if (!Shell::executeShellCommand($command, $output, $returnCode) || $returnCode !== 0) {
             self::logError('PDF-Rotation fehlgeschlagen', [
                 'returnCode' => $returnCode,
                 'output' => implode("\n", $output),
