@@ -41,6 +41,18 @@ final class ZugferdWriter implements PDFWriterInterface {
     public const ZUGFERD_VERSION = '2.2';
     public const FACTURX_VERSION = '1.0';
 
+    /**
+     * Kanonischer Dateiname der eingebetteten XML für ZUGFeRD 2.1/2.2 (= Factur-X 1.0).
+     * Seit ZUGFeRD 2.1 ist dieser Name verbindlich und identisch zu Factur-X.
+     */
+    public const INVOICE_FILENAME_FACTURX = 'factur-x.xml';
+
+    /**
+     * Legacy-Dateiname aus ZUGFeRD 2.0. Nur für Rückwärtskompatibilität, nicht
+     * mehr spec-konform für 2.1+. Über die Option 'invoice_filename' wählbar.
+     */
+    public const INVOICE_FILENAME_ZUGFERD_LEGACY = 'zugferd-invoice.xml';
+
     /** ZUGFeRD Conformance Levels */
     public const LEVEL_MINIMUM = 'MINIMUM';
     public const LEVEL_BASIC_WL = 'BASIC WL';
@@ -98,10 +110,25 @@ final class ZugferdWriter implements PDFWriterInterface {
             return false;
         }
 
-        $result = file_put_contents($outputPath, $pdfString);
+        // Atomar schreiben: erst in eine temporäre Datei im Zielverzeichnis,
+        // dann per rename() ersetzen. So bleibt eine bereits existierende
+        // Ziel-PDF bei einem Schreibfehler unversehrt (kein truncate-in-place).
+        $dir = \dirname($outputPath);
+        $tempPath = @tempnam($dir, '.zugferd_');
+        if ($tempPath === false) {
+            $this->logError('Failed to create temporary file for ZUGFeRD PDF', ['dir' => $dir]);
+            return false;
+        }
 
-        if ($result === false) {
+        if (@file_put_contents($tempPath, $pdfString) === false) {
+            @unlink($tempPath);
             $this->logError('Failed to write ZUGFeRD PDF file', ['path' => $outputPath]);
+            return false;
+        }
+
+        if (!@rename($tempPath, $outputPath)) {
+            @unlink($tempPath);
+            $this->logError('Failed to move ZUGFeRD PDF into place', ['path' => $outputPath]);
             return false;
         }
 
@@ -322,8 +349,7 @@ final class ZugferdWriter implements PDFWriterInterface {
      * Bettet die XML-Rechnung in das PDF ein.
      */
     private function embedInvoiceXml(TCPDF|Fpdi $pdf, string $xml, array $options): void {
-        $isFacturX = $options['facturx'] ?? false;
-        $filename = $isFacturX ? 'factur-x.xml' : 'zugferd-invoice.xml';
+        $filename = $this->resolveInvoiceFilename($options);
 
         // XML als eingebettete Datei hinzufügen (PDF/A-3 kompatibel)
         $pdf->EmbedFileFromString($filename, $xml);
@@ -342,6 +368,21 @@ final class ZugferdWriter implements PDFWriterInterface {
                 'Contents' => 'Embedded electronic invoice (EN 16931)'
             ]
         );
+    }
+
+    /**
+     * Bestimmt den Dateinamen der einzubettenden XML-Rechnung.
+     *
+     * Standard ist der spec-konforme Name 'factur-x.xml' (ZUGFeRD 2.1/2.2 = Factur-X 1.0).
+     * Mit der Option 'invoice_filename' kann ein expliziter Name gesetzt werden
+     * (z.B. der Legacy-Name 'zugferd-invoice.xml' für ZUGFeRD 2.0).
+     */
+    private function resolveInvoiceFilename(array $options): string {
+        if (!empty($options['invoice_filename']) && is_string($options['invoice_filename'])) {
+            return $options['invoice_filename'];
+        }
+
+        return self::INVOICE_FILENAME_FACTURX;
     }
 
     /**
