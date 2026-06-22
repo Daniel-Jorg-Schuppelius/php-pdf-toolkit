@@ -148,6 +148,33 @@ final class PDFTextProvider {
     }
 
     /**
+     * Koordinaten-basierte Zeilen-Reassembly (pdftotext -bbox).
+     *
+     * Für gescannte/columnar PDFs, deren zusammengehöriger Text von pdftotext in
+     * getrennte Zeilen zerlegt wird: Wörter mit (annähernd) gleicher y-Position
+     * werden pro Seite zu EINER Zeile zusammengefügt (nach x sortiert).
+     *
+     * Kein Registry-Reader, kein OCR-Fallback – nutzt {@see PDFBboxLayoutHelper}
+     * direkt und cacht das Ergebnis wie die übrigen Varianten.
+     */
+    public function rowAlignedText(): ?string {
+        $key = PDFTextVariant::RowAligned->value;
+        if (array_key_exists($key, $this->textCache)) {
+            $this->logDebug("Cache-Hit für Variante '{$key}': {$this->pdfPath}");
+            return $this->textCache[$key];
+        }
+
+        $text = PDFBboxLayoutHelper::rowAlignedText($this->pdfPath);
+        $this->textCache[$key] = trim($text) !== '' ? $text : null;
+
+        if ($this->textCache[$key] === null) {
+            $this->logWarning("Row-aligned-Extraktion lieferte keinen Text: {$this->pdfPath}");
+        }
+
+        return $this->textCache[$key];
+    }
+
+    /**
      * Nur Text-Reader (kein OCR), mit automatischer Layout-Auswahl.
      *
      * Wie text(), aber ohne OCR-Fallback – für digitale PDFs wo OCR

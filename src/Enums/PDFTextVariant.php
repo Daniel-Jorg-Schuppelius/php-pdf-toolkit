@@ -31,4 +31,7 @@ enum PDFTextVariant: string {
 
     /** Nur Text-Reader, kein OCR-Fallback */
     case TextOnly = 'textonly';
+
+    /** Koordinaten-basierte Zeilen-Reassembly (pdftotext -bbox, gescannte/columnar PDFs) */
+    case RowAligned = 'rowaligned';
 }

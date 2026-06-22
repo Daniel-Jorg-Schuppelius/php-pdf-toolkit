@@ -40,6 +40,19 @@
                 "[TEXT-FILE]"
             ]
         },
+        "pdftotext-bbox": {
+            "path": "pdftotext",
+            "required": false,
+            "description": "PDF to bounding-box XHTML (word coordinates for row reassembly)",
+            "package": "poppler-utils",
+            "arguments": [
+                "-bbox",
+                "-enc",
+                "UTF-8",
+                "[PDF-FILE]",
+                "[TEXT-FILE]"
+            ]
+        },
         "pdfinfo": {
             "path": "pdfinfo",
             "required": true,
