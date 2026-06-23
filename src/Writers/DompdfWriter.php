@@ -21,7 +21,7 @@ use PDFToolkit\Enums\PDFWriterType;
 
 /**
  * PDF-Writer basierend auf Dompdf.
- * 
+ *
  * Konvertiert HTML zu PDF mit reinem PHP.
  * Gute Unterstützung für CSS, ideal für einfache bis mittlere Layouts.
  */
@@ -68,7 +68,7 @@ final class DompdfWriter implements PDFWriterInterface {
 
         $this->logDebug('PDF created successfully', [
             'path' => $outputPath,
-            'size' => strlen($pdfString)
+            'size' => strlen($pdfString),
         ]);
 
         return true;
@@ -99,7 +99,7 @@ final class DompdfWriter implements PDFWriterInterface {
         } catch (\Throwable $e) {
             $this->logError('Dompdf error: ' . $e->getMessage(), [
                 'exception' => get_class($e),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             return null;
         }
@@ -109,7 +109,7 @@ final class DompdfWriter implements PDFWriterInterface {
      * Erstellt eine konfigurierte Dompdf-Instanz.
      */
     private function createDompdfInstance(array $options): Dompdf {
-        $dompdfOptions = new Options();
+        $dompdfOptions = new Options;
 
         // Standard-Optionen
         $dompdfOptions->set('isHtml5ParserEnabled', true);
@@ -137,18 +137,16 @@ final class DompdfWriter implements PDFWriterInterface {
         $canvas = $dompdf->getCanvas();
 
         // Dompdf 3.x: Metadaten direkt über Canvas setzen
-        if (method_exists($canvas, 'add_info')) {
-            if ($title = $content->getTitle()) {
-                $canvas->add_info('Title', $title);
-            }
-            if ($author = $content->getAuthor()) {
-                $canvas->add_info('Author', $author);
-            }
-            if ($subject = $content->getSubject()) {
-                $canvas->add_info('Subject', $subject);
-            }
-
-            $canvas->add_info('Creator', 'PHP PDF Toolkit (Dompdf)');
+        if ($title = $content->getTitle()) {
+            $canvas->add_info('Title', $title);
         }
+        if ($author = $content->getAuthor()) {
+            $canvas->add_info('Author', $author);
+        }
+        if ($subject = $content->getSubject()) {
+            $canvas->add_info('Subject', $subject);
+        }
+
+        $canvas->add_info('Creator', 'PHP PDF Toolkit (Dompdf)');
     }
 }

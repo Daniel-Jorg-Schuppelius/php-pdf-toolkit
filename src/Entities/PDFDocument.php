@@ -18,7 +18,7 @@ use PDFToolkit\Enums\PDFReaderType;
 
 /**
  * Value Object für ein verarbeitetes PDF-Dokument.
- * 
+ *
  * Enthält den extrahierten Text, Informationen über den verwendeten Reader
  * und Metadaten.
  */
@@ -36,8 +36,7 @@ final readonly class PDFDocument {
         public array $metadata = [],
         /** Alternative Ergebnisse von anderen Readern [PDFReaderType->value => ['text' => string, 'isScanned' => bool]] */
         public array $alternatives = []
-    ) {
-    }
+    ) {}
 
     /**
      * Prüft ob die Extraktion erfolgreich war.
@@ -107,7 +106,7 @@ final readonly class PDFDocument {
 
     /**
      * Gibt die Reader-Typen aller Reader zurück, die Ergebnisse geliefert haben.
-     * 
+     *
      * @return PDFReaderType[]
      */
     public function getAvailableReaders(): array {
@@ -129,7 +128,7 @@ final readonly class PDFDocument {
 
     /**
      * Gibt den Text eines bestimmten Readers zurück.
-     * 
+     *
      * @param PDFReaderType $readerType Reader-Typ
      * @return string|null Text oder null wenn nicht vorhanden
      */
@@ -153,7 +152,7 @@ final readonly class PDFDocument {
     /**
      * Gibt das beste Ergebnis basierend auf Textlänge zurück.
      * Nützlich wenn verschiedene OCR-Reader unterschiedliche Qualität liefern.
-     * 
+     *
      * @return array{text: string, reader: PDFReaderType, isScanned: bool}|null
      */
     public function getBestResult(): ?array {
@@ -165,7 +164,7 @@ final readonly class PDFDocument {
             $best = [
                 'text' => $this->text,
                 'reader' => $this->reader,
-                'isScanned' => $this->isScanned
+                'isScanned' => $this->isScanned,
             ];
             $bestLength = mb_strlen($this->text);
         }
@@ -179,7 +178,7 @@ final readonly class PDFDocument {
                     $best = [
                         'text' => $data['text'],
                         'reader' => $type,
-                        'isScanned' => $data['isScanned']
+                        'isScanned' => $data['isScanned'],
                     ];
                     $bestLength = $length;
                 }
@@ -191,10 +190,10 @@ final readonly class PDFDocument {
 
     /**
      * Konvertiert den extrahierten Text in ein HTML-Dokument.
-     * 
+     *
      * Nutzt den HTMLDocumentBuilder für strukturierte HTML-Ausgabe.
      * Nützlich für die Anzeige oder Weiterverarbeitung des Textes.
-     * 
+     *
      * @param string|null $title Optionaler Titel (Standard: Dateiname)
      * @param string|null $css Optionales Inline-CSS
      * @return Document HTML-Dokument
@@ -212,7 +211,7 @@ final readonly class PDFDocument {
         }
 
         // Standard-CSS für lesbare Darstellung
-        $defaultCss = <<<CSS
+        $defaultCss = <<<'CSS'
 body {
     font-family: 'DejaVu Sans', Arial, Helvetica, sans-serif;
     font-size: 12pt;
@@ -256,9 +255,9 @@ CSS;
 
     /**
      * Rendert den Text als HTML-String.
-     * 
+     *
      * @param string|null $title Optionaler Titel
-     * @param string|null $css Optionales Inline-CSS  
+     * @param string|null $css Optionales Inline-CSS
      * @param bool $pretty Pretty-Print HTML
      * @return string HTML-String
      */

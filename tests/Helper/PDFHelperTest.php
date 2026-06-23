@@ -12,15 +12,15 @@ declare(strict_types=1);
 
 namespace Tests\Helper;
 
-use PDFToolkit\Helper\PDFHelper;
 use PDFToolkit\Entities\PageSize;
 use PDFToolkit\Enums\PaperFormat;
+use PDFToolkit\Helper\PDFHelper;
 use Tests\Contracts\BaseTestCase;
 
 final class PDFHelperTest extends BaseTestCase {
     private const SAMPLE_PDF = __DIR__ . '/../../.samples/PDF/test-text.pdf';
 
-    public function testIsValidPdfWithValidFile(): void {
+    public function test_is_valid_pdf_with_valid_file(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden');
         }
@@ -28,11 +28,11 @@ final class PDFHelperTest extends BaseTestCase {
         $this->assertTrue(PDFHelper::isValidPdf(self::SAMPLE_PDF));
     }
 
-    public function testIsValidPdfWithNonExistentFile(): void {
+    public function test_is_valid_pdf_with_non_existent_file(): void {
         $this->assertFalse(PDFHelper::isValidPdf('/nonexistent/file.pdf'));
     }
 
-    public function testIsValidPdfWithNonPdfFile(): void {
+    public function test_is_valid_pdf_with_non_pdf_file(): void {
         $tempFile = sys_get_temp_dir() . '/test.txt';
         file_put_contents($tempFile, 'This is not a PDF');
 
@@ -41,7 +41,7 @@ final class PDFHelperTest extends BaseTestCase {
         unlink($tempFile);
     }
 
-    public function testGetPdfVersionReturnsVersion(): void {
+    public function test_get_pdf_version_returns_version(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden');
         }
@@ -51,7 +51,7 @@ final class PDFHelperTest extends BaseTestCase {
         $this->assertMatchesRegularExpression('/^\d+\.\d+$/', $version);
     }
 
-    public function testGetPageCountReturnsPositiveNumber(): void {
+    public function test_get_page_count_returns_positive_number(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden');
         }
@@ -60,7 +60,7 @@ final class PDFHelperTest extends BaseTestCase {
         $this->assertGreaterThan(0, $count);
     }
 
-    public function testHasEmbeddedTextReturnsTrueForTextPdf(): void {
+    public function test_has_embedded_text_returns_true_for_text_pdf(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden');
         }
@@ -68,7 +68,7 @@ final class PDFHelperTest extends BaseTestCase {
         $this->assertTrue(PDFHelper::hasEmbeddedText(self::SAMPLE_PDF));
     }
 
-    public function testIsLikelyScannedReturnsFalseForTextPdf(): void {
+    public function test_is_likely_scanned_returns_false_for_text_pdf(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden');
         }
@@ -76,7 +76,7 @@ final class PDFHelperTest extends BaseTestCase {
         $this->assertFalse(PDFHelper::isLikelyScanned(self::SAMPLE_PDF));
     }
 
-    public function testGetMetadataReturnsArray(): void {
+    public function test_get_metadata_returns_array(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden');
         }
@@ -86,7 +86,7 @@ final class PDFHelperTest extends BaseTestCase {
         $this->assertArrayHasKey('Pages', $metadata);
     }
 
-    public function testIsLikelyScannedReturnsTrueForImagePdf(): void {
+    public function test_is_likely_scanned_returns_true_for_image_pdf(): void {
         $scannedPdf = __DIR__ . '/../../.samples/PDF/test-scanned.pdf';
         if (!file_exists($scannedPdf)) {
             $this->markTestSkipped('Scanned PDF nicht vorhanden');
@@ -95,7 +95,7 @@ final class PDFHelperTest extends BaseTestCase {
         $this->assertTrue(PDFHelper::isLikelyScanned($scannedPdf));
     }
 
-    public function testHasEmbeddedTextReturnsFalseForImagePdf(): void {
+    public function test_has_embedded_text_returns_false_for_image_pdf(): void {
         $scannedPdf = __DIR__ . '/../../.samples/PDF/test-scanned.pdf';
         if (!file_exists($scannedPdf)) {
             $this->markTestSkipped('Scanned PDF nicht vorhanden');
@@ -106,7 +106,7 @@ final class PDFHelperTest extends BaseTestCase {
 
     // === Format-Tests ===
 
-    public function testGetPageSizeReturnsPageSize(): void {
+    public function test_get_page_size_returns_page_size(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden');
         }
@@ -117,12 +117,12 @@ final class PDFHelperTest extends BaseTestCase {
         $this->assertGreaterThan(0, $size->heightPt);
     }
 
-    public function testGetPageSizeReturnsNullForInvalidFile(): void {
+    public function test_get_page_size_returns_null_for_invalid_file(): void {
         $size = PDFHelper::getPageSize('/nonexistent/file.pdf');
         $this->assertNull($size);
     }
 
-    public function testIsFormatWithEnum(): void {
+    public function test_is_format_with_enum(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden');
         }
@@ -132,7 +132,7 @@ final class PDFHelperTest extends BaseTestCase {
         $this->assertIsBool($result);
     }
 
-    public function testIsFormatWithString(): void {
+    public function test_is_format_with_string(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden');
         }
@@ -141,12 +141,12 @@ final class PDFHelperTest extends BaseTestCase {
         $this->assertIsBool($result);
     }
 
-    public function testIsFormatReturnsFalseForInvalidFile(): void {
+    public function test_is_format_returns_false_for_invalid_file(): void {
         $result = PDFHelper::isFormat('/nonexistent/file.pdf', 'A4');
         $this->assertFalse($result);
     }
 
-    public function testDetectFormatReturnsFormat(): void {
+    public function test_detect_format_returns_format(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden');
         }
@@ -156,12 +156,12 @@ final class PDFHelperTest extends BaseTestCase {
         $this->assertTrue($format === null || $format instanceof PaperFormat);
     }
 
-    public function testDetectFormatReturnsNullForInvalidFile(): void {
+    public function test_detect_format_returns_null_for_invalid_file(): void {
         $format = PDFHelper::detectFormat('/nonexistent/file.pdf');
         $this->assertNull($format);
     }
 
-    public function testIsLandscapeReturnsBool(): void {
+    public function test_is_landscape_returns_bool(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden');
         }
@@ -170,7 +170,7 @@ final class PDFHelperTest extends BaseTestCase {
         $this->assertIsBool($result);
     }
 
-    public function testIsPortraitReturnsBool(): void {
+    public function test_is_portrait_returns_bool(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden');
         }
@@ -179,7 +179,7 @@ final class PDFHelperTest extends BaseTestCase {
         $this->assertIsBool($result);
     }
 
-    public function testIsLandscapeAndIsPortraitAreMutuallyExclusive(): void {
+    public function test_is_landscape_and_is_portrait_are_mutually_exclusive(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden');
         }
@@ -194,7 +194,7 @@ final class PDFHelperTest extends BaseTestCase {
         }
     }
 
-    public function testGetAllPageSizesReturnsArray(): void {
+    public function test_get_all_page_sizes_returns_array(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden');
         }
@@ -207,7 +207,7 @@ final class PDFHelperTest extends BaseTestCase {
         $this->assertCount($pageCount, $sizes);
     }
 
-    public function testHasUniformPageSizeReturnsBool(): void {
+    public function test_has_uniform_page_size_returns_bool(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden');
         }
@@ -216,7 +216,7 @@ final class PDFHelperTest extends BaseTestCase {
         $this->assertIsBool($result);
     }
 
-    public function testGetFormatDescriptionReturnsString(): void {
+    public function test_get_format_description_returns_string(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden');
         }

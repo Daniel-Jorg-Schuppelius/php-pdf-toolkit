@@ -17,7 +17,7 @@ use PDFToolkit\Enums\PaperFormat;
 use Tests\Contracts\BaseTestCase;
 
 final class PageSizeTest extends BaseTestCase {
-    public function testConstructor(): void {
+    public function test_constructor(): void {
         $size = new PageSize(595.28, 841.89, 1);
 
         $this->assertEqualsWithDelta(595.28, $size->widthPt, 0.01);
@@ -25,7 +25,7 @@ final class PageSizeTest extends BaseTestCase {
         $this->assertSame(1, $size->pageNumber);
     }
 
-    public function testFromPdfInfoString(): void {
+    public function test_from_pdf_info_string(): void {
         $size = PageSize::fromPdfInfoString('595.3 x 841.9 pts (A4)', 1);
 
         $this->assertNotNull($size);
@@ -33,7 +33,7 @@ final class PageSizeTest extends BaseTestCase {
         $this->assertEqualsWithDelta(841.9, $size->heightPt, 0.01);
     }
 
-    public function testFromPdfInfoStringWithoutFormat(): void {
+    public function test_from_pdf_info_string_without_format(): void {
         $size = PageSize::fromPdfInfoString('612 x 792 pts', 1);
 
         $this->assertNotNull($size);
@@ -41,33 +41,33 @@ final class PageSizeTest extends BaseTestCase {
         $this->assertEqualsWithDelta(792.0, $size->heightPt, 0.01);
     }
 
-    public function testFromPdfInfoStringInvalid(): void {
+    public function test_from_pdf_info_string_invalid(): void {
         $size = PageSize::fromPdfInfoString('invalid string');
         $this->assertNull($size);
     }
 
-    public function testFromMm(): void {
+    public function test_from_mm(): void {
         $size = PageSize::fromMm(210.0, 297.0);
 
         $this->assertEqualsWithDelta(595.28, $size->widthPt, 0.1);
         $this->assertEqualsWithDelta(841.89, $size->heightPt, 0.1);
     }
 
-    public function testFromInches(): void {
+    public function test_from_inches(): void {
         $size = PageSize::fromInches(8.5, 11.0);
 
         $this->assertEquals(612.0, $size->widthPt);
         $this->assertEquals(792.0, $size->heightPt);
     }
 
-    public function testFromFormat(): void {
+    public function test_from_format(): void {
         $size = PageSize::fromFormat(PaperFormat::A4);
 
         $this->assertEqualsWithDelta(595.28, $size->widthPt, 0.01);
         $this->assertEqualsWithDelta(841.89, $size->heightPt, 0.01);
     }
 
-    public function testFromFormatLandscape(): void {
+    public function test_from_format_landscape(): void {
         $size = PageSize::fromFormat(PaperFormat::A4, landscape: true);
 
         // Im Landscape sind Breite und Höhe vertauscht
@@ -75,27 +75,27 @@ final class PageSizeTest extends BaseTestCase {
         $this->assertEqualsWithDelta(595.28, $size->heightPt, 0.01);
     }
 
-    public function testWidthMm(): void {
+    public function test_width_mm(): void {
         $size = new PageSize(595.28, 841.89);
         $this->assertEqualsWithDelta(210.0, $size->widthMm(), 0.1);
     }
 
-    public function testHeightMm(): void {
+    public function test_height_mm(): void {
         $size = new PageSize(595.28, 841.89);
         $this->assertEqualsWithDelta(297.0, $size->heightMm(), 0.1);
     }
 
-    public function testWidthIn(): void {
+    public function test_width_in(): void {
         $size = new PageSize(612.0, 792.0);
         $this->assertEqualsWithDelta(8.5, $size->widthIn(), 0.01);
     }
 
-    public function testHeightIn(): void {
+    public function test_height_in(): void {
         $size = new PageSize(612.0, 792.0);
         $this->assertEqualsWithDelta(11.0, $size->heightIn(), 0.01);
     }
 
-    public function testIsLandscape(): void {
+    public function test_is_landscape(): void {
         $landscape = new PageSize(841.89, 595.28);
         $portrait = new PageSize(595.28, 841.89);
 
@@ -103,7 +103,7 @@ final class PageSizeTest extends BaseTestCase {
         $this->assertFalse($portrait->isLandscape());
     }
 
-    public function testIsPortrait(): void {
+    public function test_is_portrait(): void {
         $portrait = new PageSize(595.28, 841.89);
         $landscape = new PageSize(841.89, 595.28);
 
@@ -111,7 +111,7 @@ final class PageSizeTest extends BaseTestCase {
         $this->assertFalse($landscape->isPortrait());
     }
 
-    public function testIsSquare(): void {
+    public function test_is_square(): void {
         $square = new PageSize(500.0, 500.0);
         $notSquare = new PageSize(595.28, 841.89);
 
@@ -119,14 +119,14 @@ final class PageSizeTest extends BaseTestCase {
         $this->assertFalse($notSquare->isSquare());
     }
 
-    public function testIsFormatWithEnum(): void {
+    public function test_is_format_with_enum(): void {
         $size = new PageSize(595.28, 841.89);
 
         $this->assertTrue($size->isFormat(PaperFormat::A4));
         $this->assertFalse($size->isFormat(PaperFormat::LETTER));
     }
 
-    public function testIsFormatWithString(): void {
+    public function test_is_format_with_string(): void {
         $size = new PageSize(595.28, 841.89);
 
         $this->assertTrue($size->isFormat('A4'));
@@ -135,7 +135,7 @@ final class PageSizeTest extends BaseTestCase {
         $this->assertFalse($size->isFormat('invalid'));
     }
 
-    public function testDetectFormat(): void {
+    public function test_detect_format(): void {
         $a4 = new PageSize(595.28, 841.89);
         $letter = new PageSize(612.0, 792.0);
         $custom = new PageSize(500.0, 700.0);
@@ -145,13 +145,13 @@ final class PageSizeTest extends BaseTestCase {
         $this->assertNull($custom->detectFormat());
     }
 
-    public function testDetectFormatLandscape(): void {
+    public function test_detect_format_landscape(): void {
         // Landscape A4
         $size = new PageSize(841.89, 595.28);
         $this->assertSame(PaperFormat::A4, $size->detectFormat());
     }
 
-    public function testDescription(): void {
+    public function test_description(): void {
         $a4 = new PageSize(595.28, 841.89);
         $desc = $a4->description();
 
@@ -159,7 +159,7 @@ final class PageSizeTest extends BaseTestCase {
         $this->assertStringContainsString('Portrait', $desc);
     }
 
-    public function testDescriptionLandscape(): void {
+    public function test_description_landscape(): void {
         $a4Landscape = new PageSize(841.89, 595.28);
         $desc = $a4Landscape->description();
 
@@ -167,14 +167,14 @@ final class PageSizeTest extends BaseTestCase {
         $this->assertStringContainsString('Landscape', $desc);
     }
 
-    public function testDescriptionCustomFormat(): void {
+    public function test_description_custom_format(): void {
         $custom = new PageSize(500.0, 700.0);
         $desc = $custom->description();
 
         $this->assertStringContainsString('Custom', $desc);
     }
 
-    public function testToArrayDefaultUnit(): void {
+    public function test_to_array_default_unit(): void {
         $size = new PageSize(595.28, 841.89);
         $array = $size->toArray();
 
@@ -183,7 +183,7 @@ final class PageSizeTest extends BaseTestCase {
         $this->assertSame('pt', $array['unit']);
     }
 
-    public function testToArrayMm(): void {
+    public function test_to_array_mm(): void {
         $size = new PageSize(595.28, 841.89);
         $array = $size->toArray('mm');
 
@@ -192,7 +192,7 @@ final class PageSizeTest extends BaseTestCase {
         $this->assertSame('mm', $array['unit']);
     }
 
-    public function testToArrayInches(): void {
+    public function test_to_array_inches(): void {
         $size = new PageSize(612.0, 792.0);
         $array = $size->toArray('in');
 
@@ -201,12 +201,12 @@ final class PageSizeTest extends BaseTestCase {
         $this->assertSame('in', $array['unit']);
     }
 
-    public function testArea(): void {
+    public function test_area(): void {
         $size = new PageSize(100.0, 200.0);
         $this->assertEquals(20000.0, $size->area());
     }
 
-    public function testAspectRatio(): void {
+    public function test_aspect_ratio(): void {
         $size = new PageSize(100.0, 200.0);
         $this->assertEquals(0.5, $size->aspectRatio());
     }

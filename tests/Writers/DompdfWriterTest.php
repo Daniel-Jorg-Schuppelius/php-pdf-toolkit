@@ -23,38 +23,38 @@ final class DompdfWriterTest extends BaseTestCase {
     private string $tempDir;
 
     protected function setUp(): void {
-        $this->writer = new DompdfWriter();
+        $this->writer = new DompdfWriter;
         $this->tempDir = sys_get_temp_dir();
     }
 
-    public function testGetName(): void {
+    public function test_get_name(): void {
         $this->assertSame(PDFWriterType::Dompdf, DompdfWriter::getType());
     }
 
-    public function testGetPriority(): void {
+    public function test_get_priority(): void {
         $this->assertEquals(10, DompdfWriter::getPriority());
     }
 
-    public function testSupportsHtml(): void {
+    public function test_supports_html(): void {
         $this->assertTrue(DompdfWriter::supportsHtml());
     }
 
-    public function testSupportsText(): void {
+    public function test_supports_text(): void {
         $this->assertTrue(DompdfWriter::supportsText());
     }
 
-    public function testIsAvailable(): void {
+    public function test_is_available(): void {
         // Dompdf sollte als Dependency installiert sein
         $this->assertTrue($this->writer->isAvailable());
     }
 
-    public function testCanHandle(): void {
+    public function test_can_handle(): void {
         $content = PDFContent::fromHtml('<p>Test</p>');
         $this->assertTrue($this->writer->canHandle($content));
     }
 
     #[Group('integration')]
-    public function testCreatePdfFromHtml(): void {
+    public function test_create_pdf_from_html(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('Dompdf is not available');
         }
@@ -79,7 +79,7 @@ final class DompdfWriterTest extends BaseTestCase {
     }
 
     #[Group('integration')]
-    public function testCreatePdfFromText(): void {
+    public function test_create_pdf_from_text(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('Dompdf is not available');
         }
@@ -99,7 +99,7 @@ final class DompdfWriterTest extends BaseTestCase {
     }
 
     #[Group('integration')]
-    public function testCreatePdfWithMetadata(): void {
+    public function test_create_pdf_with_metadata(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('Dompdf is not available');
         }
@@ -108,7 +108,7 @@ final class DompdfWriterTest extends BaseTestCase {
         $content = PDFContent::fromHtml($html, [
             'title' => 'Test Titel',
             'author' => 'Test Autor',
-            'subject' => 'Test Betreff'
+            'subject' => 'Test Betreff',
         ]);
         $outputPath = $this->tempDir . '/dompdf_meta_' . uniqid() . '.pdf';
 
@@ -123,12 +123,12 @@ final class DompdfWriterTest extends BaseTestCase {
     }
 
     #[Group('integration')]
-    public function testCreatePdfWithCss(): void {
+    public function test_create_pdf_with_css(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('Dompdf is not available');
         }
 
-        $html = <<<HTML
+        $html = <<<'HTML'
 <!DOCTYPE html>
 <html>
 <head>
@@ -165,7 +165,7 @@ HTML;
     }
 
     #[Group('integration')]
-    public function testCreatePdfWithLandscapeOrientation(): void {
+    public function test_create_pdf_with_landscape_orientation(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('Dompdf is not available');
         }
@@ -176,7 +176,7 @@ HTML;
 
         try {
             $result = $this->writer->createPdf($content, $outputPath, [
-                'orientation' => 'landscape'
+                'orientation' => 'landscape',
             ]);
 
             $this->assertTrue($result);
@@ -187,7 +187,7 @@ HTML;
     }
 
     #[Group('integration')]
-    public function testCreatePdfString(): void {
+    public function test_create_pdf_string(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('Dompdf is not available');
         }
@@ -203,7 +203,7 @@ HTML;
     }
 
     #[Group('integration')]
-    public function testCreatePdfWithDifferentPaperSizes(): void {
+    public function test_create_pdf_with_different_paper_sizes(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('Dompdf is not available');
         }
@@ -218,7 +218,7 @@ HTML;
 
             try {
                 $result = $this->writer->createPdf($content, $outputPath, [
-                    'paper_size' => $size
+                    'paper_size' => $size,
                 ]);
 
                 $this->assertTrue($result, "Failed for paper size: $size");
@@ -230,7 +230,7 @@ HTML;
     }
 
     #[Group('integration')]
-    public function testCreatePdfWithSpecialCharacters(): void {
+    public function test_create_pdf_with_special_characters(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('Dompdf is not available');
         }

@@ -12,8 +12,7 @@ declare(strict_types=1);
 
 namespace PDFToolkit\Config;
 
-use CommonToolkit\Entities\Executables\JavaExecutable;
-use CommonToolkit\Entities\Executables\ShellExecutable;
+use CommonToolkit\Entities\Executables\{JavaExecutable, ShellExecutable};
 use CommonToolkit\Helper\FileSystem\Folder;
 use ConfigToolkit\CommandBuilder;
 use ConfigToolkit\Contracts\Abstracts\ConfigAbstract;
@@ -23,11 +22,11 @@ use Psr\Log\LoggerInterface;
 
 /**
  * Konfigurationsklasse für das PDF-Toolkit.
- * 
+ *
  * Erweitert die abstrakte Konfiguration und stellt
  * typisierte Executables für PDF-Operationen bereit.
  */
-class Config extends ConfigAbstract {
+final class Config extends ConfigAbstract {
     /**
      * Konstruktor mit optionalem Logger.
      */
@@ -55,13 +54,12 @@ class Config extends ConfigAbstract {
 
     /**
      * Gibt die Singleton-Instanz zurück.
-     * 
+     *
      * @param string|null $configDir Optionales Konfigurationsverzeichnis
      * @param LoggerInterface|null $logger Optionaler Logger
-     * @return static
      */
     public static function getInstance(?string $configDir = null, ?LoggerInterface $logger = null): static {
-        if (static::$instance === null) {
+        if (!static::$instance instanceof static) {
             static::$instance = new static($configDir, $logger);
         }
         return static::$instance;
@@ -88,7 +86,7 @@ class Config extends ConfigAbstract {
 
     /**
      * Statische Methode um ein Executable zu holen.
-     * 
+     *
      * @param string $name Name des Executables
      * @return array|null Die Executable-Konfiguration oder null
      */
@@ -104,7 +102,7 @@ class Config extends ConfigAbstract {
 
     /**
      * Lädt alle Java-Executables aus der Konfiguration.
-     * 
+     *
      * @return array<string, JavaExecutable>
      */
     public function getJavaExecutables(): array {
@@ -113,7 +111,7 @@ class Config extends ConfigAbstract {
 
     /**
      * Lädt alle Shell-Executables aus der Konfiguration.
-     * 
+     *
      * @return array<string, ShellExecutable>
      */
     public function getShellExecutables(): array {
@@ -138,7 +136,7 @@ class Config extends ConfigAbstract {
 
     /**
      * Holt den Pfad eines Shell-Executables mit Fallback.
-     * 
+     *
      * @param string $name Name des Executables
      * @param string|null $fallback Fallback-Pfad wenn nicht konfiguriert
      * @return string Der konfigurierte Pfad oder Fallback

@@ -12,22 +12,22 @@ declare(strict_types=1);
 
 namespace PDFToolkit\Registries;
 
-use PDFToolkit\Contracts\PDFReaderInterface;
-use PDFToolkit\Entities\PDFDocument;
-use PDFToolkit\Enums\PDFReaderType;
-use PDFToolkit\Helper\{PDFHelper, PDFSplitHelper, TextQualityAnalyzer};
-use PDFToolkit\Config\Config;
 use CommonToolkit\Helper\FileSystem\{File, Folder};
 use ERRORToolkit\Traits\ErrorLog;
 use Generator;
 use InvalidArgumentException;
+use PDFToolkit\Config\Config;
+use PDFToolkit\Contracts\PDFReaderInterface;
+use PDFToolkit\Entities\PDFDocument;
+use PDFToolkit\Enums\PDFReaderType;
+use PDFToolkit\Helper\{PDFHelper, PDFSplitHelper, TextQualityAnalyzer};
 
 /**
  * Registry für PDF-Reader (Singleton).
- * 
+ *
  * Lädt automatisch alle Reader aus dem Readers-Verzeichnis
  * und stellt sie nach Priorität sortiert zur Verfügung.
- * 
+ *
  * Verwendung:
  * ```php
  * $registry = PDFReaderRegistry::getInstance();
@@ -59,7 +59,7 @@ final class PDFReaderRegistry {
      */
     public static function getInstance(): self {
         if (self::$instance === null) {
-            self::$instance = new self();
+            self::$instance = new self;
         }
         return self::$instance;
     }
@@ -73,7 +73,7 @@ final class PDFReaderRegistry {
 
     /**
      * Entdeckt alle Reader-Klassen (ohne Instanziierung).
-     * 
+     *
      * Nur die Klassennamen werden gesammelt und nach Priorität sortiert.
      * Die eigentliche Instanziierung und Verfügbarkeitsprüfung erfolgt
      * lazy beim ersten Zugriff auf einen Reader.
@@ -99,7 +99,7 @@ final class PDFReaderRegistry {
         }
 
         // Nach Priorität sortieren (statische Methode, keine Instanziierung nötig)
-        usort($this->readerClasses, fn($a, $b) => $a::getPriority() <=> $b::getPriority());
+        usort($this->readerClasses, fn ($a, $b) => $a::getPriority() <=> $b::getPriority());
 
         $this->loaded = true;
         $this->logInfo("Discovered " . count($this->readerClasses) . " PDF reader classes");
@@ -107,7 +107,7 @@ final class PDFReaderRegistry {
 
     /**
      * Gibt eine Reader-Instanz zurück (lazy-loaded mit Verfügbarkeitsprüfung).
-     * 
+     *
      * @param class-string<PDFReaderInterface> $className
      * @return PDFReaderInterface|null null wenn nicht verfügbar
      */
@@ -117,7 +117,7 @@ final class PDFReaderRegistry {
         }
 
         try {
-            $reader = new $className();
+            $reader = new $className;
             if ($reader->isAvailable()) {
                 $this->readerInstances[$className] = $reader;
                 $this->logDebug("Loaded PDF reader: " . $className::getType()->value);
@@ -150,7 +150,7 @@ final class PDFReaderRegistry {
 
     /**
      * Gibt alle verfügbaren Reader als Generator zurück (nach Priorität sortiert, lazy-loaded).
-     * 
+     *
      * @return Generator<PDFReaderInterface>
      */
     public function getReaders(): Generator {
@@ -164,7 +164,7 @@ final class PDFReaderRegistry {
 
     /**
      * Gibt alle verfügbaren Reader als Array zurück (indiziert nach Typ).
-     * 
+     *
      * @return array<string, PDFReaderInterface>
      */
     public function getAvailableReaders(): array {
@@ -180,10 +180,10 @@ final class PDFReaderRegistry {
 
     /**
      * Gibt nur Reader zurück, die für Text-PDFs geeignet sind.
-     * 
+     *
      * Filtert zuerst nach statischer Typ-Information (keine Instanziierung nötig),
      * dann lazy-loaded die passenden Reader-Instanzen.
-     * 
+     *
      * @return Generator<PDFReaderInterface>
      */
     public function getTextPdfReaders(): Generator {
@@ -200,10 +200,10 @@ final class PDFReaderRegistry {
 
     /**
      * Gibt nur Reader zurück, die für gescannte PDFs (OCR) geeignet sind.
-     * 
+     *
      * Filtert zuerst nach statischer Typ-Information (keine Instanziierung nötig),
      * dann lazy-loaded die passenden Reader-Instanzen.
-     * 
+     *
      * @return Generator<PDFReaderInterface>
      */
     public function getScannedPdfReaders(): Generator {
@@ -235,7 +235,7 @@ final class PDFReaderRegistry {
      * Probiert alle Reader der Reihe nach durch.
      * OCR wird nur verwendet, wenn kein eingebetteter Text vorhanden ist
      * oder wenn die Textqualität unter einem Schwellwert liegt.
-     * 
+     *
      * @param string $pdfPath Pfad zur PDF-Datei
      * @param array $options Optionen:
      *   - 'language': Sprache für OCR (z.B. 'deu+eng')
@@ -246,7 +246,6 @@ final class PDFReaderRegistry {
      *   - 'preferredReader': PDFReaderType – diesen Reader bevorzugt verwenden.
      *                        Bei Erfolg wird sofort das Ergebnis zurückgegeben.
      *                        Bei Fehler/nicht verfügbar: normaler Ablauf als Fallback.
-     * @return PDFDocument
      * @throws InvalidArgumentException wenn die Datei nicht existiert
      */
     public function extractText(string $pdfPath, array $options = []): PDFDocument {
@@ -357,7 +356,7 @@ final class PDFReaderRegistry {
 
     /**
      * Extrahiert Text mit OCR-Readern (tesseract, ocrmypdf).
-     * 
+     *
      * Bei aktivierter Qualitätsprüfung werden OCR-Ergebnisse verglichen:
      * - Wenn der erste Reader einen ausreichenden Score liefert (>= Schwellwert),
      *   wird das Ergebnis sofort zurückgegeben (Performance).
@@ -420,19 +419,18 @@ final class PDFReaderRegistry {
 
     /**
      * Extrahiert Text mit selektivem seitenweisen OCR-Fallback.
-     * 
+     *
      * Kombiniert Text-Reader und OCR-Reader auf Seitenebene:
      * 1. Text-Extraktion für das gesamte Dokument
      * 2. Seitenweise Qualitätsbewertung
      * 3. Nur für Seiten mit niedriger Qualität: OCR-Fallback
      * 4. Merge der besten Ergebnisse pro Seite
-     * 
+     *
      * Voraussetzung: pdftk muss verfügbar sein (für Seiten-Extraktion).
      * Wenn pdftk nicht verfügbar ist, wird auf den normalen extractText() Fallback zurückgegriffen.
-     * 
+     *
      * @param string $pdfPath Pfad zur PDF-Datei
      * @param array $options Optionen (wie bei extractText)
-     * @return PDFDocument
      * @throws InvalidArgumentException wenn die Datei nicht existiert
      */
     public function extractWithSelectiveOcr(string $pdfPath, array $options = []): PDFDocument {
@@ -617,7 +615,7 @@ final class PDFReaderRegistry {
 
     /**
      * Gibt die Anzahl verfügbarer Reader zurück.
-     * 
+     *
      * Hinweis: Instanziiert alle Reader um Verfügbarkeit zu prüfen.
      */
     public function count(): int {
@@ -632,10 +630,10 @@ final class PDFReaderRegistry {
 
     /**
      * Extrahiert Text nur mit Text-Readern (kein OCR).
-     * 
+     *
      * Ideal für PDFs mit eingebettetem Text wie z.B. Bank-Kontoauszüge.
      * Schneller als extractText(), da kein OCR-Fallback versucht wird.
-     * 
+     *
      * @param string $pdfPath Pfad zur PDF-Datei
      * @param array $options Optionen:
      *   - 'layout': Layout-Modus für pdftotext (Standard: true)
@@ -644,7 +642,6 @@ final class PDFReaderRegistry {
      *   - 'preferredReader': PDFReaderType – diesen Reader bevorzugt verwenden.
      *                        Bei Erfolg wird sofort das Ergebnis zurückgegeben.
      *                        Bei Fehler/nicht verfügbar: normaler Text-Reader-Ablauf als Fallback.
-     * @return PDFDocument
      * @throws InvalidArgumentException wenn die Datei nicht existiert
      */
     public function extractTextOnly(string $pdfPath, array $options = []): PDFDocument {
@@ -676,7 +673,7 @@ final class PDFReaderRegistry {
     /**
      * Extrahiert Text mit ALLEN verfügbaren Readern.
      * Nützlich um verschiedene OCR-Ergebnisse zu vergleichen.
-     * 
+     *
      * @param string $pdfPath Pfad zur PDF-Datei
      * @param array $options Optionen (z.B. 'language' => 'deu+eng')
      * @param bool $ocrOnly Nur OCR-Reader verwenden (Standard: false)
@@ -710,7 +707,7 @@ final class PDFReaderRegistry {
                     // Weitere Ergebnisse werden als Alternativen gespeichert
                     $alternatives[$readerType->value] = [
                         'text' => $text,
-                        'isScanned' => $isScanned
+                        'isScanned' => $isScanned,
                     ];
                     $this->logDebug("Alternative text extracted with " . $readerType->value);
                 }
@@ -738,7 +735,7 @@ final class PDFReaderRegistry {
 
     /**
      * Gibt die Typen aller verfügbaren Reader zurück.
-     * 
+     *
      * @return PDFReaderType[]
      */
     public function getAvailableReaderTypes(): array {

@@ -14,7 +14,7 @@ namespace PDFToolkit\Enums;
 
 /**
  * Enum für verfügbare PDF-Reader-Typen.
- * 
+ *
  * Prioritäten:
  * - 10-20: Schnelle Text-Extraktion
  * - 30-40: Komplexe Layouts
@@ -22,9 +22,9 @@ namespace PDFToolkit\Enums;
  */
 enum PDFReaderType: string {
     case Pdftotext = 'pdftotext';
-    case Pdfbox    = 'pdfbox';
+    case Pdfbox = 'pdfbox';
     case Tesseract = 'tesseract';
-    case Ocrmypdf  = 'ocrmypdf';
+    case Ocrmypdf = 'ocrmypdf';
 
     /**
      * Gibt die Priorität des Readers zurück.
@@ -32,9 +32,9 @@ enum PDFReaderType: string {
     public function getPriority(): int {
         return match ($this) {
             self::Pdftotext => 10,
-            self::Pdfbox    => 30,
+            self::Pdfbox => 30,
             self::Tesseract => 50,
-            self::Ocrmypdf  => 60,
+            self::Ocrmypdf => 60,
         };
     }
 
@@ -71,27 +71,27 @@ enum PDFReaderType: string {
     public function getDescription(): string {
         return match ($this) {
             self::Pdftotext => 'Poppler pdftotext - Schnelle Text-Extraktion',
-            self::Pdfbox    => 'Apache PDFBox - Komplexe Layouts',
+            self::Pdfbox => 'Apache PDFBox - Komplexe Layouts',
             self::Tesseract => 'Tesseract OCR - Gescannte Dokumente',
-            self::Ocrmypdf  => 'OCRmyPDF - Hochwertige OCR',
+            self::Ocrmypdf => 'OCRmyPDF - Hochwertige OCR',
         };
     }
 
     /**
      * Gibt alle OCR-Reader zurück.
-     * 
+     *
      * @return self[]
      */
     public static function ocrReaders(): array {
-        return array_filter(self::cases(), fn(self $type) => $type->supportsScannedPdfs());
+        return array_filter(self::cases(), fn (self $type) => $type->supportsScannedPdfs());
     }
 
     /**
      * Gibt alle Text-PDF-Reader zurück.
-     * 
+     *
      * @return self[]
      */
     public static function textReaders(): array {
-        return array_filter(self::cases(), fn(self $type) => $type->supportsTextPdfs());
+        return array_filter(self::cases(), fn (self $type) => $type->supportsTextPdfs());
     }
 }

@@ -35,24 +35,24 @@ final class TesseractDataHelperTest extends BaseTestCase {
         }
     }
 
-    public function testGetLocalDataPathReturnsValidPath(): void {
+    public function test_get_local_data_path_returns_valid_path(): void {
         $path = TesseractDataHelper::getLocalDataPath();
 
         $this->assertNotEmpty($path);
         $this->assertStringContainsString('data/tesseract', $path);
     }
 
-    public function testHasTrainedDataReturnsFalseForNonExistentPath(): void {
+    public function test_has_trained_data_returns_false_for_non_existent_path(): void {
         $this->assertFalse(TesseractDataHelper::hasTrainedData('/nonexistent/path'));
     }
 
-    public function testHasTrainedDataReturnsFalseForEmptyDirectory(): void {
+    public function test_has_trained_data_returns_false_for_empty_directory(): void {
         mkdir($this->tempDir, 0755, true);
 
         $this->assertFalse(TesseractDataHelper::hasTrainedData($this->tempDir));
     }
 
-    public function testHasTrainedDataReturnsTrueWhenFilesExist(): void {
+    public function test_has_trained_data_returns_true_when_files_exist(): void {
         mkdir($this->tempDir, 0755, true);
         // Erstelle eine Dummy-Traineddata-Datei
         file_put_contents($this->tempDir . '/deu.traineddata', 'dummy');
@@ -60,21 +60,21 @@ final class TesseractDataHelperTest extends BaseTestCase {
         $this->assertTrue(TesseractDataHelper::hasTrainedData($this->tempDir));
     }
 
-    public function testHasLanguageReturnsTrueForExistingLanguage(): void {
+    public function test_has_language_returns_true_for_existing_language(): void {
         mkdir($this->tempDir, 0755, true);
         file_put_contents($this->tempDir . '/deu.traineddata', 'dummy');
 
         $this->assertTrue(TesseractDataHelper::hasLanguage($this->tempDir, 'deu'));
     }
 
-    public function testHasLanguageReturnsFalseForMissingLanguage(): void {
+    public function test_has_language_returns_false_for_missing_language(): void {
         mkdir($this->tempDir, 0755, true);
         file_put_contents($this->tempDir . '/deu.traineddata', 'dummy');
 
         $this->assertFalse(TesseractDataHelper::hasLanguage($this->tempDir, 'eng'));
     }
 
-    public function testHasLanguageHandlesMultipleLanguages(): void {
+    public function test_has_language_handles_multiple_languages(): void {
         mkdir($this->tempDir, 0755, true);
         file_put_contents($this->tempDir . '/deu.traineddata', 'dummy');
         file_put_contents($this->tempDir . '/eng.traineddata', 'dummy');
@@ -86,14 +86,14 @@ final class TesseractDataHelperTest extends BaseTestCase {
         $this->assertFalse(TesseractDataHelper::hasLanguage($this->tempDir, 'deu+fra'));
     }
 
-    public function testHasLanguageHandlesEmptyLanguageString(): void {
+    public function test_has_language_handles_empty_language_string(): void {
         mkdir($this->tempDir, 0755, true);
 
         // Leere Sprache sollte true zurückgeben (keine Anforderung)
         $this->assertTrue(TesseractDataHelper::hasLanguage($this->tempDir, ''));
     }
 
-    public function testLocalDataPathContainsTrainedData(): void {
+    public function test_local_data_path_contains_trained_data(): void {
         $localPath = TesseractDataHelper::getLocalDataPath();
 
         // Wenn das lokale Verzeichnis Trainingsdaten enthält, sollte hasTrainedData true zurückgeben
@@ -104,7 +104,7 @@ final class TesseractDataHelperTest extends BaseTestCase {
         $this->assertTrue(TesseractDataHelper::hasTrainedData($localPath));
     }
 
-    public function testGetUsableDataPathReturnsPathWhenDataExists(): void {
+    public function test_get_usable_data_path_returns_path_when_data_exists(): void {
         $localPath = TesseractDataHelper::getLocalDataPath();
 
         if (!is_dir($localPath) || !TesseractDataHelper::hasTrainedData($localPath)) {
@@ -117,7 +117,7 @@ final class TesseractDataHelperTest extends BaseTestCase {
         $this->assertEquals($localPath, $usablePath);
     }
 
-    public function testGetUsableDataPathReturnsNullWhenLanguageMissing(): void {
+    public function test_get_usable_data_path_returns_null_when_language_missing(): void {
         $localPath = TesseractDataHelper::getLocalDataPath();
 
         if (!is_dir($localPath)) {

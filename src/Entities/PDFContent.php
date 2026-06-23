@@ -19,11 +19,10 @@ use InvalidArgumentException;
 
 /**
  * Value Object für zu erstellenden PDF-Inhalt.
- * 
+ *
  * Unterstützt verschiedene Quellformate: HTML, Text, Datei.
  */
 final readonly class PDFContent {
-
     public const TYPE_HTML = 'html';
     public const TYPE_TEXT = 'text';
     public const TYPE_FILE = 'file';
@@ -35,8 +34,7 @@ final readonly class PDFContent {
         public string $type,
         /** Optionale Metadaten für das PDF */
         public array $metadata = []
-    ) {
-    }
+    ) {}
 
     /**
      * Erstellt Content aus HTML.
@@ -64,12 +62,11 @@ final readonly class PDFContent {
 
     /**
      * Erstellt Content aus einem HTML-Document-Objekt.
-     * 
+     *
      * Nutzt das CommonToolkit Document für strukturierte HTML-Erstellung.
-     * 
+     *
      * @param Document $document Das HTML-Document-Objekt
      * @param array $metadata Optionale Metadaten
-     * @return self
      */
     public static function fromDocument(Document $document, array $metadata = []): self {
         // Metadaten aus Document extrahieren falls nicht übergeben
@@ -82,7 +79,7 @@ final readonly class PDFContent {
 
     /**
      * Erstellt Content mit dem HTMLDocumentBuilder.
-     * 
+     *
      * Beispiel:
      * ```php
      * $content = PDFContent::fromBuilder(function(HTMLDocumentBuilder $builder) {
@@ -93,10 +90,9 @@ final readonly class PDFContent {
      *         ->endTable();
      * }, ['title' => 'Mein Dokument']);
      * ```
-     * 
+     *
      * @param callable(HTMLDocumentBuilder): void $callback Callback der den Builder konfiguriert
      * @param array $metadata Optionale Metadaten
-     * @return self
      */
     public static function fromBuilder(callable $callback, array $metadata = []): self {
         $title = $metadata['title'] ?? null;

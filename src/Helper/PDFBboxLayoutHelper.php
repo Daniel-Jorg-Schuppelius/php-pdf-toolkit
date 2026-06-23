@@ -96,13 +96,13 @@ final class PDFBboxLayoutHelper {
             foreach ($words as $w) {
                 $items[] = ['y' => (float) $w[2], 'x' => (float) $w[1], 't' => StringHelper::htmlEntitiesToText($w[3])];
             }
-            usort($items, static fn(array $a, array $b): int => $a['y'] <=> $b['y']);
+            usort($items, static fn (array $a, array $b): int => $a['y'] <=> $b['y']);
 
             $row = [];
             $rowY = null;
             foreach ($items as $it) {
                 if ($rowY !== null && $it['y'] - $rowY > self::Y_TOLERANCE) {
-                    usort($row, static fn(array $a, array $b): int => $a['x'] <=> $b['x']);
+                    usort($row, static fn (array $a, array $b): int => $a['x'] <=> $b['x']);
                     $lines[] = implode(' ', array_column($row, 't'));
                     $row = [];
                 }
@@ -110,7 +110,7 @@ final class PDFBboxLayoutHelper {
                 $rowY = $it['y']; // gleitend: erlaubt leichten Spalten-Versatz innerhalb einer Zeile
             }
             if ($row !== []) {
-                usort($row, static fn(array $a, array $b): int => $a['x'] <=> $b['x']);
+                usort($row, static fn (array $a, array $b): int => $a['x'] <=> $b['x']);
                 $lines[] = implode(' ', array_column($row, 't'));
             }
         }

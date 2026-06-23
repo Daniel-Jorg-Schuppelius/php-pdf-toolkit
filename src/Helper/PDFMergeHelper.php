@@ -14,8 +14,8 @@ namespace PDFToolkit\Helper;
 
 use CommonToolkit\Helper\FileSystem\File;
 use CommonToolkit\Helper\Shell;
-use PDFToolkit\Config\Config;
 use ERRORToolkit\Traits\ErrorLog;
+use PDFToolkit\Config\Config;
 
 /**
  * Helper-Klasse für das Zusammenführen von PDF-Dateien.

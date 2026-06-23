@@ -14,15 +14,15 @@ namespace PDFToolkit\Readers;
 
 use CommonToolkit\Helper\FileSystem\{File, Folder};
 use CommonToolkit\Helper\Shell;
+use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
 use PDFToolkit\Helper\{PDFHelper, TesseractDataHelper, TextQualityAnalyzer};
-use ERRORToolkit\Traits\ErrorLog;
 
 /**
  * PDF-Reader basierend auf Tesseract OCR.
- * 
+ *
  * Für gescannte PDFs die keinen eingebetteten Text haben.
  * Konvertiert PDF-Seiten zu Bildern und führt OCR durch.
  */
@@ -115,7 +115,7 @@ final class TesseractReader implements PDFReaderInterface {
 
     /**
      * Extrahiert Text mit automatischer Auswahl der besten Sprache.
-     * 
+     *
      * Testet jede konfigurierte Sprache separat und wählt das Ergebnis
      * mit der höchsten Qualität basierend auf TextQualityAnalyzer.
      */
@@ -162,7 +162,7 @@ final class TesseractReader implements PDFReaderInterface {
 
     /**
      * Extrahiert Text mit einer spezifischen Sprache.
-     * 
+     *
      * Bei aktivierter Qualitätsprüfung wird bei niedrigem Score:
      * - Erst mit einem anderen PSM-Modus versucht (PSM-Fallback)
      * - Dann mit höherer DPI versucht (Adaptive DPI)
@@ -225,14 +225,14 @@ final class TesseractReader implements PDFReaderInterface {
 
     /**
      * Gibt alternative PSM-Modi zurück, sortiert nach Wahrscheinlichkeit für bessere Ergebnisse.
-     * 
+     *
      * @param int $currentPsm Aktueller PSM-Modus
      * @return int[] Alternative PSM-Modi
      */
     private function getPsmFallbacks(int $currentPsm): array {
         // PSM 3 = Auto, PSM 6 = Uniform Block, PSM 4 = Single Column, PSM 1 = Auto + OSD
         $all = [3, 6, 4, 1];
-        return array_values(array_filter($all, fn(int $psm) => $psm !== $currentPsm));
+        return array_values(array_filter($all, fn (int $psm) => $psm !== $currentPsm));
     }
 
     /**

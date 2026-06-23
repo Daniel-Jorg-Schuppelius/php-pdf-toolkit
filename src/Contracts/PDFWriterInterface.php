@@ -17,7 +17,7 @@ use PDFToolkit\Enums\PDFWriterType;
 
 /**
  * Interface für PDF-Writer.
- * 
+ *
  * Jeder Writer erstellt PDF-Dateien aus verschiedenen Quellformaten.
  * Die Writer werden nach Priorität durchprobiert, bis einer erfolgreich ist.
  */
@@ -29,7 +29,7 @@ interface PDFWriterInterface {
 
     /**
      * Priorität des Writers (niedriger = wird früher probiert).
-     * 
+     *
      * Empfohlene Werte:
      * - 10-20: Reine PHP-Lösungen (dompdf, tcpdf)
      * - 30-40: Externe Tools mit guter Qualität (wkhtmltopdf)
@@ -60,7 +60,7 @@ interface PDFWriterInterface {
 
     /**
      * Erstellt eine PDF-Datei aus dem gegebenen Content.
-     * 
+     *
      * @param PDFContent $content Der zu konvertierende Inhalt
      * @param string $outputPath Absoluter Pfad für die Ausgabedatei
      * @param array $options Optionale Konfiguration (z.B. Seitengröße, Ränder)
@@ -70,7 +70,7 @@ interface PDFWriterInterface {
 
     /**
      * Erstellt eine PDF und gibt den Inhalt als String zurück.
-     * 
+     *
      * @param PDFContent $content Der zu konvertierende Inhalt
      * @param array $options Optionale Konfiguration
      * @return string|null PDF-Inhalt als String oder null bei Fehler

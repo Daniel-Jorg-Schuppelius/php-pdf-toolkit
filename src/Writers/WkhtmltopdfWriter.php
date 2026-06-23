@@ -15,17 +15,17 @@ namespace PDFToolkit\Writers;
 use CommonToolkit\Helper\FileSystem\File;
 use CommonToolkit\Helper\Shell;
 use ERRORToolkit\Traits\ErrorLog;
+use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFWriterInterface;
 use PDFToolkit\Entities\PDFContent;
-use PDFToolkit\Config\Config;
 use PDFToolkit\Enums\PDFWriterType;
 
 /**
  * PDF-Writer basierend auf wkhtmltopdf.
- * 
+ *
  * Externes Tool für hochqualitative HTML-zu-PDF-Konvertierung.
  * Verwendet WebKit-Rendering, beste CSS/JavaScript-Unterstützung.
- * 
+ *
  * Die Pfadauflösung wird vollständig durch das ConfigToolkit erledigt,
  * das automatisch im System-PATH sucht und den Pfad validiert.
  */
@@ -89,7 +89,7 @@ final class WkhtmltopdfWriter implements PDFWriterInterface {
             if (!$success) {
                 $this->logError('wkhtmltopdf failed', [
                     'returnCode' => $resultCode,
-                    'output' => implode("\n", $output)
+                    'output' => implode("\n", $output),
                 ]);
                 return false;
             }
@@ -98,7 +98,7 @@ final class WkhtmltopdfWriter implements PDFWriterInterface {
             return true;
         } catch (\Throwable $e) {
             $this->logError('wkhtmltopdf error: ' . $e->getMessage(), [
-                'exception' => get_class($e)
+                'exception' => get_class($e),
             ]);
             return false;
         }
@@ -138,16 +138,16 @@ final class WkhtmltopdfWriter implements PDFWriterInterface {
         // Ränder
         $margins = $options['margins'] ?? [];
         if (isset($margins['top'])) {
-            $args[] = '--margin-top ' . escapeshellarg((string)$margins['top']);
+            $args[] = '--margin-top ' . escapeshellarg((string) $margins['top']);
         }
         if (isset($margins['bottom'])) {
-            $args[] = '--margin-bottom ' . escapeshellarg((string)$margins['bottom']);
+            $args[] = '--margin-bottom ' . escapeshellarg((string) $margins['bottom']);
         }
         if (isset($margins['left'])) {
-            $args[] = '--margin-left ' . escapeshellarg((string)$margins['left']);
+            $args[] = '--margin-left ' . escapeshellarg((string) $margins['left']);
         }
         if (isset($margins['right'])) {
-            $args[] = '--margin-right ' . escapeshellarg((string)$margins['right']);
+            $args[] = '--margin-right ' . escapeshellarg((string) $margins['right']);
         }
 
         // Metadaten
@@ -166,10 +166,10 @@ final class WkhtmltopdfWriter implements PDFWriterInterface {
             $args[] = '--lowquality';
         }
         if (isset($options['dpi'])) {
-            $args[] = '--dpi ' . (int)$options['dpi'];
+            $args[] = '--dpi ' . (int) $options['dpi'];
         }
         if (isset($options['zoom'])) {
-            $args[] = '--zoom ' . (float)$options['zoom'];
+            $args[] = '--zoom ' . (float) $options['zoom'];
         }
 
         // JavaScript deaktivieren (optional)
@@ -191,7 +191,7 @@ final class WkhtmltopdfWriter implements PDFWriterInterface {
 
     /**
      * Gibt den Pfad zum wkhtmltopdf-Executable zurück.
-     * 
+     *
      * Der Pfad wird vom ConfigToolkit automatisch aufgelöst.
      * Wenn das Executable nicht gefunden wurde, ist path = null.
      */

@@ -19,23 +19,23 @@ use PDFToolkit\Config\Config;
 
 /**
  * Reader für ZUGFeRD/Factur-X PDFs.
- * 
+ *
  * Extrahiert die eingebettete XML-Rechnung aus PDF/A-3 Dokumenten.
- * 
+ *
  * HINWEIS: Diese Klasse implementiert NICHT das PDFReaderInterface,
  * da sie für einen anderen Zweck konzipiert ist:
  * - PDFReaderInterface: Extrahiert lesbaren TEXT aus PDFs
  * - ZugferdReader: Extrahiert strukturierte XML-DATEN (E-Rechnungen)
- * 
+ *
  * Unterstützte Formate:
  * - ZUGFeRD 1.0/2.0/2.1/2.2 (DE)
  * - Factur-X 1.0 (FR/EU)
- * 
+ *
  * Sucht nach folgenden eingebetteten Dateien:
  * - factur-x.xml (Factur-X Standard)
  * - zugferd-invoice.xml (ZUGFeRD 2.x)
  * - ZUGFeRD-invoice.xml (ZUGFeRD 1.0)
- * 
+ *
  * @see https://www.ferd-net.de/zugferd
  * @see https://fnfe-mpe.org/factur-x/
  */
@@ -74,7 +74,7 @@ final class ZugferdReader {
 
     /**
      * Prüft ob die PDF-Datei eine ZUGFeRD/Factur-X Rechnung enthält.
-     * 
+     *
      * @param string $pdfPath Pfad zur PDF-Datei
      * @return bool True wenn eine eingebettete Rechnung gefunden wurde
      */
@@ -92,7 +92,7 @@ final class ZugferdReader {
 
     /**
      * Extrahiert die XML-Rechnung aus einer ZUGFeRD/Factur-X PDF.
-     * 
+     *
      * @param string $pdfPath Pfad zur PDF-Datei
      * @return string|null XML-Inhalt oder null wenn keine Rechnung gefunden
      */
@@ -111,7 +111,7 @@ final class ZugferdReader {
                     $this->logDebug('Extracted ZUGFeRD XML', [
                         'pdf' => $pdfPath,
                         'filename' => $invoiceFilename,
-                        'size' => strlen($xml)
+                        'size' => strlen($xml),
                     ]);
                     return $xml;
                 }
@@ -125,7 +125,7 @@ final class ZugferdReader {
                 if ($xml !== null && $this->looksLikeInvoiceXml($xml)) {
                     $this->logDebug('Extracted XML attachment as invoice', [
                         'pdf' => $pdfPath,
-                        'filename' => $filename
+                        'filename' => $filename,
                     ]);
                     return $xml;
                 }
@@ -138,7 +138,7 @@ final class ZugferdReader {
 
     /**
      * Listet alle eingebetteten Dateien (Attachments) in der PDF auf.
-     * 
+     *
      * @param string $pdfPath Pfad zur PDF-Datei
      * @return string[] Liste der Dateinamen
      */
@@ -163,7 +163,7 @@ final class ZugferdReader {
 
     /**
      * Extrahiert eine spezifische eingebettete Datei aus der PDF.
-     * 
+     *
      * @param string $pdfPath Pfad zur PDF-Datei
      * @param string $filename Name der eingebetteten Datei
      * @return string|null Dateiinhalt oder null bei Fehler

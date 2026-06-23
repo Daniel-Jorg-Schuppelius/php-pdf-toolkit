@@ -18,7 +18,7 @@ use ERRORToolkit\Traits\ErrorLog;
 
 /**
  * Helper-Klasse für Tesseract OCR Trainingsdaten.
- * 
+ *
  * Lädt fehlende Trainingsdaten automatisch von GitHub herunter.
  */
 final class TesseractDataHelper {
@@ -56,7 +56,7 @@ final class TesseractDataHelper {
 
     /**
      * Lädt fehlende Trainingsdaten herunter.
-     * 
+     *
      * @param string $targetPath Zielverzeichnis für die Trainingsdaten
      * @param string|null $language Sprachen im Format "deu+eng" (null = Standardsprachen)
      * @return bool True wenn alle Daten verfügbar sind
@@ -150,7 +150,7 @@ final class TesseractDataHelper {
 
     /**
      * Prüft ob der lokale Datenpfad verwendbar ist und lädt ggf. Daten herunter.
-     * 
+     *
      * @param string|null $language Sprachen im Format "deu+eng"
      * @return string|null Pfad zu den Trainingsdaten oder null wenn nicht verfügbar
      */

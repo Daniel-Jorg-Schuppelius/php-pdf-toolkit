@@ -22,13 +22,13 @@ use PDFToolkit\Writers\{DompdfWriter, TcpdfWriter, WkhtmltopdfWriter};
 
 /**
  * Registry für PDF-Writer.
- * 
+ *
  * Verwaltet alle verfügbaren Writer und wählt automatisch
  * den besten verfügbaren Writer für die Erstellung aus.
- * 
+ *
  * Diese Klasse verwendet das Singleton-Pattern, da die Writer-Liste
  * beim ersten Laden initialisiert wird und danach wiederverwendet werden kann.
- * 
+ *
  * @example
  * ```php
  * $registry = PDFWriterRegistry::getInstance();
@@ -44,7 +44,7 @@ final class PDFWriterRegistry {
     /** @var PDFWriterInterface[] */
     private array $writers = [];
 
-    /** @var array<string, class-string<PDFWriterInterface>> */
+    /** @var list<class-string<PDFWriterInterface>> */
     private static array $writerClasses = [
         DompdfWriter::class,
         TcpdfWriter::class,
@@ -60,12 +60,12 @@ final class PDFWriterRegistry {
 
     /**
      * Gibt die Singleton-Instanz der Registry zurück.
-     * 
+     *
      * @return self Die einzige Instanz der Registry
      */
     public static function getInstance(): self {
         if (self::$instance === null) {
-            self::$instance = new self();
+            self::$instance = new self;
         }
         return self::$instance;
     }
@@ -85,24 +85,24 @@ final class PDFWriterRegistry {
 
         foreach (self::$writerClasses as $writerClass) {
             try {
-                $writer = new $writerClass();
+                $writer = new $writerClass;
                 $writers[] = $writer;
 
                 $this->logDebug('Writer loaded', [
                     'name' => $writerClass::getType()->value,
                     'priority' => $writerClass::getPriority(),
-                    'available' => $writer->isAvailable()
+                    'available' => $writer->isAvailable(),
                 ]);
             } catch (\Throwable $e) {
                 $this->logError('Failed to load writer', [
                     'class' => $writerClass,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ]);
             }
         }
 
         // Nach Priorität sortieren (niedrigere Werte zuerst)
-        usort($writers, fn($a, $b) => $a::getPriority() <=> $b::getPriority());
+        usort($writers, fn ($a, $b) => $a::getPriority() <=> $b::getPriority());
 
         $this->writers = $writers;
     }
@@ -114,17 +114,17 @@ final class PDFWriterRegistry {
         $this->writers[] = $writer;
 
         // Neu sortieren
-        usort($this->writers, fn($a, $b) => $a::getPriority() <=> $b::getPriority());
+        usort($this->writers, fn ($a, $b) => $a::getPriority() <=> $b::getPriority());
 
         $this->logDebug('Writer registered', [
             'name' => $writer::getType()->value,
-            'priority' => $writer::getPriority()
+            'priority' => $writer::getPriority(),
         ]);
     }
 
     /**
      * Gibt alle registrierten Writer zurück.
-     * 
+     *
      * @return PDFWriterInterface[]
      */
     public function getWriters(): array {
@@ -133,11 +133,11 @@ final class PDFWriterRegistry {
 
     /**
      * Gibt alle verfügbaren Writer zurück.
-     * 
+     *
      * @return PDFWriterInterface[]
      */
     public function getAvailableWriters(): array {
-        return array_filter($this->writers, fn($w) => $w->isAvailable());
+        return array_filter($this->writers, fn ($w) => $w->isAvailable());
     }
 
     /**
@@ -155,7 +155,7 @@ final class PDFWriterRegistry {
     /**
      * Erstellt eine PDF-Datei aus dem gegebenen Content.
      * Probiert Writer nach Priorität durch, bis einer erfolgreich ist.
-     * 
+     *
      * @param PDFContent $content Der zu konvertierende Inhalt
      * @param string $outputPath Absoluter Pfad für die Ausgabedatei
      * @param array $options Optionale Konfiguration
@@ -190,7 +190,7 @@ final class PDFWriterRegistry {
             if ($writer->createPdf($content, $outputPath, $options)) {
                 $this->logDebug('PDF created successfully', [
                     'writer' => $writer::getType()->value,
-                    'path' => $outputPath
+                    'path' => $outputPath,
                 ]);
                 return true;
             }
@@ -199,7 +199,7 @@ final class PDFWriterRegistry {
         }
 
         $this->logError('No writer could create the PDF', [
-            'availableWriters' => array_map(fn($w) => $w::getType()->value, $this->getAvailableWriters())
+            'availableWriters' => array_map(fn ($w) => $w::getType()->value, $this->getAvailableWriters()),
         ]);
 
         return false;
@@ -207,7 +207,7 @@ final class PDFWriterRegistry {
 
     /**
      * Erstellt eine PDF und gibt den Inhalt als String zurück.
-     * 
+     *
      * @param PDFContent $content Der zu konvertierende Inhalt
      * @param array $options Optionale Konfiguration
      * @param PDFWriterType|null $preferredWriter Bevorzugter Writer-Typ
@@ -259,7 +259,7 @@ final class PDFWriterRegistry {
 
     /**
      * Schnelle Methode: HTML-Datei zu PDF.
-     * 
+     *
      * @param string $htmlFilePath Absoluter Pfad zur HTML-Eingabedatei
      * @param string $outputPath Absoluter Pfad für die PDF-Ausgabedatei
      * @param array $options Optionale Konfiguration:
@@ -304,10 +304,10 @@ final class PDFWriterRegistry {
 
     /**
      * Gibt die Typen aller verfügbaren Writer zurück.
-     * 
+     *
      * @return PDFWriterType[]
      */
     public function getAvailableWriterTypes(): array {
-        return array_map(fn($w) => $w::getType(), $this->getAvailableWriters());
+        return array_map(fn ($w) => $w::getType(), $this->getAvailableWriters());
     }
 }

@@ -23,32 +23,32 @@ final class TcpdfWriterTest extends BaseTestCase {
     private string $tempDir;
 
     protected function setUp(): void {
-        $this->writer = new TcpdfWriter();
+        $this->writer = new TcpdfWriter;
         $this->tempDir = sys_get_temp_dir();
     }
 
-    public function testGetName(): void {
+    public function test_get_name(): void {
         $this->assertSame(PDFWriterType::Tcpdf, TcpdfWriter::getType());
     }
 
-    public function testGetPriority(): void {
+    public function test_get_priority(): void {
         $this->assertEquals(20, TcpdfWriter::getPriority());
     }
 
-    public function testSupportsHtml(): void {
+    public function test_supports_html(): void {
         $this->assertTrue(TcpdfWriter::supportsHtml());
     }
 
-    public function testSupportsText(): void {
+    public function test_supports_text(): void {
         $this->assertTrue(TcpdfWriter::supportsText());
     }
 
-    public function testIsAvailableReturnsBool(): void {
+    public function test_is_available_returns_bool(): void {
         // TCPDF ist optional, also prüfen wir nur den Rückgabetyp
         $this->assertIsBool($this->writer->isAvailable());
     }
 
-    public function testCanHandleReturnsCorrectValue(): void {
+    public function test_can_handle_returns_correct_value(): void {
         $content = PDFContent::fromHtml('<p>Test</p>');
 
         // Wenn TCPDF verfügbar ist, sollte canHandle true sein
@@ -60,7 +60,7 @@ final class TcpdfWriterTest extends BaseTestCase {
     }
 
     #[Group('integration')]
-    public function testCreatePdfFromHtml(): void {
+    public function test_create_pdf_from_html(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('TCPDF is not available');
         }
@@ -85,7 +85,7 @@ final class TcpdfWriterTest extends BaseTestCase {
     }
 
     #[Group('integration')]
-    public function testCreatePdfFromText(): void {
+    public function test_create_pdf_from_text(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('TCPDF is not available');
         }
@@ -105,7 +105,7 @@ final class TcpdfWriterTest extends BaseTestCase {
     }
 
     #[Group('integration')]
-    public function testCreatePdfWithMetadata(): void {
+    public function test_create_pdf_with_metadata(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('TCPDF is not available');
         }
@@ -114,7 +114,7 @@ final class TcpdfWriterTest extends BaseTestCase {
         $content = PDFContent::fromHtml($html, [
             'title' => 'TCPDF Titel',
             'author' => 'TCPDF Autor',
-            'subject' => 'TCPDF Betreff'
+            'subject' => 'TCPDF Betreff',
         ]);
         $outputPath = $this->tempDir . '/tcpdf_meta_' . uniqid() . '.pdf';
 
@@ -129,13 +129,13 @@ final class TcpdfWriterTest extends BaseTestCase {
     }
 
     #[Group('integration')]
-    public function testCreatePdfWithCss(): void {
+    public function test_create_pdf_with_css(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('TCPDF is not available');
         }
 
         // TCPDF hat eingeschränkte CSS-Unterstützung
-        $html = <<<HTML
+        $html = <<<'HTML'
 <!DOCTYPE html>
 <html>
 <head>
@@ -169,7 +169,7 @@ HTML;
     }
 
     #[Group('integration')]
-    public function testCreatePdfWithLandscapeOrientation(): void {
+    public function test_create_pdf_with_landscape_orientation(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('TCPDF is not available');
         }
@@ -180,7 +180,7 @@ HTML;
 
         try {
             $result = $this->writer->createPdf($content, $outputPath, [
-                'orientation' => 'landscape'
+                'orientation' => 'landscape',
             ]);
 
             $this->assertTrue($result);
@@ -191,7 +191,7 @@ HTML;
     }
 
     #[Group('integration')]
-    public function testCreatePdfString(): void {
+    public function test_create_pdf_string(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('TCPDF is not available');
         }
@@ -207,7 +207,7 @@ HTML;
     }
 
     #[Group('integration')]
-    public function testCreatePdfWithDifferentPaperSizes(): void {
+    public function test_create_pdf_with_different_paper_sizes(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('TCPDF is not available');
         }
@@ -222,7 +222,7 @@ HTML;
 
             try {
                 $result = $this->writer->createPdf($content, $outputPath, [
-                    'paper_size' => $size
+                    'paper_size' => $size,
                 ]);
 
                 $this->assertTrue($result, "Failed for paper size: $size");
@@ -234,7 +234,7 @@ HTML;
     }
 
     #[Group('integration')]
-    public function testCreatePdfWithSpecialCharacters(): void {
+    public function test_create_pdf_with_special_characters(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('TCPDF is not available');
         }
@@ -254,7 +254,7 @@ HTML;
     }
 
     #[Group('integration')]
-    public function testCreatePdfWithMargins(): void {
+    public function test_create_pdf_with_margins(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('TCPDF is not available');
         }
@@ -269,8 +269,8 @@ HTML;
                     'top' => 30,
                     'bottom' => 30,
                     'left' => 20,
-                    'right' => 20
-                ]
+                    'right' => 20,
+                ],
             ]);
 
             $this->assertTrue($result);

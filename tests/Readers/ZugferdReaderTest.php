@@ -22,15 +22,15 @@ class ZugferdReaderTest extends BaseTestCase {
     private ZugferdReader $reader;
 
     protected function setUp(): void {
-        $this->reader = new ZugferdReader();
+        $this->reader = new ZugferdReader;
     }
 
-    public function testIsAvailableReturnsBool(): void {
+    public function test_is_available_returns_bool(): void {
         $result = $this->reader->isAvailable();
         $this->assertIsBool($result);
     }
 
-    public function testListAttachmentsReturnsArray(): void {
+    public function test_list_attachments_returns_array(): void {
         if (!$this->reader->isAvailable()) {
             $this->markTestSkipped('pdfdetach or pdftk not available');
         }
@@ -46,7 +46,7 @@ class ZugferdReaderTest extends BaseTestCase {
         }
     }
 
-    public function testIsZugferdPdfWithNonZugferdPdf(): void {
+    public function test_is_zugferd_pdf_with_non_zugferd_pdf(): void {
         if (!$this->reader->isAvailable()) {
             $this->markTestSkipped('pdfdetach or pdftk not available');
         }
@@ -61,7 +61,7 @@ class ZugferdReaderTest extends BaseTestCase {
         }
     }
 
-    public function testExtractInvoiceXmlReturnsNullForNonZugferdPdf(): void {
+    public function test_extract_invoice_xml_returns_null_for_non_zugferd_pdf(): void {
         if (!$this->reader->isAvailable()) {
             $this->markTestSkipped('pdfdetach or pdftk not available');
         }
@@ -76,7 +76,7 @@ class ZugferdReaderTest extends BaseTestCase {
         }
     }
 
-    public function testExtractInvoiceXmlReturnsNullForNonExistentFile(): void {
+    public function test_extract_invoice_xml_returns_null_for_non_existent_file(): void {
         $xml = $this->reader->extractInvoiceXml('/non/existent/file.pdf');
         $this->assertNull($xml);
     }

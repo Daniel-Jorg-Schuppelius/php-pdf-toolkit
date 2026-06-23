@@ -14,7 +14,7 @@ namespace PDFToolkit\Enums;
 
 /**
  * Standard-Papierformate mit Abmessungen in Points (1 Point = 1/72 Inch).
- * 
+ *
  * Die Toleranz für Format-Erkennung sollte berücksichtigen, dass PDFs
  * oft leicht von den exakten Maßen abweichen (Rundungsfehler, Scanner, etc.).
  */
@@ -135,7 +135,7 @@ enum PaperFormat: string {
 
     /**
      * Gibt die Abmessungen in Millimetern zurück [width, height].
-     * 
+     *
      * @return array{0: float, 1: float}
      */
     public function dimensionsMm(): array {
@@ -147,7 +147,7 @@ enum PaperFormat: string {
 
     /**
      * Gibt die Abmessungen in Inches zurück [width, height].
-     * 
+     *
      * @return array{0: float, 1: float}
      */
     public function dimensionsIn(): array {
@@ -159,7 +159,7 @@ enum PaperFormat: string {
 
     /**
      * Prüft ob die gegebenen Abmessungen diesem Format entsprechen.
-     * 
+     *
      * @param float $widthPt Breite in Points
      * @param float $heightPt Höhe in Points
      * @param float $tolerancePt Toleranz in Points (Standard: 5.0 ≈ 1.8mm)
@@ -228,7 +228,7 @@ enum PaperFormat: string {
 
     /**
      * Erkennt automatisch das Format aus gegebenen Abmessungen.
-     * 
+     *
      * @param float $widthPt Breite in Points
      * @param float $heightPt Höhe in Points
      * @param float $tolerancePt Toleranz in Points

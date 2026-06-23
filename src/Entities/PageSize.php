@@ -16,7 +16,7 @@ use PDFToolkit\Enums\PaperFormat;
 
 /**
  * Value Object für die Seitengröße eines PDF-Dokuments.
- * 
+ *
  * Alle Maße werden intern in Points gespeichert (1 Point = 1/72 Inch).
  */
 final readonly class PageSize {
@@ -29,8 +29,7 @@ final readonly class PageSize {
         public float $widthPt,
         public float $heightPt,
         public ?int $pageNumber = null
-    ) {
-    }
+    ) {}
 
     /**
      * Erstellt eine PageSize aus pdfinfo-Output.
@@ -139,7 +138,7 @@ final readonly class PageSize {
 
     /**
      * Prüft ob die Seitengröße einem bestimmten Format entspricht.
-     * 
+     *
      * @param PaperFormat|string $format Format-Enum oder String (z.B. "A4", "letter")
      * @param float $tolerancePt Toleranz in Points (Standard: 5.0 ≈ 1.8mm)
      * @param bool $ignoreOrientation Wenn true, wird Portrait/Landscape ignoriert
@@ -156,7 +155,7 @@ final readonly class PageSize {
 
     /**
      * Erkennt automatisch das Papierformat.
-     * 
+     *
      * @param float $tolerancePt Toleranz in Points
      * @return PaperFormat|null Das erkannte Format oder null
      */
@@ -191,7 +190,7 @@ final readonly class PageSize {
 
     /**
      * Gibt die Seitengröße als Array zurück.
-     * 
+     *
      * @return array{width: float, height: float, unit: string}
      */
     public function toArray(string $unit = 'pt'): array {

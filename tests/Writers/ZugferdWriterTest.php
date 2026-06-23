@@ -24,19 +24,19 @@ final class ZugferdWriterTest extends BaseTestCase {
 
     protected function setUp(): void {
         parent::setUp();
-        $this->writer = new ZugferdWriter();
+        $this->writer = new ZugferdWriter;
         $this->tempDir = sys_get_temp_dir();
     }
 
-    public function testGetType(): void {
+    public function test_get_type(): void {
         $this->assertSame(PDFWriterType::Zugferd, ZugferdWriter::getType());
     }
 
-    public function testIsAvailableReturnsBool(): void {
+    public function test_is_available_returns_bool(): void {
         $this->assertIsBool($this->writer->isAvailable());
     }
 
-    public function testCanHandleRequiresInvoiceXml(): void {
+    public function test_can_handle_requires_invoice_xml(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('TCPDF is not available');
         }
@@ -49,7 +49,7 @@ final class ZugferdWriterTest extends BaseTestCase {
         $this->assertTrue($this->writer->canHandle($withXml));
     }
 
-    public function testCreatePdfStringReturnsNullWithoutXml(): void {
+    public function test_create_pdf_string_returns_null_without_xml(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('TCPDF is not available');
         }
@@ -64,7 +64,7 @@ final class ZugferdWriterTest extends BaseTestCase {
      * nicht der Legacy-Name 'zugferd-invoice.xml'.
      */
     #[Group('integration')]
-    public function testDefaultEmbeddedFilenameIsFacturX(): void {
+    public function test_default_embedded_filename_is_factur_x(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('TCPDF is not available');
         }
@@ -84,7 +84,7 @@ final class ZugferdWriterTest extends BaseTestCase {
      * Explizit gesetzter invoice_filename überschreibt den Default.
      */
     #[Group('integration')]
-    public function testInvoiceFilenameOptionOverridesDefault(): void {
+    public function test_invoice_filename_option_overrides_default(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('TCPDF is not available');
         }
@@ -92,7 +92,7 @@ final class ZugferdWriterTest extends BaseTestCase {
         $content = PDFContent::fromHtml('<h1>Rechnung</h1>', ['invoice_xml' => $this->sampleInvoiceXml()]);
 
         $pdf = $this->writer->createPdfString($content, [
-            'render_engine'    => ZugferdWriter::ENGINE_TCPDF,
+            'render_engine' => ZugferdWriter::ENGINE_TCPDF,
             'invoice_filename' => ZugferdWriter::INVOICE_FILENAME_ZUGFERD_LEGACY,
         ]);
 
@@ -104,7 +104,7 @@ final class ZugferdWriterTest extends BaseTestCase {
      * createPdf schreibt erfolgreich eine gültige PDF-Datei.
      */
     #[Group('integration')]
-    public function testCreatePdfWritesFile(): void {
+    public function test_create_pdf_writes_file(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('TCPDF is not available');
         }
@@ -118,7 +118,7 @@ final class ZugferdWriterTest extends BaseTestCase {
             $this->assertTrue($ok);
             $this->assertFileExists($outputPath);
             $this->assertGreaterThan(0, filesize($outputPath));
-            $this->assertStringStartsWith('%PDF-', (string)file_get_contents($outputPath));
+            $this->assertStringStartsWith('%PDF-', (string) file_get_contents($outputPath));
         } finally {
             @unlink($outputPath);
         }
@@ -128,7 +128,7 @@ final class ZugferdWriterTest extends BaseTestCase {
      * Atomares Schreiben: schlägt die PDF-Erzeugung fehl (kein XML),
      * darf eine bereits existierende Zieldatei NICHT zerstört/truncatet werden.
      */
-    public function testCreatePdfDoesNotTruncateTargetOnFailure(): void {
+    public function test_create_pdf_does_not_truncate_target_on_failure(): void {
         if (!$this->writer->isAvailable()) {
             $this->markTestSkipped('TCPDF is not available');
         }

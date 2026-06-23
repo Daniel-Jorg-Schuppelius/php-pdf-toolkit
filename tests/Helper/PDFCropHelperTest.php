@@ -13,7 +13,6 @@ declare(strict_types=1);
 namespace Tests\Helper;
 
 use PDFToolkit\Helper\PDFCropHelper;
-use PDFToolkit\Helper\PDFHelper;
 use Tests\Contracts\BaseTestCase;
 
 final class PDFCropHelperTest extends BaseTestCase {
@@ -76,14 +75,14 @@ final class PDFCropHelperTest extends BaseTestCase {
     // getPageDimensions
     // ===================================================================
 
-    public function testGetPageDimensionsReturnsA4(): void {
+    public function test_get_page_dimensions_returns_a4(): void {
         $dims = PDFCropHelper::getPageDimensions(self::SAMPLE_PDF);
         $this->assertNotNull($dims);
         $this->assertEqualsWithDelta(self::A4_WIDTH, $dims['width'], self::TOLERANCE);
         $this->assertEqualsWithDelta(self::A4_HEIGHT, $dims['height'], self::TOLERANCE);
     }
 
-    public function testGetPageDimensionsReturnsNullForInvalidFile(): void {
+    public function test_get_page_dimensions_returns_null_for_invalid_file(): void {
         $this->assertNull(PDFCropHelper::getPageDimensions('/nonexistent/file.pdf'));
     }
 
@@ -91,27 +90,27 @@ final class PDFCropHelperTest extends BaseTestCase {
     // normalizeMargins
     // ===================================================================
 
-    public function testNormalizeMarginsOneValue(): void {
+    public function test_normalize_margins_one_value(): void {
         $result = PDFCropHelper::normalizeMargins([10.0]);
         $this->assertSame([10.0, 10.0, 10.0, 10.0], $result);
     }
 
-    public function testNormalizeMarginsTwoValues(): void {
+    public function test_normalize_margins_two_values(): void {
         $result = PDFCropHelper::normalizeMargins([10.0, 20.0]);
         $this->assertSame([10.0, 20.0, 10.0, 20.0], $result);
     }
 
-    public function testNormalizeMarginsThreeValues(): void {
+    public function test_normalize_margins_three_values(): void {
         $result = PDFCropHelper::normalizeMargins([10.0, 20.0, 30.0]);
         $this->assertSame([10.0, 20.0, 30.0, 20.0], $result);
     }
 
-    public function testNormalizeMarginsFourValues(): void {
+    public function test_normalize_margins_four_values(): void {
         $result = PDFCropHelper::normalizeMargins([10.0, 20.0, 30.0, 40.0]);
         $this->assertSame([10.0, 20.0, 30.0, 40.0], $result);
     }
 
-    public function testNormalizeMarginsEmptyReturnsZeros(): void {
+    public function test_normalize_margins_empty_returns_zeros(): void {
         $result = PDFCropHelper::normalizeMargins([]);
         $this->assertSame([0.0, 0.0, 0.0, 0.0], $result);
     }
@@ -120,7 +119,7 @@ final class PDFCropHelperTest extends BaseTestCase {
     // cropToBox – Dokument wird kleiner
     // ===================================================================
 
-    public function testCropToBoxCreatesSmallFile(): void {
+    public function test_crop_to_box_creates_small_file(): void {
         $out = $this->outputPath('crop-box');
 
         $result = PDFCropHelper::cropToBox(
@@ -137,7 +136,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($out, 200.0, 200.0, 'cropToBox 200x200');
     }
 
-    public function testCropToBoxRejectsMissingInput(): void {
+    public function test_crop_to_box_rejects_missing_input(): void {
         $this->assertFalse(PDFCropHelper::cropToBox('/no/such.pdf', $this->outputPath('x'), 0, 0, 100, 100));
     }
 
@@ -145,7 +144,7 @@ final class PDFCropHelperTest extends BaseTestCase {
     // cropUpperHalf – obere Hälfte
     // ===================================================================
 
-    public function testCropUpperHalfReducesHeight(): void {
+    public function test_crop_upper_half_reduces_height(): void {
         $out = $this->outputPath('upper-half');
 
         $this->assertTrue(PDFCropHelper::cropUpperHalf(self::SAMPLE_PDF, $out));
@@ -159,7 +158,7 @@ final class PDFCropHelperTest extends BaseTestCase {
     // cropLowerHalf – untere Hälfte
     // ===================================================================
 
-    public function testCropLowerHalfReducesHeight(): void {
+    public function test_crop_lower_half_reduces_height(): void {
         $out = $this->outputPath('lower-half');
 
         $this->assertTrue(PDFCropHelper::cropLowerHalf(self::SAMPLE_PDF, $out));
@@ -173,7 +172,7 @@ final class PDFCropHelperTest extends BaseTestCase {
     // cropUpperPercent / cropLowerPercent mit verschiedenen Prozenten
     // ===================================================================
 
-    public function testCropUpperPercent30(): void {
+    public function test_crop_upper_percent30(): void {
         $out = $this->outputPath('upper-30');
 
         $this->assertTrue(PDFCropHelper::cropUpperPercent(self::SAMPLE_PDF, $out, 30.0));
@@ -183,7 +182,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($out, self::A4_WIDTH, $expectedHeight, 'Obere 30%');
     }
 
-    public function testCropLowerPercent70(): void {
+    public function test_crop_lower_percent70(): void {
         $out = $this->outputPath('lower-70');
 
         $this->assertTrue(PDFCropHelper::cropLowerPercent(self::SAMPLE_PDF, $out, 70.0));
@@ -197,7 +196,7 @@ final class PDFCropHelperTest extends BaseTestCase {
     // cropUpperPercent mit Margins – Dokument wird zusätzlich verkleinert
     // ===================================================================
 
-    public function testCropUpperPercentWithUniformMargin(): void {
+    public function test_crop_upper_percent_with_uniform_margin(): void {
         $out = $this->outputPath('upper-50-margin-uniform');
         $margin = 20.0; // 20pt allseitig
 
@@ -209,7 +208,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($out, $expectedWidth, $expectedHeight, 'Obere 50% mit 20pt Margin');
     }
 
-    public function testCropUpperPercentWithAsymmetricMargins(): void {
+    public function test_crop_upper_percent_with_asymmetric_margins(): void {
         $out = $this->outputPath('upper-50-margin-asym');
         // top=10, right=30, bottom=20, left=40
         $margins = [10.0, 30.0, 20.0, 40.0];
@@ -222,7 +221,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($out, $expectedWidth, $expectedHeight, 'Obere 50% mit asymmetrischen Margins');
     }
 
-    public function testCropLowerPercentWithTwoValueMargins(): void {
+    public function test_crop_lower_percent_with_two_value_margins(): void {
         $out = $this->outputPath('lower-50-margin-2val');
         // top/bottom=15, left/right=25
         $margins = [15.0, 25.0];
@@ -235,7 +234,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($out, $expectedWidth, $expectedHeight, 'Untere 50% mit 2-Wert-Margins');
     }
 
-    public function testCropWithMarginsIsSmaller(): void {
+    public function test_crop_with_margins_is_smaller(): void {
         $outNoMargin = $this->outputPath('upper-no-margin');
         $outWithMargin = $this->outputPath('upper-with-margin');
 
@@ -255,7 +254,7 @@ final class PDFCropHelperTest extends BaseTestCase {
     // Einzelne Margin-Richtungen isoliert testen
     // ===================================================================
 
-    public function testCropWithTopMarginOnly(): void {
+    public function test_crop_with_top_margin_only(): void {
         $out = $this->outputPath('margin-top-only');
         // top=30, right=0, bottom=0, left=0
         $margins = [30.0, 0.0, 0.0, 0.0];
@@ -269,7 +268,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($out, $expectedWidth, $expectedHeight, 'Nur Top-Margin');
     }
 
-    public function testCropWithBottomMarginOnly(): void {
+    public function test_crop_with_bottom_margin_only(): void {
         $out = $this->outputPath('margin-bottom-only');
         // top=0, right=0, bottom=40, left=0
         $margins = [0.0, 0.0, 40.0, 0.0];
@@ -283,7 +282,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($out, $expectedWidth, $expectedHeight, 'Nur Bottom-Margin');
     }
 
-    public function testCropWithLeftMarginOnly(): void {
+    public function test_crop_with_left_margin_only(): void {
         $out = $this->outputPath('margin-left-only');
         // top=0, right=0, bottom=0, left=50
         $margins = [0.0, 0.0, 0.0, 50.0];
@@ -297,7 +296,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($out, $expectedWidth, $expectedHeight, 'Nur Left-Margin');
     }
 
-    public function testCropWithRightMarginOnly(): void {
+    public function test_crop_with_right_margin_only(): void {
         $out = $this->outputPath('margin-right-only');
         // top=0, right=35, bottom=0, left=0
         $margins = [0.0, 35.0, 0.0, 0.0];
@@ -311,7 +310,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($out, $expectedWidth, $expectedHeight, 'Nur Right-Margin');
     }
 
-    public function testCropLowerPercentWithTopMarginOnly(): void {
+    public function test_crop_lower_percent_with_top_margin_only(): void {
         $out = $this->outputPath('lower-margin-top-only');
         $margins = [25.0, 0.0, 0.0, 0.0];
         $cropHeight = self::A4_HEIGHT * 0.50;
@@ -324,7 +323,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($out, $expectedWidth, $expectedHeight, 'Lower 50% nur Top-Margin');
     }
 
-    public function testCropLowerPercentWithLeftAndRightMargins(): void {
+    public function test_crop_lower_percent_with_left_and_right_margins(): void {
         $out = $this->outputPath('lower-margin-lr');
         // top=0, right=20, bottom=0, left=30
         $margins = [0.0, 20.0, 0.0, 30.0];
@@ -342,7 +341,7 @@ final class PDFCropHelperTest extends BaseTestCase {
     // Crop mit Margins → resizeToFitCentered ins Ursprungsformat
     // ===================================================================
 
-    public function testCropWithMarginsResizedCenteredBackToA4(): void {
+    public function test_crop_with_margins_resized_centered_back_to_a4(): void {
         $cropped = $this->outputPath('pipeline-crop-margins');
         $final = $this->outputPath('pipeline-back-to-a4');
 
@@ -361,7 +360,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($final, self::A4_WIDTH, self::A4_HEIGHT, 'Zurück zu A4 zentriert');
     }
 
-    public function testCropWithUniformMarginResizedCenteredToLabel(): void {
+    public function test_crop_with_uniform_margin_resized_centered_to_label(): void {
         $cropped = $this->outputPath('pipeline-uniform-crop');
         $final = $this->outputPath('pipeline-label-fit');
 
@@ -376,7 +375,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($final, $labelW, $labelH, 'Zentriert auf Etikettengröße');
     }
 
-    public function testCropLowerWithMarginsResizedCenteredToSquare(): void {
+    public function test_crop_lower_with_margins_resized_centered_to_square(): void {
         $cropped = $this->outputPath('pipeline-lower-crop-margins');
         $final = $this->outputPath('pipeline-square');
 
@@ -394,7 +393,7 @@ final class PDFCropHelperTest extends BaseTestCase {
     // resizeToFit – Skalierung auf Zielgröße
     // ===================================================================
 
-    public function testResizeToFitCreatesTargetSize(): void {
+    public function test_resize_to_fit_creates_target_size(): void {
         $out = $this->outputPath('resize-fit');
         $targetW = 400.0;
         $targetH = 300.0;
@@ -404,7 +403,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($out, $targetW, $targetH, 'resizeToFit Zielgröße');
     }
 
-    public function testResizeToFitMakesDocumentSmaller(): void {
+    public function test_resize_to_fit_makes_document_smaller(): void {
         $out = $this->outputPath('resize-smaller');
         // Hälfte der A4-Größe
         $targetW = self::A4_WIDTH / 2;
@@ -415,7 +414,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfSmaller($out, self::A4_WIDTH, self::A4_HEIGHT);
     }
 
-    public function testResizeToFitRejectsInvalidInput(): void {
+    public function test_resize_to_fit_rejects_invalid_input(): void {
         $this->assertFalse(PDFCropHelper::resizeToFit('/no/file.pdf', $this->outputPath('x'), 100, 100));
     }
 
@@ -423,7 +422,7 @@ final class PDFCropHelperTest extends BaseTestCase {
     // resizeToFitCentered – Zentriert auf Zielgröße
     // ===================================================================
 
-    public function testResizeToFitCenteredCreatesTargetSize(): void {
+    public function test_resize_to_fit_centered_creates_target_size(): void {
         $out = $this->outputPath('resize-centered');
         $targetW = 400.0;
         $targetH = 600.0;
@@ -433,7 +432,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($out, $targetW, $targetH, 'resizeToFitCentered Zielgröße');
     }
 
-    public function testResizeToFitCenteredSmallTarget(): void {
+    public function test_resize_to_fit_centered_small_target(): void {
         $out = $this->outputPath('resize-centered-small');
         // Sehr klein: 100x150pt
         $targetW = 100.0;
@@ -444,7 +443,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($out, $targetW, $targetH, 'resizeToFitCentered kleine Zielgröße');
     }
 
-    public function testResizeToFitCenteredSquareTarget(): void {
+    public function test_resize_to_fit_centered_square_target(): void {
         $out = $this->outputPath('resize-centered-square');
         $targetW = 300.0;
         $targetH = 300.0;
@@ -454,7 +453,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($out, $targetW, $targetH, 'resizeToFitCentered quadratisch');
     }
 
-    public function testResizeToFitCenteredLandscapeTarget(): void {
+    public function test_resize_to_fit_centered_landscape_target(): void {
         $out = $this->outputPath('resize-centered-landscape');
         // Breit und flach
         $targetW = 600.0;
@@ -465,7 +464,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($out, $targetW, $targetH, 'resizeToFitCentered Querformat');
     }
 
-    public function testResizeToFitCenteredRejectsInvalidInput(): void {
+    public function test_resize_to_fit_centered_rejects_invalid_input(): void {
         $this->assertFalse(PDFCropHelper::resizeToFitCentered('/no/file.pdf', $this->outputPath('x'), 100, 100));
     }
 
@@ -473,7 +472,7 @@ final class PDFCropHelperTest extends BaseTestCase {
     // Kombination: Crop + Resize (Pipeline-Test)
     // ===================================================================
 
-    public function testCropThenResizeCenteredPipeline(): void {
+    public function test_crop_then_resize_centered_pipeline(): void {
         $cropped = $this->outputPath('pipeline-cropped');
         $final = $this->outputPath('pipeline-final');
 
@@ -496,7 +495,7 @@ final class PDFCropHelperTest extends BaseTestCase {
     // isAvailable
     // ===================================================================
 
-    public function testIsAvailableReturnsBool(): void {
+    public function test_is_available_returns_bool(): void {
         $this->assertIsBool(PDFCropHelper::isAvailable());
     }
 }

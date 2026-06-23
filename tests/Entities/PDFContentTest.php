@@ -17,7 +17,7 @@ use PDFToolkit\Entities\PDFContent;
 use Tests\Contracts\BaseTestCase;
 
 final class PDFContentTest extends BaseTestCase {
-    public function testFromHtmlCreatesHtmlContent(): void {
+    public function test_from_html_creates_html_content(): void {
         $html = '<h1>Test</h1><p>Content</p>';
         $content = PDFContent::fromHtml($html);
 
@@ -28,7 +28,7 @@ final class PDFContentTest extends BaseTestCase {
         $this->assertEquals(PDFContent::TYPE_HTML, $content->type);
     }
 
-    public function testFromTextCreatesTextContent(): void {
+    public function test_from_text_creates_text_content(): void {
         $text = "Line 1\nLine 2\nLine 3";
         $content = PDFContent::fromText($text);
 
@@ -39,7 +39,7 @@ final class PDFContentTest extends BaseTestCase {
         $this->assertEquals(PDFContent::TYPE_TEXT, $content->type);
     }
 
-    public function testFromFileCreatesFileContent(): void {
+    public function test_from_file_creates_file_content(): void {
         $tempFile = tempnam(sys_get_temp_dir(), 'test_') . '.html';
         file_put_contents($tempFile, '<h1>Test</h1>');
 
@@ -56,19 +56,19 @@ final class PDFContentTest extends BaseTestCase {
         }
     }
 
-    public function testFromFileThrowsExceptionForNonExistentFile(): void {
+    public function test_from_file_throws_exception_for_non_existent_file(): void {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('File not found');
 
         PDFContent::fromFile('/nonexistent/file.html');
     }
 
-    public function testFromHtmlWithMetadata(): void {
+    public function test_from_html_with_metadata(): void {
         $content = PDFContent::fromHtml('<p>Test</p>', [
             'title' => 'My Title',
             'author' => 'Test Author',
             'subject' => 'Test Subject',
-            'keywords' => 'test, pdf, content'
+            'keywords' => 'test, pdf, content',
         ]);
 
         $this->assertEquals('My Title', $content->getTitle());
@@ -77,22 +77,22 @@ final class PDFContentTest extends BaseTestCase {
         $this->assertEquals('test, pdf, content', $content->getMeta('keywords'));
     }
 
-    public function testFromTextWithMetadata(): void {
+    public function test_from_text_with_metadata(): void {
         $content = PDFContent::fromText('Text content', [
-            'title' => 'Text Document'
+            'title' => 'Text Document',
         ]);
 
         $this->assertEquals('Text Document', $content->getTitle());
     }
 
-    public function testGetMetaReturnsDefaultForMissingKey(): void {
+    public function test_get_meta_returns_default_for_missing_key(): void {
         $content = PDFContent::fromHtml('<p>Test</p>');
 
         $this->assertNull($content->getMeta('nonexistent'));
         $this->assertEquals('default', $content->getMeta('nonexistent', 'default'));
     }
 
-    public function testWithMetadataCreatesNewInstance(): void {
+    public function test_with_metadata_creates_new_instance(): void {
         $original = PDFContent::fromHtml('<p>Test</p>', ['title' => 'Original']);
         $updated = $original->withMetadata(['author' => 'New Author']);
 
@@ -105,7 +105,7 @@ final class PDFContentTest extends BaseTestCase {
         $this->assertEquals('New Author', $updated->getAuthor());
     }
 
-    public function testWithMetadataOverwritesExisting(): void {
+    public function test_with_metadata_overwrites_existing(): void {
         $original = PDFContent::fromHtml('<p>Test</p>', ['title' => 'Original']);
         $updated = $original->withMetadata(['title' => 'Updated']);
 
@@ -113,14 +113,14 @@ final class PDFContentTest extends BaseTestCase {
         $this->assertEquals('Updated', $updated->getTitle());
     }
 
-    public function testGetAsHtmlFromHtml(): void {
+    public function test_get_as_html_from_html(): void {
         $html = '<h1>Test</h1><p>Content</p>';
         $content = PDFContent::fromHtml($html);
 
         $this->assertEquals($html, $content->getAsHtml());
     }
 
-    public function testGetAsHtmlFromText(): void {
+    public function test_get_as_html_from_text(): void {
         $text = "Hello World";
         $content = PDFContent::fromText($text);
 
@@ -131,7 +131,7 @@ final class PDFContentTest extends BaseTestCase {
         $this->assertStringContainsString('Hello World', $html);
     }
 
-    public function testGetAsHtmlFromTextEscapesHtml(): void {
+    public function test_get_as_html_from_text_escapes_html(): void {
         $text = "<script>alert('xss')</script>";
         $content = PDFContent::fromText($text);
 
@@ -141,7 +141,7 @@ final class PDFContentTest extends BaseTestCase {
         $this->assertStringContainsString('&lt;script&gt;', $html);
     }
 
-    public function testGetAsHtmlFromTextPreservesNewlines(): void {
+    public function test_get_as_html_from_text_preserves_newlines(): void {
         $text = "Line 1\nLine 2\nLine 3";
         $content = PDFContent::fromText($text);
 
@@ -154,7 +154,7 @@ final class PDFContentTest extends BaseTestCase {
         $this->assertStringContainsString('<pre', $html);
     }
 
-    public function testGetAsHtmlFromFile(): void {
+    public function test_get_as_html_from_file(): void {
         $htmlContent = '<h1>File Content</h1>';
         $tempFile = tempnam(sys_get_temp_dir(), 'test_') . '.html';
         file_put_contents($tempFile, $htmlContent);
@@ -169,14 +169,14 @@ final class PDFContentTest extends BaseTestCase {
         }
     }
 
-    public function testGetAsTextFromText(): void {
+    public function test_get_as_text_from_text(): void {
         $text = "Hello World";
         $content = PDFContent::fromText($text);
 
         $this->assertEquals($text, $content->getAsText());
     }
 
-    public function testGetAsTextFromHtml(): void {
+    public function test_get_as_text_from_html(): void {
         $html = '<h1>Title</h1><p>Paragraph</p>';
         $content = PDFContent::fromHtml($html);
 
@@ -188,7 +188,7 @@ final class PDFContentTest extends BaseTestCase {
         $this->assertStringNotContainsString('<p>', $text);
     }
 
-    public function testGetAsTextFromFile(): void {
+    public function test_get_as_text_from_file(): void {
         $htmlContent = '<h1>Title</h1><p>Content</p>';
         $tempFile = tempnam(sys_get_temp_dir(), 'test_') . '.html';
         file_put_contents($tempFile, $htmlContent);
@@ -205,7 +205,7 @@ final class PDFContentTest extends BaseTestCase {
         }
     }
 
-    public function testMetadataIsEmptyByDefault(): void {
+    public function test_metadata_is_empty_by_default(): void {
         $content = PDFContent::fromHtml('<p>Test</p>');
 
         $this->assertEmpty($content->metadata);
@@ -214,7 +214,7 @@ final class PDFContentTest extends BaseTestCase {
         $this->assertNull($content->getSubject());
     }
 
-    public function testContentIsReadonly(): void {
+    public function test_content_is_readonly(): void {
         $content = PDFContent::fromHtml('<p>Test</p>');
 
         // PHP 8.2 readonly class verhindert Änderungen
@@ -224,7 +224,7 @@ final class PDFContentTest extends BaseTestCase {
         $this->assertIsArray($content->metadata);
     }
 
-    public function testEmptyHtmlContent(): void {
+    public function test_empty_html_content(): void {
         $content = PDFContent::fromHtml('');
 
         $this->assertTrue($content->isHtml());
@@ -232,7 +232,7 @@ final class PDFContentTest extends BaseTestCase {
         $this->assertEquals('', $content->getAsHtml());
     }
 
-    public function testEmptyTextContent(): void {
+    public function test_empty_text_content(): void {
         $content = PDFContent::fromText('');
 
         $this->assertTrue($content->isText());
@@ -240,7 +240,7 @@ final class PDFContentTest extends BaseTestCase {
         $this->assertStringContainsString('<!DOCTYPE html>', $content->getAsHtml());
     }
 
-    public function testComplexMetadata(): void {
+    public function test_complex_metadata(): void {
         $metadata = [
             'title' => 'Complex Document',
             'author' => 'Test Author',
@@ -251,7 +251,7 @@ final class PDFContentTest extends BaseTestCase {
             'custom_field' => 'Custom Value',
             'number_field' => 42,
             'boolean_field' => true,
-            'array_field' => ['a', 'b', 'c']
+            'array_field' => ['a', 'b', 'c'],
         ];
 
         $content = PDFContent::fromHtml('<p>Test</p>', $metadata);
@@ -266,7 +266,7 @@ final class PDFContentTest extends BaseTestCase {
         $this->assertEquals(['a', 'b', 'c'], $content->getMeta('array_field'));
     }
 
-    public function testSpecialCharactersInContent(): void {
+    public function test_special_characters_in_content(): void {
         $html = '<p>Sonderzeichen: äöü ÄÖÜ ß € © ® ™</p>';
         $content = PDFContent::fromHtml($html);
 
@@ -274,10 +274,10 @@ final class PDFContentTest extends BaseTestCase {
         $this->assertEquals($html, $content->getAsHtml());
     }
 
-    public function testSpecialCharactersInMetadata(): void {
+    public function test_special_characters_in_metadata(): void {
         $content = PDFContent::fromHtml('<p>Test</p>', [
             'title' => 'Über die Größe von Äpfeln',
-            'author' => 'François Müller'
+            'author' => 'François Müller',
         ]);
 
         $this->assertEquals('Über die Größe von Äpfeln', $content->getTitle());

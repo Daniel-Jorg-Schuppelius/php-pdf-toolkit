@@ -21,7 +21,7 @@ use TCPDF;
 
 /**
  * PDF-Writer basierend auf TCPDF.
- * 
+ *
  * Programmatische PDF-Erstellung mit reinem PHP.
  * Sehr flexibel, unterstützt komplexe Layouts und Formulare.
  */
@@ -68,7 +68,7 @@ final class TcpdfWriter implements PDFWriterInterface {
 
         $this->logDebug('PDF created successfully', [
             'path' => $outputPath,
-            'size' => strlen($pdfString)
+            'size' => strlen($pdfString),
         ]);
 
         return true;
@@ -95,7 +95,7 @@ final class TcpdfWriter implements PDFWriterInterface {
         } catch (\Throwable $e) {
             $this->logError('TCPDF error: ' . $e->getMessage(), [
                 'exception' => get_class($e),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             return null;
         }
@@ -150,7 +150,7 @@ final class TcpdfWriter implements PDFWriterInterface {
      */
     private function writeText(TCPDF $pdf, PDFContent $content, array $options): void {
         $text = $content->getAsText();
-        $pdf->MultiCell(0, 0, $text, 0, 'L', false, 1, '', '', true, 0, false, true, 0, 'T', false);
+        $pdf->MultiCell(0, 0, $text, 0, 'L', false, 1, null, null, true, 0, false, true, 0, 'T', false);
     }
 
     /**

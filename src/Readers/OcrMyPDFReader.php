@@ -14,15 +14,15 @@ namespace PDFToolkit\Readers;
 
 use CommonToolkit\Helper\FileSystem\{File, Folder};
 use CommonToolkit\Helper\Shell;
+use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
 use PDFToolkit\Helper\{PDFHelper, TesseractDataHelper, TextQualityAnalyzer};
-use ERRORToolkit\Traits\ErrorLog;
 
 /**
  * PDF-Reader basierend auf OCRmyPDF.
- * 
+ *
  * Erstellt ein durchsuchbares PDF aus gescannten Dokumenten.
  * Kombiniert mehrere Tools (Tesseract, unpaper, etc.) für beste Ergebnisse.
  */
@@ -114,7 +114,7 @@ final class OcrMyPDFReader implements PDFReaderInterface {
 
         if ($score < $qualityThreshold) {
             // PSM 11 (sparse text) und PSM 3 (auto) als Fallbacks
-            $psmFallbacks = array_values(array_filter([3, 6, 11], fn(int $p) => $p !== $psm));
+            $psmFallbacks = array_values(array_filter([3, 6, 11], fn (int $p) => $p !== $psm));
 
             foreach ($psmFallbacks as $altPsm) {
                 $altText = $this->extractWithSettings($pdfPath, $language, $altPsm);
@@ -138,7 +138,7 @@ final class OcrMyPDFReader implements PDFReaderInterface {
 
     /**
      * Extrahiert Text mit spezifischen OCRmyPDF-Einstellungen.
-     * 
+     *
      * Nutzt --sidecar für direkte Textausgabe wenn verfügbar,
      * ansonsten Fallback auf pdftotext-Nachverarbeitung.
      */

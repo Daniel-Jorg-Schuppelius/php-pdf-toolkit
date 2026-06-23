@@ -14,15 +14,15 @@ namespace PDFToolkit\Readers;
 
 use CommonToolkit\Helper\FileSystem\File;
 use CommonToolkit\Helper\Shell;
+use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
 use PDFToolkit\Helper\{PDFHelper, TextQualityAnalyzer};
-use ERRORToolkit\Traits\ErrorLog;
 
 /**
  * PDF-Reader basierend auf pdftotext (poppler-utils).
- * 
+ *
  * Schnellste Option für PDFs mit eingebettetem Text.
  * Funktioniert NICHT für gescannte Dokumente.
  */

@@ -12,11 +12,10 @@ declare(strict_types=1);
 
 namespace Tests\Helper;
 
-use PDFToolkit\Entities\PDFDocument;
-use PDFToolkit\Enums\PDFReaderType;
-use PDFToolkit\Enums\PDFTextVariant;
-use PDFToolkit\Helper\PDFTextProvider;
 use InvalidArgumentException;
+use PDFToolkit\Entities\PDFDocument;
+use PDFToolkit\Enums\{PDFReaderType, PDFTextVariant};
+use PDFToolkit\Helper\PDFTextProvider;
 use Tests\Contracts\BaseTestCase;
 
 final class PDFTextProviderTest extends BaseTestCase {
@@ -26,32 +25,32 @@ final class PDFTextProviderTest extends BaseTestCase {
     // Konstruktor & Initialisierung
     // ========================================================================
 
-    public function testInitialTextIsCachedAsDefault(): void {
+    public function test_initial_text_is_cached_as_default(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, 'Initialer Text');
 
         $this->assertEquals('Initialer Text', $provider->text());
         $this->assertTrue($provider->isCached(PDFTextVariant::Default));
     }
 
-    public function testEmptyStringInitialTextIsNormalized(): void {
+    public function test_empty_string_initial_text_is_normalized(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, '');
 
         $this->assertFalse($provider->isCached(PDFTextVariant::Default));
     }
 
-    public function testWhitespaceOnlyInitialTextIsNormalized(): void {
+    public function test_whitespace_only_initial_text_is_normalized(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, '   ');
 
         $this->assertFalse($provider->isCached(PDFTextVariant::Default));
     }
 
-    public function testNullInitialResultHasNoCachedDefault(): void {
+    public function test_null_initial_result_has_no_cached_default(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF);
 
         $this->assertFalse($provider->isCached(PDFTextVariant::Default));
     }
 
-    public function testPDFDocumentInitialResultCachesTextAndDocument(): void {
+    public function test_pdf_document_initial_result_caches_text_and_document(): void {
         $doc = new PDFDocument(
             text: 'Text aus PDFDocument',
             reader: PDFReaderType::Pdftotext,
@@ -68,7 +67,7 @@ final class PDFTextProviderTest extends BaseTestCase {
         $this->assertFalse($provider->isScanned());
     }
 
-    public function testPDFDocumentWithEmptyTextIsNotCached(): void {
+    public function test_pdf_document_with_empty_text_is_not_cached(): void {
         $doc = new PDFDocument(
             text: null,
             reader: null,
@@ -81,7 +80,7 @@ final class PDFTextProviderTest extends BaseTestCase {
         $this->assertFalse($provider->isCached(PDFTextVariant::Default));
     }
 
-    public function testPDFDocumentWithBestResultUsesIt(): void {
+    public function test_pdf_document_with_best_result_uses_it(): void {
         $doc = new PDFDocument(
             text: 'Kurzer Text',
             reader: PDFReaderType::Pdftotext,
@@ -108,7 +107,7 @@ final class PDFTextProviderTest extends BaseTestCase {
     // Pfad & Grundfunktionen
     // ========================================================================
 
-    public function testGetPathReturnsConstructorPath(): void {
+    public function test_get_path_returns_constructor_path(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF);
         $this->assertEquals(self::SAMPLE_PDF, $provider->getPath());
     }
@@ -117,7 +116,7 @@ final class PDFTextProviderTest extends BaseTestCase {
     // Cache-Verwaltung
     // ========================================================================
 
-    public function testClearCacheResetsAll(): void {
+    public function test_clear_cache_resets_all(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, 'Cached Text');
 
         $this->assertTrue($provider->isCached(PDFTextVariant::Default));
@@ -127,7 +126,7 @@ final class PDFTextProviderTest extends BaseTestCase {
         $this->assertFalse($provider->isCached(PDFTextVariant::Default));
     }
 
-    public function testIsCachedWithVariantEnum(): void {
+    public function test_is_cached_with_variant_enum(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, 'Text');
 
         $this->assertTrue($provider->isCached(PDFTextVariant::Default));
@@ -136,7 +135,7 @@ final class PDFTextProviderTest extends BaseTestCase {
         $this->assertFalse($provider->isCached(PDFTextVariant::TextOnly));
     }
 
-    public function testIsCachedAcceptsStringFallback(): void {
+    public function test_is_cached_accepts_string_fallback(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, 'Text');
 
         // String-Keys für dynamische Varianten (OCR, Quality) weiterhin möglich
@@ -148,7 +147,7 @@ final class PDFTextProviderTest extends BaseTestCase {
     // Varianten-Konstanten
     // ========================================================================
 
-    public function testVariantEnumHasExpectedValues(): void {
+    public function test_variant_enum_has_expected_values(): void {
         $this->assertEquals('default', PDFTextVariant::Default->value);
         $this->assertEquals('layout', PDFTextVariant::Layout->value);
         $this->assertEquals('raw', PDFTextVariant::Raw->value);
@@ -159,17 +158,17 @@ final class PDFTextProviderTest extends BaseTestCase {
     // hasText()
     // ========================================================================
 
-    public function testHasTextReturnsTrueWithInitialText(): void {
+    public function test_has_text_returns_true_with_initial_text(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, 'Vorhandener Text');
         $this->assertTrue($provider->hasText());
     }
 
-    public function testHasTextReturnsFalseWithoutInitialText(): void {
+    public function test_has_text_returns_false_without_initial_text(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF);
         $this->assertFalse($provider->hasText());
     }
 
-    public function testHasTextReturnsFalseAfterClearCache(): void {
+    public function test_has_text_returns_false_after_clear_cache(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, 'Text');
         $this->assertTrue($provider->hasText());
 
@@ -181,36 +180,36 @@ final class PDFTextProviderTest extends BaseTestCase {
     // textWithFallback()
     // ========================================================================
 
-    public function testTextWithFallbackReturnsFirstNonNull(): void {
+    public function test_text_with_fallback_returns_first_non_null(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, 'Default Text');
 
         $result = $provider->textWithFallback(
-            fn(PDFTextProvider $p) => null,             // erste Variante liefert null
-            fn(PDFTextProvider $p) => $p->text(),       // zweite liefert Default-Text
-            fn(PDFTextProvider $p) => 'Dritte Variante', // wird nicht aufgerufen
+            fn (PDFTextProvider $p) => null,             // erste Variante liefert null
+            fn (PDFTextProvider $p) => $p->text(),       // zweite liefert Default-Text
+            fn (PDFTextProvider $p) => 'Dritte Variante', // wird nicht aufgerufen
         );
 
         $this->assertEquals('Default Text', $result);
     }
 
-    public function testTextWithFallbackReturnsNullWhenAllEmpty(): void {
+    public function test_text_with_fallback_returns_null_when_all_empty(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF);
 
         $result = $provider->textWithFallback(
-            fn(PDFTextProvider $p) => null,
-            fn(PDFTextProvider $p) => '',
-            fn(PDFTextProvider $p) => '   ',
+            fn (PDFTextProvider $p) => null,
+            fn (PDFTextProvider $p) => '',
+            fn (PDFTextProvider $p) => '   ',
         );
 
         $this->assertNull($result);
     }
 
-    public function testTextWithFallbackSkipsEmptyStrings(): void {
+    public function test_text_with_fallback_skips_empty_strings(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF);
 
         $result = $provider->textWithFallback(
-            fn(PDFTextProvider $p) => '',               // leer
-            fn(PDFTextProvider $p) => 'Treffer',        // nicht-leer
+            fn (PDFTextProvider $p) => '',               // leer
+            fn (PDFTextProvider $p) => 'Treffer',        // nicht-leer
         );
 
         $this->assertEquals('Treffer', $result);
@@ -220,17 +219,17 @@ final class PDFTextProviderTest extends BaseTestCase {
     // cachedVariants()
     // ========================================================================
 
-    public function testCachedVariantsEmptyWithoutInitialText(): void {
+    public function test_cached_variants_empty_without_initial_text(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF);
         $this->assertEmpty($provider->cachedVariants());
     }
 
-    public function testCachedVariantsContainsDefaultWithInitialText(): void {
+    public function test_cached_variants_contains_default_with_initial_text(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, 'Text');
         $this->assertEquals(['default'], $provider->cachedVariants());
     }
 
-    public function testCachedVariantsEmptyAfterClearCache(): void {
+    public function test_cached_variants_empty_after_clear_cache(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, 'Text');
         $provider->clearCache();
         $this->assertEmpty($provider->cachedVariants());
@@ -240,43 +239,43 @@ final class PDFTextProviderTest extends BaseTestCase {
     // textLength() / lineCount()
     // ========================================================================
 
-    public function testTextLengthReturnsCorrectByteCount(): void {
+    public function test_text_length_returns_correct_byte_count(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, 'Hallo Welt');
         $this->assertEquals(10, $provider->textLength());
     }
 
-    public function testTextLengthReturnsNullForUncachedVariant(): void {
+    public function test_text_length_returns_null_for_uncached_variant(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, 'Text');
         $this->assertNull($provider->textLength(PDFTextVariant::Layout));
     }
 
-    public function testTextLengthReturnsNullWithoutInitialText(): void {
+    public function test_text_length_returns_null_without_initial_text(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF);
         $this->assertNull($provider->textLength());
     }
 
-    public function testLineCountReturnsSingleLineForNoNewlines(): void {
+    public function test_line_count_returns_single_line_for_no_newlines(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, 'Eine Zeile');
         $this->assertEquals(1, $provider->lineCount());
     }
 
-    public function testLineCountReturnsCorrectCountForMultipleLines(): void {
+    public function test_line_count_returns_correct_count_for_multiple_lines(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, "Zeile 1\nZeile 2\nZeile 3");
         $this->assertEquals(3, $provider->lineCount());
     }
 
-    public function testLineCountReturnsNullForUncachedVariant(): void {
+    public function test_line_count_returns_null_for_uncached_variant(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, 'Text');
         $this->assertNull($provider->lineCount(PDFTextVariant::Raw));
     }
 
-    public function testTextLengthWithUmlautsCountsCharacters(): void {
+    public function test_text_length_with_umlauts_counts_characters(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, 'Ü');
         // mb_strlen: Ü = 1 Zeichen (nicht 2 Bytes)
         $this->assertEquals(1, $provider->textLength());
     }
 
-    public function testTextLengthConsistentWithPDFDocument(): void {
+    public function test_text_length_consistent_with_pdf_document(): void {
         $text = 'Ärger mit Ü und ö';
         $doc = new PDFDocument(
             text: $text,
@@ -295,14 +294,14 @@ final class PDFTextProviderTest extends BaseTestCase {
     // Konstruktor-Validierung
     // ========================================================================
 
-    public function testConstructorThrowsForNonExistentFile(): void {
+    public function test_constructor_throws_for_non_existent_file(): void {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('existiert nicht');
 
         new PDFTextProvider('/tmp/this-file-does-not-exist-12345.pdf');
     }
 
-    public function testConstructorThrowsForNonPdfFile(): void {
+    public function test_constructor_throws_for_non_pdf_file(): void {
         $tmpFile = tempnam(sys_get_temp_dir(), 'test_');
         file_put_contents($tmpFile, 'Das ist kein PDF');
 

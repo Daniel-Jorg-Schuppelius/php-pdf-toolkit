@@ -19,7 +19,7 @@ use Tests\Contracts\BaseTestCase;
  * Tests für TextQualityAnalyzer.
  */
 final class TextQualityAnalyzerTest extends BaseTestCase {
-    public function testCalculateQualityScoreWithGermanText(): void {
+    public function test_calculate_quality_score_with_german_text(): void {
         $germanText = "Dies ist ein deutscher Text mit Umlauten wie ä, ö, ü und ß. " .
             "Die Gesellschaft hat den Jahresabschluss geprüft und für ordnungsgemäß befunden. " .
             "Der Lagebericht entspricht den gesetzlichen Vorschriften.";
@@ -29,7 +29,7 @@ final class TextQualityAnalyzerTest extends BaseTestCase {
         $this->assertGreaterThan(50, $score, "German text should have high score with 'deu' language");
     }
 
-    public function testCalculateQualityScoreWithEnglishText(): void {
+    public function test_calculate_quality_score_with_english_text(): void {
         $englishText = "This is an English text about financial statements. " .
             "The company has been audited and the annual report is accurate. " .
             "The balance sheet shows the financial position of the company.";
@@ -39,7 +39,7 @@ final class TextQualityAnalyzerTest extends BaseTestCase {
         $this->assertGreaterThan(50, $score, "English text should have high score with 'eng' language");
     }
 
-    public function testCalculateQualityScoreWithBrokenUmlauts(): void {
+    public function test_calculate_quality_score_with_broken_umlauts(): void {
         // Text mit typischen OCR-Fehlern bei falscher Spracheinstellung
         $brokenText = "Dies ist ein deutscher Text mit falschen Umlauten wie a, o, u. " .
             "Die Priifung wurde durchgefiihrt und der Jahresabschluss gepriift.";
@@ -57,7 +57,7 @@ final class TextQualityAnalyzerTest extends BaseTestCase {
         );
     }
 
-    public function testSelectBestResultChoosesCorrectLanguage(): void {
+    public function test_select_best_result_chooses_correct_language(): void {
         $results = [
             'deu' => "Prüfungsvermerk: Die Gesellschaft hat den Jahresabschluss ordnungsgemäß erstellt.",
             'eng' => "Prufungsvermerk: Die Gesellschaft hat den Jahresabschluss ordnungsgemai3 erstellt.",
@@ -70,7 +70,7 @@ final class TextQualityAnalyzerTest extends BaseTestCase {
         $this->assertGreaterThan(0, $best['score']);
     }
 
-    public function testSelectBestResultWithEmptyResults(): void {
+    public function test_select_best_result_with_empty_results(): void {
         $results = [];
 
         $best = TextQualityAnalyzer::selectBestResult($results);
@@ -80,7 +80,7 @@ final class TextQualityAnalyzerTest extends BaseTestCase {
         $this->assertEquals(0.0, $best['score']);
     }
 
-    public function testSelectBestResultWithOnlyOneResult(): void {
+    public function test_select_best_result_with_only_one_result(): void {
         $results = [
             'deu' => "Ein einfacher deutscher Text.",
         ];
@@ -91,13 +91,13 @@ final class TextQualityAnalyzerTest extends BaseTestCase {
         $this->assertEquals("Ein einfacher deutscher Text.", $best['text']);
     }
 
-    public function testEmptyTextReturnsZeroScore(): void {
+    public function test_empty_text_returns_zero_score(): void {
         $score = TextQualityAnalyzer::calculateQualityScore('', 'deu');
 
         $this->assertEquals(0.0, $score);
     }
 
-    public function testWhitespaceOnlyTextReturnsLowScore(): void {
+    public function test_whitespace_only_text_returns_low_score(): void {
         $score = TextQualityAnalyzer::calculateQualityScore('   \n\t  ', 'deu');
 
         $this->assertLessThan(50, $score, "Whitespace-only text should have a low score");

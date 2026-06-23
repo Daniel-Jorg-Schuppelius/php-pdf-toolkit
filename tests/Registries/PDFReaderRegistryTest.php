@@ -25,23 +25,23 @@ final class PDFReaderRegistryTest extends BaseTestCase {
         PDFReaderRegistry::resetInstance();
     }
 
-    public function testCanInstantiate(): void {
+    public function test_can_instantiate(): void {
         $registry = PDFReaderRegistry::getInstance();
         $this->assertInstanceOf(PDFReaderRegistry::class, $registry);
     }
 
-    public function testSingletonReturnsSameInstance(): void {
+    public function test_singleton_returns_same_instance(): void {
         $registry1 = PDFReaderRegistry::getInstance();
         $registry2 = PDFReaderRegistry::getInstance();
         $this->assertSame($registry1, $registry2);
     }
 
-    public function testCountReturnsInteger(): void {
+    public function test_count_returns_integer(): void {
         $registry = PDFReaderRegistry::getInstance();
         $this->assertIsInt($registry->count());
     }
 
-    public function testGetAvailableReaderTypesReturnsArray(): void {
+    public function test_get_available_reader_types_returns_array(): void {
         $registry = PDFReaderRegistry::getInstance();
         $types = $registry->getAvailableReaderTypes();
         $this->assertIsArray($types);
@@ -50,18 +50,18 @@ final class PDFReaderRegistryTest extends BaseTestCase {
         }
     }
 
-    public function testHasAvailableReaders(): void {
+    public function test_has_available_readers(): void {
         $registry = PDFReaderRegistry::getInstance();
         $this->assertGreaterThan(0, $registry->count(), 'Mindestens ein Reader sollte verfügbar sein');
     }
 
-    public function testPDFToTextReaderIsAvailable(): void {
+    public function test_pdf_to_text_reader_is_available(): void {
         $registry = PDFReaderRegistry::getInstance();
         $types = $registry->getAvailableReaderTypes();
         $this->assertContains(PDFReaderType::Pdftotext, $types, 'pdftotext-Reader sollte verfügbar sein');
     }
 
-    public function testExtractTextFromTextPdf(): void {
+    public function test_extract_text_from_text_pdf(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden: ' . self::SAMPLE_PDF);
         }
@@ -74,7 +74,7 @@ final class PDFReaderRegistryTest extends BaseTestCase {
         $this->assertGreaterThan(50, strlen($doc->text), 'PDF sollte Text enthalten');
     }
 
-    public function testExtractTextReturnsCorrectReader(): void {
+    public function test_extract_text_returns_correct_reader(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden: ' . self::SAMPLE_PDF);
         }
@@ -87,7 +87,7 @@ final class PDFReaderRegistryTest extends BaseTestCase {
         $this->assertFalse($doc->isScanned, 'Text-PDF sollte nicht als gescannt markiert sein');
     }
 
-    public function testExtractTextContainsExpectedContent(): void {
+    public function test_extract_text_contains_expected_content(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden: ' . self::SAMPLE_PDF);
         }
@@ -100,7 +100,7 @@ final class PDFReaderRegistryTest extends BaseTestCase {
         $this->assertStringContainsString('PHP PDF Toolkit Test Document', $doc->text);
     }
 
-    public function testExtractTextFromScannedPdfWithOcr(): void {
+    public function test_extract_text_from_scanned_pdf_with_ocr(): void {
         $scannedPdf = __DIR__ . '/../../.samples/PDF/test-scanned.pdf';
         if (!file_exists($scannedPdf)) {
             $this->markTestSkipped('Scanned PDF nicht vorhanden: ' . $scannedPdf);
@@ -122,7 +122,7 @@ final class PDFReaderRegistryTest extends BaseTestCase {
         $this->assertStringContainsString('PHP PDF Toolkit', $doc->text);
     }
 
-    public function testScannedPdfUsesOcrReader(): void {
+    public function test_scanned_pdf_uses_ocr_reader(): void {
         $scannedPdf = __DIR__ . '/../../.samples/PDF/test-scanned.pdf';
         if (!file_exists($scannedPdf)) {
             $this->markTestSkipped('Scanned PDF nicht vorhanden');
@@ -141,7 +141,7 @@ final class PDFReaderRegistryTest extends BaseTestCase {
 
     // --- Tests für preferredReader Option ---
 
-    public function testPreferredReaderPdfboxIsUsed(): void {
+    public function test_preferred_reader_pdfbox_is_used(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden: ' . self::SAMPLE_PDF);
         }
@@ -169,7 +169,7 @@ final class PDFReaderRegistryTest extends BaseTestCase {
         }
     }
 
-    public function testPreferredReaderFallsBackWhenNotAvailable(): void {
+    public function test_preferred_reader_falls_back_when_not_available(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden: ' . self::SAMPLE_PDF);
         }
@@ -182,7 +182,7 @@ final class PDFReaderRegistryTest extends BaseTestCase {
         $this->assertTrue($doc->hasText(), 'Extraktion sollte auch ohne preferredReader funktionieren');
     }
 
-    public function testPreferredReaderInTextOnlyMode(): void {
+    public function test_preferred_reader_in_text_only_mode(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden: ' . self::SAMPLE_PDF);
         }
@@ -207,7 +207,7 @@ final class PDFReaderRegistryTest extends BaseTestCase {
         }
     }
 
-    public function testPreferredReaderOcrOnlySkippedInTextOnlyMode(): void {
+    public function test_preferred_reader_ocr_only_skipped_in_text_only_mode(): void {
         if (!file_exists(self::SAMPLE_PDF)) {
             $this->markTestSkipped('Sample PDF nicht vorhanden: ' . self::SAMPLE_PDF);
         }

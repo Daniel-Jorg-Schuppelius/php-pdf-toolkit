@@ -14,14 +14,14 @@ namespace PDFToolkit\Readers;
 
 use CommonToolkit\Helper\FileSystem\File;
 use CommonToolkit\Helper\Shell;
+use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
-use ERRORToolkit\Traits\ErrorLog;
 
 /**
  * PDF-Reader basierend auf Apache PDFBox (Java).
- * 
+ *
  * Bessere Ergebnisse bei komplexen Layouts als pdftotext.
  * Benötigt Java und pdfbox-app.jar.
  */

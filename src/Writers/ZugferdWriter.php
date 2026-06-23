@@ -12,8 +12,7 @@ declare(strict_types=1);
 
 namespace PDFToolkit\Writers;
 
-use Dompdf\Dompdf;
-use Dompdf\Options;
+use Dompdf\{Dompdf, Options};
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Contracts\PDFWriterInterface;
 use PDFToolkit\Entities\PDFContent;
@@ -23,15 +22,15 @@ use TCPDF;
 
 /**
  * PDF/A-3 Writer für ZUGFeRD/Factur-X E-Rechnungen.
- * 
+ *
  * Erstellt konforme PDF/A-3 Dateien mit eingebetteter XML-Rechnung.
  * Nutzt Dompdf für bessere HTML/CSS-Unterstützung bei der visuellen Darstellung,
  * und TCPDF für PDF/A-3-Konformität und XML-Einbettung.
- * 
+ *
  * Unterstützte Formate:
  * - ZUGFeRD 2.1/2.2 (DE)
  * - Factur-X 1.0 (FR/EU)
- * 
+ *
  * @see https://www.ferd-net.de/zugferd
  * @see https://fnfe-mpe.org/factur-x/
  */
@@ -135,7 +134,7 @@ final class ZugferdWriter implements PDFWriterInterface {
         $this->logDebug('ZUGFeRD PDF created successfully', [
             'path' => $outputPath,
             'size' => strlen($pdfString),
-            'profile' => $options['zugferd_profile'] ?? self::LEVEL_EN16931
+            'profile' => $options['zugferd_profile'] ?? self::LEVEL_EN16931,
         ]);
 
         return true;
@@ -176,7 +175,7 @@ final class ZugferdWriter implements PDFWriterInterface {
         } catch (\Throwable $e) {
             $this->logError('ZUGFeRD PDF error: ' . $e->getMessage(), [
                 'exception' => get_class($e),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
             return null;
         }
@@ -184,13 +183,13 @@ final class ZugferdWriter implements PDFWriterInterface {
 
     /**
      * Erstellt ZUGFeRD PDF mit Dompdf für HTML-Rendering und FPDI/TCPDF für PDF/A-3.
-     * 
+     *
      * Workflow:
      * 1. Dompdf rendert HTML zu PDF (bessere CSS-Unterstützung)
      * 2. FPDI importiert das PDF
      * 3. TCPDF fügt XML-Attachment hinzu
      */
-    private function createWithDompdf(PDFContent $content, string $invoiceXml, array $options): ?string {
+    private function createWithDompdf(PDFContent $content, string $invoiceXml, array $options): string {
         // Schritt 1: HTML mit Dompdf zu PDF rendern
         $dompdf = $this->createDompdfInstance($options);
 
@@ -214,7 +213,7 @@ final class ZugferdWriter implements PDFWriterInterface {
     /**
      * Importiert ein PDF mit FPDI und bettet XML ein.
      */
-    private function importAndEmbedXml(string $sourcePdf, PDFContent $content, string $invoiceXml, array $options): ?string {
+    private function importAndEmbedXml(string $sourcePdf, PDFContent $content, string $invoiceXml, array $options): string {
         // FPDI mit PDF/A-3 Modus erstellen (7. Parameter = 3 für PDF/A-3)
         $pdf = new Fpdi('P', 'mm', 'A4', true, 'UTF-8', false, 3);
 
@@ -257,7 +256,7 @@ final class ZugferdWriter implements PDFWriterInterface {
     /**
      * Erstellt ZUGFeRD PDF nur mit TCPDF (weniger CSS-Unterstützung).
      */
-    private function createWithTcpdf(PDFContent $content, string $invoiceXml, array $options): ?string {
+    private function createWithTcpdf(PDFContent $content, string $invoiceXml, array $options): string {
         $pdf = $this->createZugferdPdfInstance($content, $options);
 
         // Inhalt hinzufügen
@@ -279,7 +278,7 @@ final class ZugferdWriter implements PDFWriterInterface {
      * Erstellt eine konfigurierte Dompdf-Instanz.
      */
     private function createDompdfInstance(array $options): Dompdf {
-        $dompdfOptions = new Options();
+        $dompdfOptions = new Options;
 
         $dompdfOptions->set('isHtml5ParserEnabled', true);
         $dompdfOptions->set('isRemoteEnabled', $options['remote_enabled'] ?? false);
@@ -365,7 +364,7 @@ final class ZugferdWriter implements PDFWriterInterface {
                 'Subtype' => 'FileAttachment',
                 'Name' => 'Paperclip',
                 'FS' => $filename,
-                'Contents' => 'Embedded electronic invoice (EN 16931)'
+                'Contents' => 'Embedded electronic invoice (EN 16931)',
             ]
         );
     }
@@ -390,7 +389,7 @@ final class ZugferdWriter implements PDFWriterInterface {
      */
     private function writeText(TCPDF $pdf, PDFContent $content, array $options): void {
         $text = $content->getAsText();
-        $pdf->MultiCell(0, 5, $text, 0, 'L', false, 1, '', '', true, 0, false, true, 0, 'T', false);
+        $pdf->MultiCell(0, 5, $text, 0, 'L', false, 1, null, null, true, 0, false, true, 0, 'T', false);
     }
 
     /**

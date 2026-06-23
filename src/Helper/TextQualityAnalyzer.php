@@ -16,7 +16,7 @@ use ERRORToolkit\Traits\ErrorLog;
 
 /**
  * Analysiert die Qualität von OCR-extrahiertem Text.
- * 
+ *
  * Verwendet verschiedene Heuristiken um zu bestimmen, welche
  * Spracheinstellung das beste OCR-Ergebnis geliefert hat.
  */
@@ -270,7 +270,7 @@ final class TextQualityAnalyzer {
     private const ERROR_PATTERNS = [
         // Typische Fehlinterpretationen von Umlauten
         '/[a-z]ii[a-z]/i',     // ü wird oft als ii erkannt
-        '/[a-z]fl[a-z]/i',     // ü wird manchmal als fl erkannt  
+        '/[a-z]fl[a-z]/i',     // ü wird manchmal als fl erkannt
         '/[a-z]fi[a-z]/i',     // fi-Ligatur Probleme
         '/\b[A-Z]{5,}\b/',     // Zu viele Großbuchstaben in Folge
         '/[^\s\w\d\.\,\;\:\-\(\)\[\]\"\'\/\&\%\€\$\§\!\?\@\#\+\=\*äöüÄÖÜß]/u', // Ungültige Zeichen
@@ -278,7 +278,7 @@ final class TextQualityAnalyzer {
 
     /**
      * Berechnet einen Qualitätsscore für den extrahierten Text.
-     * 
+     *
      * @param string $text Der zu analysierende Text
      * @param string $language Die verwendete Sprache (deu, eng, deu+eng)
      * @return float Score zwischen 0 und 100
@@ -323,10 +323,10 @@ final class TextQualityAnalyzer {
 
     /**
      * Berechnet Qualitätsscores für jede einzelne Seite des Textes.
-     * 
+     *
      * pdftotext trennt Seiten mit Form-Feed (\f). Diese Methode
      * nutzt das, um jede Seite einzeln zu bewerten.
-     * 
+     *
      * @param string $text Der gesamte extrahierte Text
      * @param string $language Die verwendete Sprache
      * @return array{scores: float[], averageScore: float, lowQualityPages: int[]}
@@ -353,7 +353,7 @@ final class TextQualityAnalyzer {
             }
         }
 
-        $nonEmptyScores = array_filter($scores, fn(float $s) => $s > 0.0);
+        $nonEmptyScores = array_filter($scores, fn (float $s) => $s > 0.0);
         $averageScore = count($nonEmptyScores) > 0
             ? array_sum($nonEmptyScores) / count($nonEmptyScores)
             : 0.0;
@@ -375,7 +375,7 @@ final class TextQualityAnalyzer {
 
     /**
      * Vergleicht mehrere Textergebnisse und gibt das beste zurück.
-     * 
+     *
      * @param array<string, string> $results Array mit Sprache => Text
      * @return array{text: string, language: string, score: float}
      */
@@ -523,12 +523,12 @@ final class TextQualityAnalyzer {
 
     /**
      * Erkennt fehlende Zeichen durch Encoding-Probleme.
-     * 
+     *
      * Typische Muster bei PDFs mit Encoding-Problemen:
      * - "f r" statt "für"
      * - "G bH" statt "GmbH"
      * - Einzelne Buchstaben umgeben von Leerzeichen
-     * 
+     *
      * Layout-Whitespace (von pdftotext -layout) wird vor der Analyse normalisiert,
      * damit absichtliche Spaltenausrichtung nicht als Encoding-Fehler gewertet wird.
      */

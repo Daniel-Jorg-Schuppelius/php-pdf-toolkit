@@ -17,7 +17,6 @@ use ERRORToolkit\Traits\ErrorLog;
 use InvalidArgumentException;
 use PDFToolkit\Entities\PDFDocument;
 use PDFToolkit\Enums\{PDFReaderType, PDFTextVariant};
-use PDFToolkit\Helper\PDFHelper;
 use PDFToolkit\Registries\PDFReaderRegistry;
 
 /**
@@ -101,8 +100,7 @@ final class PDFTextProvider {
      * Nützlich um schnell zu entscheiden ob eine andere Variante versucht werden soll.
      */
     public function hasText(): bool {
-        return isset($this->textCache[PDFTextVariant::Default->value])
-            && $this->textCache[PDFTextVariant::Default->value] !== null;
+        return isset($this->textCache[PDFTextVariant::Default->value]);
     }
 
     /**
@@ -412,7 +410,7 @@ final class PDFTextProvider {
      */
     public function textLength(PDFTextVariant|string $variant = PDFTextVariant::Default): ?int {
         $key = $variant instanceof PDFTextVariant ? $variant->value : $variant;
-        if (!isset($this->textCache[$key]) || $this->textCache[$key] === null) {
+        if (!isset($this->textCache[$key])) {
             return null;
         }
         return mb_strlen($this->textCache[$key]);
@@ -426,7 +424,7 @@ final class PDFTextProvider {
      */
     public function lineCount(PDFTextVariant|string $variant = PDFTextVariant::Default): ?int {
         $key = $variant instanceof PDFTextVariant ? $variant->value : $variant;
-        if (!isset($this->textCache[$key]) || $this->textCache[$key] === null) {
+        if (!isset($this->textCache[$key])) {
             return null;
         }
         return substr_count($this->textCache[$key], "\n") + 1;

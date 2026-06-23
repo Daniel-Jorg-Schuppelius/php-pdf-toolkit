@@ -16,7 +16,7 @@ use PDFToolkit\Enums\PDFReaderType;
 
 /**
  * Interface für PDF-Reader.
- * 
+ *
  * Jeder Reader versucht, Text aus einem PDF zu extrahieren.
  * Die Reader werden nach Priorität durchprobiert, bis einer erfolgreich ist.
  */
@@ -28,7 +28,7 @@ interface PDFReaderInterface {
 
     /**
      * Priorität des Readers (niedriger = wird früher probiert).
-     * 
+     *
      * Empfohlene Werte:
      * - 10-20: Schnelle Text-Extraktion (pdftotext)
      * - 30-40: Komplexe Layouts (pdfbox)
@@ -44,7 +44,7 @@ interface PDFReaderInterface {
 
     /**
      * Versucht, Text aus der PDF-Datei zu extrahieren.
-     * 
+     *
      * @param string $pdfPath Absoluter Pfad zur PDF-Datei
      * @param array $options Optionale Konfiguration (z.B. Sprache für OCR)
      * @return string|null Extrahierter Text oder null wenn fehlgeschlagen
@@ -64,7 +64,7 @@ interface PDFReaderInterface {
     /**
      * Schätzt, ob der Reader für die gegebene PDF-Datei erfolgreich sein könnte.
      * Kann z.B. prüfen, ob die PDF Text enthält oder nur Bilder.
-     * 
+     *
      * @param string $pdfPath Absoluter Pfad zur PDF-Datei
      * @return bool True wenn der Reader wahrscheinlich erfolgreich ist
      */

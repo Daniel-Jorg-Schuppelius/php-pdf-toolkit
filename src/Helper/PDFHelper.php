@@ -14,10 +14,10 @@ namespace PDFToolkit\Helper;
 
 use CommonToolkit\Helper\FileSystem\File;
 use CommonToolkit\Helper\Shell;
+use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Entities\PageSize;
 use PDFToolkit\Enums\PaperFormat;
-use ERRORToolkit\Traits\ErrorLog;
 
 /**
  * Helper-Klasse für PDF-Operationen.
@@ -41,10 +41,10 @@ final class PDFHelper {
 
     /**
      * Gibt den gecacheten Text vom hasEmbeddedText()-Check zurück.
-     * 
+     *
      * Der Text wurde bereits beim Check extrahiert. Statt ihn nochmal
      * zu extrahieren, kann er direkt wiederverwendet werden.
-     * 
+     *
      * @param string $filePath Pfad zur PDF-Datei
      * @return string|null Der gecachte Text oder null wenn nicht verfügbar
      */
@@ -77,7 +77,7 @@ final class PDFHelper {
 
     /**
      * Extrahiert Metadaten aus einer PDF-Datei via pdfinfo.
-     * 
+     *
      * @return array<string, string> Assoziatives Array mit Metadaten
      */
     public static function getMetadata(string $filePath): array {
@@ -210,10 +210,10 @@ final class PDFHelper {
 
     /**
      * Versucht die Sprache aus den PDF-Metadaten zu erkennen.
-     * 
+     *
      * Prüft das "Language"-Tag aus pdfinfo. Gibt ein Tesseract-kompatibles
      * Sprachkürzel zurück (z.B. 'deu', 'eng', 'fra') oder null.
-     * 
+     *
      * @return string|null Tesseract-Sprachkürzel oder null
      */
     public static function detectLanguage(string $filePath): ?string {
@@ -288,7 +288,7 @@ final class PDFHelper {
 
     /**
      * Gibt die Seitengröße einer bestimmten Seite zurück.
-     * 
+     *
      * @param string $filePath Pfad zur PDF-Datei
      * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
      * @return PageSize|null Die Seitengröße oder null bei Fehler
@@ -306,9 +306,9 @@ final class PDFHelper {
 
     /**
      * Gibt die Seitengrößen aller Seiten zurück.
-     * 
+     *
      * Nutzt pdfinfo -l für seitenweise Metadaten (nur wenn pdfinfo verfügbar).
-     * 
+     *
      * @return array<int, PageSize> Array mit PageSize-Objekten, indiziert nach Seitennummer (1-basiert)
      */
     public static function getAllPageSizes(string $filePath): array {
@@ -372,7 +372,7 @@ final class PDFHelper {
 
     /**
      * Prüft ob das PDF ein bestimmtes Format hat.
-     * 
+     *
      * @param string $filePath Pfad zur PDF-Datei
      * @param PaperFormat|string $format Format-Enum oder String (z.B. "A4", "letter")
      * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
@@ -388,7 +388,7 @@ final class PDFHelper {
 
     /**
      * Erkennt automatisch das Papierformat einer Seite.
-     * 
+     *
      * @param string $filePath Pfad zur PDF-Datei
      * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
      * @param float $tolerancePt Toleranz in Points
@@ -404,7 +404,7 @@ final class PDFHelper {
 
     /**
      * Prüft ob das PDF im Landscape-Format ist.
-     * 
+     *
      * @param string $filePath Pfad zur PDF-Datei
      * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
      */
@@ -415,7 +415,7 @@ final class PDFHelper {
 
     /**
      * Prüft ob das PDF im Portrait-Format ist.
-     * 
+     *
      * @param string $filePath Pfad zur PDF-Datei
      * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
      */
@@ -426,7 +426,7 @@ final class PDFHelper {
 
     /**
      * Prüft ob alle Seiten das gleiche Format haben.
-     * 
+     *
      * @param float $tolerancePt Toleranz in Points
      */
     public static function hasUniformPageSize(string $filePath, float $tolerancePt = 5.0): bool {
@@ -449,7 +449,7 @@ final class PDFHelper {
 
     /**
      * Gibt eine lesbare Beschreibung des PDF-Formats zurück.
-     * 
+     *
      * @param string $filePath Pfad zur PDF-Datei
      * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
      */
@@ -460,10 +460,10 @@ final class PDFHelper {
 
     /**
      * Rendert eine einzelne PDF-Seite als PNG-Bild.
-     * 
+     *
      * Nutzt pdftoppm für die Konvertierung. Die Ausgabedatei wird automatisch
      * generiert wenn kein outputPath angegeben wird.
-     * 
+     *
      * @param string $filePath Pfad zur PDF-Datei
      * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
      * @param int $dpi Auflösung in DPI (Standard: 72 für Vorschau, 150 für bessere Qualität)
@@ -545,9 +545,9 @@ final class PDFHelper {
 
     /**
      * Rendert eine PDF-Seite als Base64-kodiertes PNG.
-     * 
+     *
      * Praktisch für API-Responses ohne temporäre Dateien.
-     * 
+     *
      * @param string $filePath Pfad zur PDF-Datei
      * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
      * @param int $dpi Auflösung in DPI (Standard: 72)

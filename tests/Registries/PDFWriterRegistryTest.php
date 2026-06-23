@@ -27,31 +27,31 @@ final class PDFWriterRegistryTest extends BaseTestCase {
         $this->registry = PDFWriterRegistry::getInstance();
     }
 
-    public function testSingletonReturnsSameInstance(): void {
+    public function test_singleton_returns_same_instance(): void {
         $instance1 = PDFWriterRegistry::getInstance();
         $instance2 = PDFWriterRegistry::getInstance();
 
         $this->assertSame($instance1, $instance2);
     }
 
-    public function testRegistryLoadsWriters(): void {
+    public function test_registry_loads_writers(): void {
         $writers = $this->registry->getWriters();
 
         $this->assertNotEmpty($writers);
         $this->assertGreaterThanOrEqual(3, count($writers));
     }
 
-    public function testWritersAreSortedByPriority(): void {
+    public function test_writers_are_sorted_by_priority(): void {
         $writers = $this->registry->getWriters();
 
-        $priorities = array_map(fn($w) => $w::getPriority(), $writers);
+        $priorities = array_map(fn ($w) => $w::getPriority(), $writers);
         $sortedPriorities = $priorities;
         sort($sortedPriorities);
 
         $this->assertEquals($sortedPriorities, $priorities);
     }
 
-    public function testGetWriterByName(): void {
+    public function test_get_writer_by_name(): void {
         $dompdf = $this->registry->getByType(PDFWriterType::Dompdf);
         $tcpdf = $this->registry->getByType(PDFWriterType::Tcpdf);
         $wkhtmltopdf = $this->registry->getByType(PDFWriterType::Wkhtmltopdf);
@@ -65,7 +65,7 @@ final class PDFWriterRegistryTest extends BaseTestCase {
         $this->assertSame(PDFWriterType::Wkhtmltopdf, $wkhtmltopdf::getType());
     }
 
-    public function testGetNonExistentWriter(): void {
+    public function test_get_non_existent_writer(): void {
         // Es gibt keinen "nonexistent" Writer mehr, wir prüfen nur ob getByType mit Zugferd null gibt wenn nicht registriert
         // Zugferd ist nicht in der Standard-Liste der Writer
         $writers = $this->registry->getAvailableWriterTypes();
@@ -73,7 +73,7 @@ final class PDFWriterRegistryTest extends BaseTestCase {
         $this->assertIsArray($writers);
     }
 
-    public function testGetWriterInfo(): void {
+    public function test_get_writer_info(): void {
         $info = $this->registry->getWriterInfo();
 
         $this->assertIsArray($info);
@@ -88,7 +88,7 @@ final class PDFWriterRegistryTest extends BaseTestCase {
         }
     }
 
-    public function testPdfContentFromHtml(): void {
+    public function test_pdf_content_from_html(): void {
         $html = '<h1>Test</h1><p>Content</p>';
         $content = PDFContent::fromHtml($html, ['title' => 'Test PDF']);
 
@@ -99,7 +99,7 @@ final class PDFWriterRegistryTest extends BaseTestCase {
         $this->assertEquals('Test PDF', $content->getTitle());
     }
 
-    public function testPdfContentFromText(): void {
+    public function test_pdf_content_from_text(): void {
         $text = "Line 1\nLine 2\nLine 3";
         $content = PDFContent::fromText($text);
 
@@ -109,7 +109,7 @@ final class PDFWriterRegistryTest extends BaseTestCase {
         $this->assertEquals($text, $content->content);
     }
 
-    public function testPdfContentGetAsHtmlFromText(): void {
+    public function test_pdf_content_get_as_html_from_text(): void {
         $text = "Hello World";
         $content = PDFContent::fromText($text);
 
@@ -119,11 +119,11 @@ final class PDFWriterRegistryTest extends BaseTestCase {
         $this->assertStringContainsString('Hello World', $html);
     }
 
-    public function testPdfContentWithMetadata(): void {
+    public function test_pdf_content_with_metadata(): void {
         $content = PDFContent::fromHtml('<p>Test</p>', [
             'title' => 'My Title',
             'author' => 'Test Author',
-            'subject' => 'Test Subject'
+            'subject' => 'Test Subject',
         ]);
 
         $this->assertEquals('My Title', $content->getTitle());
@@ -131,7 +131,7 @@ final class PDFWriterRegistryTest extends BaseTestCase {
         $this->assertEquals('Test Subject', $content->getSubject());
     }
 
-    public function testPdfContentWithAdditionalMetadata(): void {
+    public function test_pdf_content_with_additional_metadata(): void {
         $content = PDFContent::fromHtml('<p>Test</p>', ['title' => 'Original']);
         $updated = $content->withMetadata(['author' => 'New Author']);
 
@@ -139,14 +139,14 @@ final class PDFWriterRegistryTest extends BaseTestCase {
         $this->assertEquals('New Author', $updated->getAuthor());
     }
 
-    public function testPdfContentFromNonExistentFileThrows(): void {
+    public function test_pdf_content_from_non_existent_file_throws(): void {
         $this->expectException(InvalidArgumentException::class);
 
         PDFContent::fromFile('/nonexistent/file.html');
     }
 
     #[Group('integration')]
-    public function testCreatePdfWithAvailableWriter(): void {
+    public function test_create_pdf_with_available_writer(): void {
         if (!$this->registry->hasAvailableWriter()) {
             $this->markTestSkipped('No PDF writer available');
         }
@@ -169,7 +169,7 @@ final class PDFWriterRegistryTest extends BaseTestCase {
     }
 
     #[Group('integration')]
-    public function testHtmlToPdfShortcut(): void {
+    public function test_html_to_pdf_shortcut(): void {
         if (!$this->registry->hasAvailableWriter()) {
             $this->markTestSkipped('No PDF writer available');
         }
@@ -190,7 +190,7 @@ final class PDFWriterRegistryTest extends BaseTestCase {
     }
 
     #[Group('integration')]
-    public function testTextToPdfShortcut(): void {
+    public function test_text_to_pdf_shortcut(): void {
         if (!$this->registry->hasAvailableWriter()) {
             $this->markTestSkipped('No PDF writer available');
         }

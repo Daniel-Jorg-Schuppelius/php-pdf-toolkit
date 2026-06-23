@@ -14,12 +14,12 @@ namespace PDFToolkit\Helper;
 
 use CommonToolkit\Helper\FileSystem\File;
 use CommonToolkit\Helper\Shell;
-use PDFToolkit\Config\Config;
 use ERRORToolkit\Traits\ErrorLog;
+use PDFToolkit\Config\Config;
 
 /**
  * Helper-Klasse für PDF-Zuschnitt (Cropping).
- * 
+ *
  * Nutzt Ghostscript um PDF-Seiten auf definierte Bereiche zuzuschneiden.
  * Typische Anwendung: Versandetiketten aus A4-Seiten extrahieren.
  */
@@ -28,10 +28,10 @@ final class PDFCropHelper {
 
     /**
      * Schneidet eine PDF-Seite auf einen definierten Bereich zu.
-     * 
+     *
      * Die CropBox wird in PDF-Punkten (1pt = 1/72 Zoll) angegeben.
      * Koordinatenursprung ist unten links.
-     * 
+     *
      * @param string $inputPath Pfad zur Quell-PDF
      * @param string $outputPath Pfad zur Ziel-PDF
      * @param float $x Linke Kante in Punkten
@@ -113,10 +113,10 @@ final class PDFCropHelper {
 
     /**
      * Schneidet die obere Hälfte einer PDF-Seite aus.
-     * 
+     *
      * Typisch für DHL-Paketmarken: Etikett oben, Kundeninfo unten.
      * Nutzt die tatsächlichen Seitenmaße der PDF.
-     * 
+     *
      * @param string $inputPath Pfad zur Quell-PDF
      * @param string $outputPath Pfad zur Ziel-PDF
      * @param int $page Seitennummer (1-basiert)
@@ -128,9 +128,9 @@ final class PDFCropHelper {
 
     /**
      * Schneidet die untere Hälfte einer PDF-Seite aus.
-     * 
+     *
      * Nutzt die tatsächlichen Seitenmaße der PDF.
-     * 
+     *
      * @param string $inputPath Pfad zur Quell-PDF
      * @param string $outputPath Pfad zur Ziel-PDF
      * @param int $page Seitennummer (1-basiert)
@@ -165,7 +165,7 @@ final class PDFCropHelper {
 
     /**
      * Schneidet den oberen Bereich einer Seite mit prozentualer Angabe aus.
-     * 
+     *
      * @param string $inputPath Pfad zur Quell-PDF
      * @param string $outputPath Pfad zur Ziel-PDF
      * @param float $percent Prozent der Seite von oben (z.B. 50.0 = obere Hälfte)
@@ -202,7 +202,7 @@ final class PDFCropHelper {
 
     /**
      * Schneidet den unteren Bereich einer Seite mit prozentualer Angabe aus.
-     * 
+     *
      * @param string $inputPath Pfad zur Quell-PDF
      * @param string $outputPath Pfad zur Ziel-PDF
      * @param float $percent Prozent der Seite von unten (z.B. 50.0 = untere Hälfte)
@@ -238,10 +238,10 @@ final class PDFCropHelper {
 
     /**
      * Ermittelt die Seitenmaße einer PDF in Punkten.
-     * 
+     *
      * Berücksichtigt die PDF-Rotation: Bei Rotate 90° oder 270° werden
      * Breite und Höhe getauscht, sodass die effektiven Anzeigemaße zurückgegeben werden.
-     * 
+     *
      * @return array{width: float, height: float}|null null bei Fehler
      */
     public static function getPageDimensions(string $inputPath): ?array {
