@@ -455,7 +455,9 @@ final class PDFTextProvider {
         $this->textCache[$key] = ($text !== null && trim($text) !== '') ? $text : null;
 
         if ($this->textCache[$key] !== null) {
-            $reader = $best !== null ? $best['reader']->value : ($doc->reader?->value ?? 'unbekannt');
+            // Der tatsächlich verwendete Reader kann null sein (text vorhanden, aber Reader unbekannt).
+            $usedReader = $best !== null ? $best['reader'] : $doc->reader;
+            $reader = $usedReader !== null ? $usedReader->value : 'unbekannt';
             $this->logDebug("Extraktion erfolgreich (Variante '{$key}', Reader: {$reader}, " . strlen($this->textCache[$key]) . " Bytes): {$this->pdfPath}");
         } else {
             $this->logWarning("Extraktion lieferte keinen Text (Variante '{$key}'): {$this->pdfPath}");
