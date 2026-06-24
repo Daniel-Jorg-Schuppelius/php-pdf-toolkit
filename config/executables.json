@@ -299,16 +299,6 @@
                 "[INPUT]",
                 "[OUTPUT]"
             ]
-        },
-        "java": {
-            "path": "java",
-            "required": true,
-            "description": "Java Runtime Environment",
-            "package": "default-jre",
-            "arguments": [
-                "-jar",
-                "[JAR]"
-            ]
         }
     },
     "javaExecutables": {

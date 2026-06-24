@@ -14,6 +14,7 @@ namespace PDFToolkit\Config;
 
 use CommonToolkit\Entities\Executables\{JavaExecutable, ShellExecutable};
 use CommonToolkit\Helper\FileSystem\Folder;
+use CommonToolkit\Helper\Shell;
 use ConfigToolkit\CommandBuilder;
 use ConfigToolkit\Contracts\Abstracts\ConfigAbstract;
 use ERRORToolkit\Enums\LogType;
@@ -42,6 +43,11 @@ final class Config extends ConfigAbstract {
         }
 
         parent::__construct($configDir);
+
+        // Die Java-Laufzeit wird nicht in der eigenen Config dupliziert, sondern
+        // aus dem Common-Toolkit bezogen: dessen Executable-Konfiguration (java,
+        // java-program) wird in den prozessweit geteilten ConfigLoader geladen.
+        Shell::getConfiguredExecutables();
     }
 
     protected static function getDefaultConfigDir(): string {
