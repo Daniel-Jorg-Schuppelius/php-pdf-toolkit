@@ -34,4 +34,7 @@ enum PDFTextVariant: string {
 
     /** Koordinaten-basierte Zeilen-Reassembly (pdftotext -bbox, gescannte/columnar PDFs) */
     case RowAligned = 'rowaligned';
+
+    /** Koordinaten-basierte Zeilen-Reassembly via OCR (Tesseract TSV, reine Bild-PDFs) */
+    case OcrRowAligned = 'ocr-rowaligned';
 }

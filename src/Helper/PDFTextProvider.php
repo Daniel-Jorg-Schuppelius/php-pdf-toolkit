@@ -173,6 +173,31 @@ final class PDFTextProvider {
     }
 
     /**
+     * Spaltentreu zeilen-reassemblierter OCR-Text für reine Bild-PDFs.
+     *
+     * Wie {@see rowAlignedText()}, aber via Tesseract-TSV statt pdftotext -bbox –
+     * für gescannte Tabellen ohne Textlayer, die OCR sonst spaltenweise zerreißt.
+     *
+     * @param string $language Tesseract-Sprache(n), Standard "deu+eng".
+     */
+    public function ocrRowAlignedText(string $language = 'deu+eng'): ?string {
+        $key = PDFTextVariant::OcrRowAligned->value . ':' . $language;
+        if (array_key_exists($key, $this->textCache)) {
+            $this->logDebug("Cache-Hit für Variante '{$key}': {$this->pdfPath}");
+            return $this->textCache[$key];
+        }
+
+        $text = PDFBboxLayoutHelper::ocrRowAlignedText($this->pdfPath, $language);
+        $this->textCache[$key] = trim($text) !== '' ? $text : null;
+
+        if ($this->textCache[$key] === null) {
+            $this->logWarning("OCR-Row-aligned-Extraktion lieferte keinen Text: {$this->pdfPath}");
+        }
+
+        return $this->textCache[$key];
+    }
+
+    /**
      * Nur Text-Reader (kein OCR), mit automatischer Layout-Auswahl.
      *
      * Wie text(), aber ohne OCR-Fallback – für digitale PDFs wo OCR
