@@ -164,6 +164,17 @@
                 "[PSM]"
             ]
         },
+        "mogrify-deskew": {
+            "path": "mogrify",
+            "required": false,
+            "description": "ImageMagick Deskew (Schräglagen-Korrektur) für Scan-Vorverarbeitung",
+            "package": "imagemagick",
+            "arguments": [
+                "-deskew",
+                "40%",
+                "[IMAGE]"
+            ]
+        },
         "ocrmypdf": {
             "path": "ocrmypdf",
             "required": true,

@@ -36,6 +36,10 @@ final class TesseractReader implements PDFReaderInterface {
     private int $defaultPsm;
     private int $defaultDpi;
     private bool $autoSelectBestLanguage;
+    /** Wörterbuch-Deaktivierung (dawg off) – wichtig für zahlenlastige Bankdaten (IBAN/Beträge). */
+    private bool $noDict;
+    /** Deskew + Despeckle des Rasterbilds vor der OCR (schiefe/verrauschte Scans). */
+    private bool $preprocessImages;
 
     public function __construct() {
         $this->loadConfig();
@@ -49,6 +53,8 @@ final class TesseractReader implements PDFReaderInterface {
         $this->defaultPsm = (int) ($this->config->getConfig('PDFSettings', 'tesseract_psm') ?? 3);
         $this->defaultDpi = (int) ($this->config->getConfig('PDFSettings', 'pdftoppm_dpi') ?? 300);
         $this->autoSelectBestLanguage = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_auto_select_language') ?? true);
+        $this->noDict = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_no_dict') ?? true);
+        $this->preprocessImages = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_preprocess') ?? true);
 
         // Fallback auf lokales data-Verzeichnis mit automatischem Download
         if (empty($this->tessDataPath)) {
@@ -230,9 +236,33 @@ final class TesseractReader implements PDFReaderInterface {
      * @return int[] Alternative PSM-Modi
      */
     private function getPsmFallbacks(int $currentPsm): array {
-        // PSM 3 = Auto, PSM 6 = Uniform Block, PSM 4 = Single Column, PSM 1 = Auto + OSD
-        $all = [3, 6, 4, 1];
+        // PSM 3 = Auto, PSM 6 = Uniform Block, PSM 4 = Single Column, PSM 1 = Auto + OSD,
+        // PSM 11 = Sparse Text, PSM 12 = Sparse Text + OSD. 11/12 treffen die tabellarische
+        // Struktur gescannter Kontoauszüge oft besser als der Block-Auto-Modus.
+        $all = [3, 6, 4, 1, 11, 12];
         return array_values(array_filter($all, fn (int $psm) => $psm !== $currentPsm));
+    }
+
+    /**
+     * Korrigiert die Schräglage (Deskew) der gerasterten PNG-Seiten IN PLACE via
+     * ImageMagick mogrify. Fehlertolerant: ist mogrify nicht konfiguriert/verfügbar oder
+     * schlägt der Aufruf fehl, bleibt das Originalbild unangetastet.
+     *
+     * @param string[] $pages Pfade der PNG-Seiten.
+     */
+    private function deskewPages(array $pages): void {
+        foreach ($pages as $page) {
+            $command = $this->config->buildCommand('mogrify-deskew', ['[IMAGE]' => $page]);
+            if ($command === null) {
+                return; // mogrify nicht verfügbar → Vorverarbeitung überspringen
+            }
+            $output = [];
+            $returnCode = 0;
+            Shell::executeShellCommand($command . ' 2>/dev/null', $output, $returnCode);
+            if ($returnCode !== 0) {
+                $this->logDebug("mogrify-deskew fehlgeschlagen (Code $returnCode) für: $page");
+            }
+        }
     }
 
     /**
@@ -273,9 +303,25 @@ final class TesseractReader implements PDFReaderInterface {
             // Natürliche Sortierung für korrekte Seitenreihenfolge
             natsort($pages);
 
+            // Bildvorverarbeitung: Deskew (Schräglagen-Korrektur) vor der OCR – deutlich
+            // robustere Erkennung bei schief eingescannten Kontoauszügen. Fehlertolerant
+            // (fehlt mogrify/ImageMagick, wird mit dem Originalbild weitergemacht).
+            if ($this->preprocessImages) {
+                $this->deskewPages($pages);
+            }
+
             $allText = [];
             foreach ($pages as $pagePath) {
                 $textFile = $pagePath . '_text';
+
+                // Wörterbuch-Deaktivierung (dawg off): verhindert, dass das LSTM-Sprachmodell
+                // Ziffernketten (IBAN/Kontonummern/Beträge) in Richtung echter Wörter
+                // "korrigiert" – auf zahlenlastigen Bankauszügen schädlich.
+                $extraArgs = $this->noDict
+                    ? ['-c', 'load_system_dawg=0', '-c', 'load_freq_dawg=0',
+                        '-c', 'language_model_penalty_non_dict_word=0',
+                        '-c', 'language_model_penalty_non_freq_dict_word=0']
+                    : [];
 
                 // Befehl aus Config bauen
                 $command = $this->config->buildCommand('tesseract', [
@@ -283,7 +329,7 @@ final class TesseractReader implements PDFReaderInterface {
                     '[OUTPUT]' => $textFile,
                     '[LANG]' => $language,
                     '[PSM]' => (string) $psm,
-                ]);
+                ], $extraArgs);
 
                 // TESSDATA_PREFIX setzen falls eigene Trainingsdaten vorhanden
                 if (!empty($this->tessDataPath) && Folder::exists($this->tessDataPath)) {
