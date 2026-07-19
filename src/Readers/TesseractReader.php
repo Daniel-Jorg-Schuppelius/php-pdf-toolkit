@@ -40,6 +40,13 @@ final class TesseractReader implements PDFReaderInterface {
     private bool $noDict;
     /** Deskew + Despeckle des Rasterbilds vor der OCR (schiefe/verrauschte Scans). */
     private bool $preprocessImages;
+    /**
+     * Optionale Zeichen-Whitelist (tessedit_char_whitelist), leer = deaktiviert.
+     * Opt-in (v1-Parität, no-dict.cfg): begrenzt die OCR bei bekannten Zeichensätzen auf
+     * z.B. Ziffern/Buchstaben/Bank-Sonderzeichen. Bewusst standardmäßig AUS, da eine zu enge
+     * Whitelist legitime Zeichen (%, &, Klammern …) in Auszügen verschlucken kann.
+     */
+    private string $charWhitelist;
 
     public function __construct() {
         $this->loadConfig();
@@ -55,6 +62,7 @@ final class TesseractReader implements PDFReaderInterface {
         $this->autoSelectBestLanguage = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_auto_select_language') ?? true);
         $this->noDict = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_no_dict') ?? true);
         $this->preprocessImages = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_preprocess') ?? true);
+        $this->charWhitelist = trim((string) ($this->config->getConfig('PDFSettings', 'tesseract_char_whitelist') ?? ''));
 
         // Fallback auf lokales data-Verzeichnis mit automatischem Download
         if (empty($this->tessDataPath)) {
@@ -103,6 +111,11 @@ final class TesseractReader implements PDFReaderInterface {
 
         $language = $options['language'] ?? $this->defaultLanguage;
         $autoSelect = $options['auto_select_language'] ?? $this->autoSelectBestLanguage;
+
+        // Start-PSM nach Seitengröße wählen (v1: Nicht-A4 → PSM 12); eine explizit übergebene
+        // psm-Option hat Vorrang. Wirkt sich vor allem im Erkennungspfad (qualityCheck aus) aus,
+        // wo nur der Start-PSM genutzt wird.
+        $options['psm'] ??= PDFHelper::suggestScanPsm($pdfPath, $this->defaultPsm);
 
         // Sprache aus PDF-Metadaten als Hinweis verwenden
         $detectedLang = PDFHelper::detectLanguage($pdfPath);
@@ -322,6 +335,13 @@ final class TesseractReader implements PDFReaderInterface {
                         '-c', 'language_model_penalty_non_dict_word=0',
                         '-c', 'language_model_penalty_non_freq_dict_word=0']
                     : [];
+
+                // Optionale Zeichen-Whitelist (opt-in, v1-Parität no-dict.cfg): begrenzt die
+                // erkannten Zeichen. Standardmäßig leer/deaktiviert.
+                if ($this->charWhitelist !== '') {
+                    $extraArgs[] = '-c';
+                    $extraArgs[] = 'tessedit_char_whitelist=' . $this->charWhitelist;
+                }
 
                 // Befehl aus Config bauen
                 $command = $this->config->buildCommand('tesseract', [

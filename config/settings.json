@@ -7,6 +7,7 @@
         {"key": "ocrmypdf_psm", "value": 11, "enabled": true},
         {"key": "pdftoppm_dpi", "value": 300, "enabled": true},
         {"key": "quality_check_enabled", "value": true, "enabled": true},
-        {"key": "quality_threshold", "value": 60.0, "enabled": true}
+        {"key": "quality_threshold", "value": 60.0, "enabled": true},
+        {"key": "tesseract_char_whitelist", "value": "", "enabled": false}
     ]
 }

@@ -217,6 +217,48 @@
                 "[OUTPUT]"
             ]
         },
+        "ocrmypdf-force": {
+            "path": "ocrmypdf",
+            "required": false,
+            "description": "PDF OCR via OCRmyPDF mit --force-ocr (rastert vorhandenen Textlayer neu; für erzwungenes OCR bei unbrauchbarem Textlayer)",
+            "package": "ocrmypdf",
+            "arguments": [
+                "-q",
+                "--tesseract-pagesegmode",
+                "[PSM]",
+                "--language",
+                "[LANG]",
+                "--deskew",
+                "--clean",
+                "--force-ocr",
+                "--output-type",
+                "pdf",
+                "[INPUT]",
+                "[OUTPUT]"
+            ]
+        },
+        "ocrmypdf-force-sidecar": {
+            "path": "ocrmypdf",
+            "required": false,
+            "description": "PDF OCR via OCRmyPDF mit --force-ocr und Sidecar-Textausgabe",
+            "package": "ocrmypdf",
+            "arguments": [
+                "-q",
+                "--tesseract-pagesegmode",
+                "[PSM]",
+                "--language",
+                "[LANG]",
+                "--deskew",
+                "--clean",
+                "--force-ocr",
+                "--sidecar",
+                "[SIDECAR]",
+                "--output-type",
+                "pdf",
+                "[INPUT]",
+                "[OUTPUT]"
+            ]
+        },
         "wkhtmltopdf": {
             "path": "wkhtmltopdf",
             "required": false,

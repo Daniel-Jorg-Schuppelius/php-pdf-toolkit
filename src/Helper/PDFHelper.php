@@ -153,21 +153,70 @@ final class PDFHelper {
 
     /**
      * Tatsächliche Prüfung ob das PDF eingebetteten Text enthält (ohne Cache).
+     *
+     * Mehrstufig (v1-Parität, file_converter::pdf_handling): ein PDF gilt erst dann als
+     * "gescannt", wenn KEIN Extraktor über das GESAMTE Dokument genug Text findet. v1 hat
+     * pdfbox UND pdftotext (mit/ohne Cleanup) über das ganze Dokument geprüft und nur bei
+     * Fehlschlag aller Extraktoren ge-OCR't – deutlich robuster als ein Seite-1-Probe mit
+     * einem einzigen Extraktor:
+     *   - Bild-Deckblatt + Text-Folgeseiten würde ein Seite-1-Check fälschlich als Scan werten.
+     *   - Layouts, an denen pdftotext scheitert, liest pdfbox oft problemlos.
+     *
+     * Reihenfolge (schnell → gründlich, damit der Normalfall den billigen Pfad nimmt):
+     *   1. Schneller Probe-Check auf Seite 1 (häufigster Fall: digitales PDF mit Text ab S.1)
+     *   2. Erst wenn Seite 1 leer wirkt: Ganzdokument-pdftotext
+     *   3. Zuletzt: pdfbox als zweiter Extraktor (anderes Engine, andere Stärken)
      */
     private static function checkEmbeddedText(string $filePath, int $minChars): bool {
         if (!self::isValidPdf($filePath)) {
             return false;
         }
 
-        $config = Config::getInstance();
+        // 1. Schneller Probe-Check auf Seite 1
+        $text = self::runTextProbe($filePath, true);
+        if ($text !== null && self::countEmbeddedChars($text) >= $minChars) {
+            self::cacheExtractedText($filePath, $text);
+            return true;
+        }
 
+        // 2. Gegen-Probe über das gesamte Dokument (Seite 1 kann Bild/leer sein, Text folgt später)
+        $fullText = self::runTextProbe($filePath, false);
+        if ($fullText !== null && self::countEmbeddedChars($fullText) >= $minChars) {
+            self::cacheExtractedText($filePath, $fullText);
+            return true;
+        }
+
+        // 3. Zweiter Extraktor (pdfbox): liest Layouts, an denen pdftotext scheitert
+        $pdfBoxText = self::runPdfBoxProbe($filePath);
+        if ($pdfBoxText !== null && self::countEmbeddedChars($pdfBoxText) >= $minChars) {
+            self::cacheExtractedText($filePath, $pdfBoxText);
+            return true;
+        }
+
+        // Kein Extraktor fand über das gesamte Dokument genug Text → echter Scan (OCR nötig)
+        return false;
+    }
+
+    /**
+     * Führt eine pdftotext-Textextraktion aus (Seite 1 oder ganzes Dokument).
+     *
+     * @param bool $firstPageOnly true = nur Seite 1 (schneller Probe-Check), false = ganzes Dokument
+     * @return string|null Extrahierter Rohtext oder null bei Fehler/kein Extraktor verfügbar
+     */
+    private static function runTextProbe(string $filePath, bool $firstPageOnly): ?string {
+        $config = Config::getInstance();
         $tempFile = sys_get_temp_dir() . '/pdf_check_' . uniqid() . '.txt';
 
-        // pdftotext-check nutzen (Optionen VOR Dateinamen für korrekte Verarbeitung)
-        // Fallback auf pdftotext (extrahiert dann alle Seiten statt nur Seite 1)
-        if ($config->getShellExecutable('pdftotext-check') !== null) {
+        // Seite-1-Probe bevorzugt pdftotext-check; Ganzdokument bevorzugt den layout-losen
+        // pdftotext-raw und fällt sonst auf pdftotext (mit Layout) zurück.
+        if ($firstPageOnly && $config->getShellExecutable('pdftotext-check') !== null) {
             $command = $config->buildCommand('pdftotext-check', [
                 '[LAST-PAGE]' => '1',
+                '[PDF-FILE]' => $filePath,
+                '[TEXT-FILE]' => $tempFile,
+            ]);
+        } elseif ($config->getShellExecutable('pdftotext-raw') !== null) {
+            $command = $config->buildCommand('pdftotext-raw', [
                 '[PDF-FILE]' => $filePath,
                 '[TEXT-FILE]' => $tempFile,
             ]);
@@ -177,7 +226,7 @@ final class PDFHelper {
                 '[TEXT-FILE]' => $tempFile,
             ]);
         } else {
-            return false;
+            return null;
         }
 
         $output = [];
@@ -185,20 +234,67 @@ final class PDFHelper {
         Shell::executeShellCommand($command, $output, $returnCode);
 
         if ($returnCode !== 0 || !File::exists($tempFile)) {
-            return false;
+            File::delete($tempFile);
+            return null;
         }
 
         $text = File::read($tempFile);
         File::delete($tempFile);
+        return $text;
+    }
 
-        // Text cachen für spätere Wiederverwendung durch Reader
+    /**
+     * Führt eine pdfbox-Textextraktion (Java) als zweiten Extraktor aus.
+     *
+     * Fehlertolerant: ist Java/pdfbox nicht verfügbar, wird null zurückgegeben und der
+     * Aufrufer verlässt sich auf die pdftotext-Ergebnisse.
+     *
+     * @return string|null Extrahierter Rohtext oder null bei Fehler/nicht verfügbar
+     */
+    private static function runPdfBoxProbe(string $filePath): ?string {
+        $config = Config::getInstance();
+        if ($config->getShellExecutable('java') === null || $config->getJavaExecutable('pdfbox') === null) {
+            return null;
+        }
+
+        $tempFile = sys_get_temp_dir() . '/pdf_check_box_' . uniqid() . '.txt';
+        $command = $config->buildJavaCommand('pdfbox', [
+            '[INPUT]' => $filePath,
+            '[OUTPUT]' => $tempFile,
+        ]);
+
+        if ($command === null) {
+            return null;
+        }
+
+        $output = [];
+        $returnCode = 0;
+        Shell::executeShellCommand($command, $output, $returnCode);
+
+        if ($returnCode !== 0 || !File::exists($tempFile)) {
+            File::delete($tempFile);
+            return null;
+        }
+
+        $text = File::read($tempFile);
+        File::delete($tempFile);
+        return $text;
+    }
+
+    /**
+     * Zählt die Nicht-Whitespace-Zeichen eines extrahierten Textes.
+     */
+    private static function countEmbeddedChars(string $text): int {
+        return strlen(preg_replace('/\s+/', '', $text) ?? '');
+    }
+
+    /**
+     * Cacht den extrahierten Text zur späteren Wiederverwendung durch die Reader.
+     */
+    private static function cacheExtractedText(string $filePath, string $text): void {
         if (trim($text) !== '') {
             self::$extractedTextCache[$filePath] = $text;
         }
-
-        // Whitespace entfernen und Länge prüfen
-        $text = preg_replace('/\s+/', '', $text);
-        return strlen($text) >= $minChars;
     }
 
     /**
@@ -400,6 +496,25 @@ final class PDFHelper {
             return null;
         }
         return $pageSize->detectFormat($tolerancePt);
+    }
+
+    /**
+     * Wählt einen Start-PSM (Page Segmentation Mode) für die OCR gescannter Seiten anhand
+     * der Seitengröße (v1-Parität, file_converter: A4 → Standard-PSM, abweichende Größen → 12).
+     *
+     * Nicht-A4-Scans (Endlospapier, Quer-/Sonderformate) sind häufiger mehrspaltig oder
+     * gedreht; PSM 12 (Sparse Text + OSD) trifft solche Layouts besser als der Block-Auto-Modus.
+     * A4 und unbekannte Seitengrößen behalten bewusst den konfigurierten Default, damit der
+     * häufigste Fall unverändert bleibt.
+     *
+     * @param int $defaultPsm Konfigurierter Standard-PSM (für A4/unbekannt)
+     */
+    public static function suggestScanPsm(string $filePath, int $defaultPsm): int {
+        $pageSize = self::getPageSize($filePath, 1);
+        if ($pageSize === null) {
+            return $defaultPsm;
+        }
+        return $pageSize->isFormat(PaperFormat::A4) ? $defaultPsm : 12;
     }
 
     /**

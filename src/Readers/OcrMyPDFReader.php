@@ -91,7 +91,11 @@ final class OcrMyPDFReader implements PDFReaderInterface {
         }
 
         $language = $options['language'] ?? $this->defaultLanguage;
-        $psm = $options['psm'] ?? $this->defaultPsm;
+        // forceOcr: vorhandenen (unbrauchbaren) Textlayer per --force-ocr verwerfen und neu
+        // rastern, statt ihn mit --skip-text stehen zu lassen (v1-Parität pdfsandwich(true)).
+        $forceOcr = (bool) ($options['forceOcr'] ?? false);
+        // Start-PSM nach Seitengröße (v1: Nicht-A4 → PSM 12); explizite Option hat Vorrang.
+        $psm = $options['psm'] ?? PDFHelper::suggestScanPsm($pdfPath, $this->defaultPsm);
         $qualityCheck = $options['qualityCheck'] ?? true;
         $qualityThreshold = (float) ($options['qualityThreshold'] ?? Config::getInstance()->getConfig('PDFSettings', 'quality_threshold') ?? 60.0);
 
@@ -102,7 +106,7 @@ final class OcrMyPDFReader implements PDFReaderInterface {
             $this->logDebug("Added detected language '$detectedLang' from PDF metadata: $language");
         }
 
-        $text = $this->extractWithSettings($pdfPath, $language, $psm);
+        $text = $this->extractWithSettings($pdfPath, $language, $psm, $forceOcr);
 
         if ($text === null || !$qualityCheck) {
             return $text;
@@ -117,7 +121,7 @@ final class OcrMyPDFReader implements PDFReaderInterface {
             $psmFallbacks = array_values(array_filter([3, 6, 11], fn (int $p) => $p !== $psm));
 
             foreach ($psmFallbacks as $altPsm) {
-                $altText = $this->extractWithSettings($pdfPath, $language, $altPsm);
+                $altText = $this->extractWithSettings($pdfPath, $language, $altPsm, $forceOcr);
                 if ($altText !== null) {
                     $altScore = TextQualityAnalyzer::calculateQualityScore($altText, $language);
                     $this->logDebug("ocrmypdf PSM fallback ($language, PSM=$altPsm): score " . round($altScore, 2));
@@ -141,15 +145,24 @@ final class OcrMyPDFReader implements PDFReaderInterface {
      *
      * Nutzt --sidecar für direkte Textausgabe wenn verfügbar,
      * ansonsten Fallback auf pdftotext-Nachverarbeitung.
+     *
+     * @param bool $forceOcr true → --force-ocr-Variante (vorhandenen Textlayer verwerfen),
+     *                        false → --skip-text-Variante (vorhandenen Textlayer behalten)
      */
-    private function extractWithSettings(string $pdfPath, string $language, int $psm): ?string {
+    private function extractWithSettings(string $pdfPath, string $language, int $psm, bool $forceOcr = false): ?string {
         $tempPdf = sys_get_temp_dir() . '/ocrmypdf_' . uniqid() . '.pdf';
         $tempTxt = sys_get_temp_dir() . '/ocrmypdf_' . uniqid() . '.txt';
 
         try {
-            // Sidecar-Modus bevorzugen (direkter Text ohne erneutes pdftotext)
-            $useSidecar = $this->config->isExecutableAvailable('ocrmypdf-sidecar');
-            $configKey = $useSidecar ? 'ocrmypdf-sidecar' : 'ocrmypdf';
+            // Sidecar-Modus bevorzugen (direkter Text ohne erneutes pdftotext).
+            // Bei forceOcr die --force-ocr-Kommandos verwenden (rastert den Textlayer neu).
+            if ($forceOcr) {
+                $useSidecar = $this->config->isExecutableAvailable('ocrmypdf-force-sidecar');
+                $configKey = $useSidecar ? 'ocrmypdf-force-sidecar' : 'ocrmypdf-force';
+            } else {
+                $useSidecar = $this->config->isExecutableAvailable('ocrmypdf-sidecar');
+                $configKey = $useSidecar ? 'ocrmypdf-sidecar' : 'ocrmypdf';
+            }
 
             $replacements = [
                 '[PSM]' => (string) $psm,
