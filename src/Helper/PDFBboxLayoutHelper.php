@@ -229,7 +229,7 @@ final class PDFBboxLayoutHelper {
         $row = [];
         $rowY = null;
         foreach ($items as $it) {
-            if ($rowY !== null && $it['y'] - $rowY > $yTolerance) {
+            if ($rowY !== null && $yTolerance < $it['y'] - $rowY) {
                 usort($row, static fn (array $a, array $b): int => $a['x'] <=> $b['x']);
                 $lines[] = implode(' ', array_column($row, 't'));
                 $row = [];
