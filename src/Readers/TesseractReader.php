@@ -38,8 +38,15 @@ final class TesseractReader implements PDFReaderInterface {
     private bool $autoSelectBestLanguage;
     /** Wörterbuch-Deaktivierung (dawg off) – wichtig für zahlenlastige Bankdaten (IBAN/Beträge). */
     private bool $noDict;
-    /** Deskew + Despeckle des Rasterbilds vor der OCR (schiefe/verrauschte Scans). */
+    /** Deskew (Schräglagen-Korrektur) des Rasterbilds vor der OCR bei schiefen Scans. */
     private bool $preprocessImages;
+    /**
+     * Zusätzliche Entrauschung: Graustufen + Despeckle vor der OCR. Bewusst OPT-IN und
+     * standardmäßig AUS, weil ImageMagick-Despeckle feine Bank-Schrift verwaschen kann
+     * (deshalb wurde es im Deskew-Default absichtlich weggelassen). Für körnige Fax-/Kopie-
+     * Scans aktivierbar über `tesseract_denoise`.
+     */
+    private bool $denoise;
     /**
      * Optionale Zeichen-Whitelist (tessedit_char_whitelist), leer = deaktiviert.
      * Opt-in (v1-Parität, no-dict.cfg): begrenzt die OCR bei bekannten Zeichensätzen auf
@@ -62,6 +69,7 @@ final class TesseractReader implements PDFReaderInterface {
         $this->autoSelectBestLanguage = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_auto_select_language') ?? true);
         $this->noDict = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_no_dict') ?? true);
         $this->preprocessImages = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_preprocess') ?? true);
+        $this->denoise = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_denoise') ?? false);
         $this->charWhitelist = trim((string) ($this->config->getConfig('PDFSettings', 'tesseract_char_whitelist') ?? ''));
 
         // Fallback auf lokales data-Verzeichnis mit automatischem Download
@@ -258,14 +266,17 @@ final class TesseractReader implements PDFReaderInterface {
 
     /**
      * Korrigiert die Schräglage (Deskew) der gerasterten PNG-Seiten IN PLACE via
-     * ImageMagick mogrify. Fehlertolerant: ist mogrify nicht konfiguriert/verfügbar oder
-     * schlägt der Aufruf fehl, bleibt das Originalbild unangetastet.
+     * ImageMagick mogrify. Ist `tesseract_denoise` aktiv, wird zusätzlich in Graustufen
+     * gewandelt und despeckelt (Kommando `mogrify-deskew-denoise`). Fehlertolerant: ist
+     * mogrify nicht konfiguriert/verfügbar oder schlägt der Aufruf fehl, bleibt das
+     * Originalbild unangetastet.
      *
      * @param string[] $pages Pfade der PNG-Seiten.
      */
     private function deskewPages(array $pages): void {
+        $configKey = $this->denoise ? 'mogrify-deskew-denoise' : 'mogrify-deskew';
         foreach ($pages as $page) {
-            $command = $this->config->buildCommand('mogrify-deskew', ['[IMAGE]' => $page]);
+            $command = $this->config->buildCommand($configKey, ['[IMAGE]' => $page]);
             if ($command === null) {
                 return; // mogrify nicht verfügbar → Vorverarbeitung überspringen
             }
@@ -273,7 +284,7 @@ final class TesseractReader implements PDFReaderInterface {
             $returnCode = 0;
             Shell::executeShellCommand($command . ' 2>/dev/null', $output, $returnCode);
             if ($returnCode !== 0) {
-                $this->logDebug("mogrify-deskew fehlgeschlagen (Code $returnCode) für: $page");
+                $this->logDebug("$configKey fehlgeschlagen (Code $returnCode) für: $page");
             }
         }
     }

@@ -175,6 +175,20 @@
                 "[IMAGE]"
             ]
         },
+        "mogrify-deskew-denoise": {
+            "path": "mogrify",
+            "required": false,
+            "description": "ImageMagick Deskew + Graustufen + Despeckle (opt-in Entrauschung für körnige Scans)",
+            "package": "imagemagick",
+            "arguments": [
+                "-deskew",
+                "40%",
+                "-colorspace",
+                "Gray",
+                "-despeckle",
+                "[IMAGE]"
+            ]
+        },
         "ocrmypdf": {
             "path": "ocrmypdf",
             "required": true,
