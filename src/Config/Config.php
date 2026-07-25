@@ -19,7 +19,6 @@ use ConfigToolkit\CommandBuilder;
 use ConfigToolkit\Contracts\Abstracts\ConfigAbstract;
 use ERRORToolkit\Enums\LogType;
 use InvalidArgumentException;
-use Psr\Log\LoggerInterface;
 
 /**
  * Konfigurationsklasse für das PDF-Toolkit.
@@ -29,20 +28,19 @@ use Psr\Log\LoggerInterface;
  */
 final class Config extends ConfigAbstract {
     /**
-     * Konstruktor mit optionalem Logger.
+     * Signatur spiegelt ConfigAbstract::__construct(). Der frühere
+     * Logger-Parameter entfiel: er wurde nirgends genutzt und stand als
+     * Parameter #2 an der Stelle von $throwOnError, was die Elternsignatur
+     * verletzte. Logger setzen: Config::setLogger() vor dem ersten Zugriff.
      */
-    protected function __construct(?string $configDir = null, ?LoggerInterface $logger = null) {
-        if ($logger !== null) {
-            self::setLogger($logger);
-        }
-
+    protected function __construct(?string $configDir = null, bool $throwOnError = true) {
         $configDir = $configDir ?? static::getDefaultConfigDir();
 
         if (!Folder::exists($configDir)) {
             self::logErrorAndThrow(InvalidArgumentException::class, "Invalid config directory: $configDir");
         }
 
-        parent::__construct($configDir);
+        parent::__construct($configDir, $throwOnError);
 
         // Die Java-Laufzeit wird nicht in der eigenen Config dupliziert, sondern
         // aus dem Common-Toolkit bezogen: dessen Executable-Konfiguration (java,
@@ -58,18 +56,15 @@ final class Config extends ConfigAbstract {
         return 'php-pdf-toolkit';
     }
 
-    /**
-     * Gibt die Singleton-Instanz zurück.
-     *
-     * @param string|null $configDir Optionales Konfigurationsverzeichnis
-     * @param LoggerInterface|null $logger Optionaler Logger
-     */
-    public static function getInstance(?string $configDir = null, ?LoggerInterface $logger = null): static {
-        if (!static::$instance instanceof static) {
-            static::$instance = new static($configDir, $logger);
-        }
-        return static::$instance;
-    }
+    // getInstance() wird bewusst NICHT überschrieben: php-config-toolkit hat
+    // die Instanzhaltung in v0.4.6 von static::$instance auf static::$instances
+    // (je Klasse) umgestellt. Eine eigene Implementierung wäre an genau eine
+    // der beiden Varianten gebunden und bräche mit der anderen — das
+    // Constraint des common-toolkit lässt ^0.4.3 zu. Die Elternklasse macht es
+    // in jeder Version richtig.
+    //
+    // Der frühere Logger-Parameter entfällt damit; er wurde nirgends genutzt.
+    // Logger setzen: Config::setLogger($logger) vor dem ersten getInstance().
 
     /**
      * Alias für resetInstance() zur Rückwärtskompatibilität.

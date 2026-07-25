@@ -91,10 +91,23 @@ final class ZugferdWriter implements PDFWriterInterface {
     }
 
     /**
-     * Prüft ob FPDI verfügbar ist (für PDF-Import).
+     * Prüft ob FPDI für den PDF-Import *benutzbar* ist.
+     *
+     * Vorhandensein der Klasse genügt nicht: FPDIs TCPDF-Adapter greift auf
+     * TCPDF-6-Interna zu (u. a. `_out()`), die im TCPDF-7-Rewrite entfallen
+     * sind — der Import bricht dann erst zur Laufzeit mit "Call to undefined
+     * method setasign\Fpdi\Tcpdf\Fpdi::_out()" ab. Bis FPDI nachzieht, gilt
+     * die Kombination als nicht verfügbar, damit createPdfString() sauber auf
+     * den FPDI-freien TCPDF-Pfad ausweicht statt zu scheitern.
+     *
+     * @see https://github.com/Setasign/FPDI — Stand v2.6.8 ohne TCPDF-7-Support
      */
     public function isFpdiAvailable(): bool {
-        return class_exists(Fpdi::class);
+        if (!class_exists(Fpdi::class)) {
+            return false;
+        }
+
+        return method_exists(Fpdi::class, '_out');
     }
 
     public function canHandle(PDFContent $content): bool {
@@ -350,8 +363,21 @@ final class ZugferdWriter implements PDFWriterInterface {
     private function embedInvoiceXml(TCPDF|Fpdi $pdf, string $xml, array $options): void {
         $filename = $this->resolveInvoiceFilename($options);
 
-        // XML als eingebettete Datei hinzufügen (PDF/A-3 kompatibel)
-        $pdf->EmbedFileFromString($filename, $xml);
+        // XML als eingebettete Datei hinzufügen (PDF/A-3 kompatibel).
+        //
+        // TCPDF 7 wird bewusst über die Engine bedient statt über den
+        // EmbedFileFromString()-Shim: dieser reicht die Argumente vertauscht an
+        // addContentAsEmbeddedFile(string $file, string $content) weiter
+        // (Stand 7.0.4), wodurch das komplette XML als *Dateiname* im Katalog
+        // landet und Leser wie pdfdetach die Rechnung nicht mehr unter
+        // 'factur-x.xml' finden.
+        //
+        // Der direkte Weg erlaubt zugleich die von ZUGFeRD/Factur-X geforderten
+        // Metadaten: MIME text/xml und AFRelationship 'Alternative' (der Shim
+        // setzt 'Source').
+        if (!$this->embedViaEngine($pdf, $filename, $xml)) {
+            $pdf->EmbedFileFromString($filename, $xml);
+        }
 
         // Annotation für die eingebettete Datei (optional, für bessere Sichtbarkeit)
         $pdf->Annotation(
@@ -382,6 +408,57 @@ final class ZugferdWriter implements PDFWriterInterface {
         }
 
         return self::INVOICE_FILENAME_FACTURX;
+    }
+
+    /**
+     * Bettet das XML unter TCPDF 7 über die darunterliegende tc-lib-pdf-Engine ein.
+     *
+     * Zwei Gründe für den Umweg statt EmbedFileFromString():
+     *
+     * 1. Der Shim reicht die Argumente vertauscht an
+     *    addContentAsEmbeddedFile(string $file, string $content) weiter (Stand
+     *    TCPDF 7.0.4) — das gesamte XML landet als Dateiname im Katalog, und
+     *    Leser finden die Rechnung nicht unter 'factur-x.xml'.
+     * 2. Der Shim setzt AFRelationship fest auf 'Source'. ZUGFeRD/Factur-X
+     *    verlangt 'Alternative' und den MIME-Typ text/xml.
+     *
+     * engine() ist protected, daher Reflection. Schlägt irgendein Schritt fehl
+     * (TCPDF 6, umbenannte Methode, künftig gefixter Shim), liefert die Methode
+     * false und der Aufrufer nutzt den regulären Weg.
+     */
+    private function embedViaEngine(TCPDF|Fpdi $pdf, string $filename, string $xml): bool {
+        // PHPStan analysiert gegen die gerade installierte TCPDF-Version und
+        // hält den Aufruf dort für konstant. Das Paket unterstützt jedoch
+        // ^6.6 || ^7.0, und engine() existiert erst ab 7 — die Prüfung bleibt.
+        /** @phpstan-ignore function.alreadyNarrowedType */
+        if (!method_exists($pdf, 'engine')) {
+            return false;
+        }
+
+        try {
+            // Kein setAccessible(): seit PHP 8.1 gewährt Reflection den Zugriff
+            // ohnehin, und der Aufruf ist ab PHP 8.5 deprecated.
+            // Klammern um new bleiben — die klammerlose Verkettung gibt es erst
+            // ab PHP 8.4, das Paket unterstützt ab 8.1.
+            $engine = (new \ReflectionMethod($pdf, 'engine'))->invoke($pdf);
+
+            if (!is_object($engine) || !method_exists($engine, 'addContentAsEmbeddedFile')) {
+                return false;
+            }
+
+            $engine->addContentAsEmbeddedFile(
+                $filename,
+                $xml,
+                'text/xml',
+                'Alternative',
+                'Embedded electronic invoice (EN 16931)',
+            );
+
+            return true;
+        } catch (\Throwable $e) {
+            $this->logDebug('Engine-Einbettung nicht möglich, nutze EmbedFileFromString: ' . $e->getMessage());
+            return false;
+        }
     }
 
     /**

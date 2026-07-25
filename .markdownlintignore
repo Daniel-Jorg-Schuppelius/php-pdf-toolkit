@@ -1,0 +1,6 @@
+# Font-Herkunfts- und Lizenznachweise unter data/fonts/ stammen unverändert aus
+# tecnickcom/tc-font-mirror und werden bewusst nicht umformatiert — sie belegen
+# Quelle und Lizenz der mitgelieferten Font-Definitionen.
+data/fonts/
+
+vendor/

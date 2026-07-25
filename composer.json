@@ -20,7 +20,10 @@
   "autoload": {
     "psr-4": {
       "PDFToolkit\\": "src/"
-    }
+    },
+    "files": [
+      "src/bootstrap_fonts.php"
+    ]
   },
   "autoload-dev": {
     "psr-4": {
