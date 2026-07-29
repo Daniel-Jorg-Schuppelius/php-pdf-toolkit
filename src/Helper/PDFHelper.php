@@ -253,7 +253,9 @@ final class PDFHelper {
      */
     private static function runPdfBoxProbe(string $filePath): ?string {
         $config = Config::getInstance();
-        if ($config->getShellExecutable('java') === null || $config->getJavaExecutable('pdfbox') === null) {
+        // Der Config-Eintrag existiert auch dann, wenn die JAR nicht auffindbar war –
+        // dann ist 'path' null. Deshalb den aufgelösten Pfad prüfen, nicht nur den Eintrag.
+        if ($config->getShellExecutable('java') === null || $config->getJavaExecutablePath('pdfbox') === '') {
             return null;
         }
 

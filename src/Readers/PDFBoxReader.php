@@ -56,9 +56,10 @@ final class PDFBoxReader implements PDFReaderInterface {
             return $this->available;
         }
 
-        // ConfigToolkit prüft bereits Pfad und PATH-Verfügbarkeit
+        // Der Config-Eintrag existiert auch dann, wenn die JAR nicht auffindbar war –
+        // dann ist 'path' null. Deshalb den aufgelösten Pfad prüfen, nicht nur den Eintrag.
         $this->available = $this->config->getShellExecutable('java') !== null
-            && $this->config->getJavaExecutable('pdfbox') !== null;
+            && $this->config->getJavaExecutablePath('pdfbox') !== '';
         return $this->available;
     }
 
