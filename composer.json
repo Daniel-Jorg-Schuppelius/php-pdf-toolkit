@@ -1,57 +1,57 @@
 {
-  "name": "daniel-jorg-schuppelius/php-pdf-toolkit",
-  "description": "PHP 8.2+ library for PDF text extraction with automatic reader selection. Supports embedded text and scanned documents via OCR.",
-  "type": "library",
-  "license": "AGPL-3.0-or-later",
-  "authors": [
-    {
-      "name": "Daniel Jörg Schuppelius",
-      "email": "info@schuppelius.org"
-    }
-  ],
-  "require": {
-    "php": ">=8.1 <8.6",
-    "ext-gd": "*",
-    "dompdf/dompdf": "^3.1",
-    "dschuppelius/php-common-toolkit": "^1.1",
-    "setasign/fpdi": "^2.3",
-    "tecnickcom/tcpdf": "^6.6 || ^7.0"
-  },
-  "autoload": {
-    "psr-4": {
-      "PDFToolkit\\": "src/"
-    },
-    "files": [
-      "src/bootstrap_fonts.php"
-    ]
-  },
-  "autoload-dev": {
-    "psr-4": {
-      "Tests\\": "tests/"
-    }
-  },
-  "require-dev": {
-    "laravel/pint": "^1.27",
-    "phpstan/phpstan": "^2.1",
-    "phpunit/phpunit": "^11.0"
-  },
-  "prefer-stable": true,
-  "config": {
-    "sort-packages": true,
-    "optimize-autoloader": true
-  },
-  "scripts": {
-    "test": [
-      "composer dump-autoload --optimize",
-      "vendor/bin/phpunit"
+    "name": "daniel-jorg-schuppelius/php-pdf-toolkit",
+    "description": "PHP 8.2+ library for PDF text extraction with automatic reader selection. Supports embedded text and scanned documents via OCR.",
+    "type": "library",
+    "license": "AGPL-3.0-or-later",
+    "authors": [
+        {
+            "name": "Daniel Jörg Schuppelius",
+            "email": "info@schuppelius.org"
+        }
     ],
-    "format": "vendor/bin/pint --test",
-    "format:fix": "vendor/bin/pint",
-    "lint": "vendor/bin/phpstan analyse --memory-limit=1G",
-    "qa": [
-      "@format",
-      "@lint",
-      "@test"
-    ]
-  }
+    "require": {
+        "php": ">=8.1 <8.6",
+        "ext-gd": "*",
+        "dompdf/dompdf": "^3.1",
+        "dschuppelius/php-common-toolkit": "^1.22",
+        "setasign/fpdi": "^2.3",
+        "tecnickcom/tcpdf": "^6.6 || ^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "PDFToolkit\\": "src/"
+        },
+        "files": [
+            "src/bootstrap_fonts.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "require-dev": {
+        "laravel/pint": "^1.27",
+        "phpstan/phpstan": "^2.1",
+        "phpunit/phpunit": "^11.0"
+    },
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true
+    },
+    "scripts": {
+        "test": [
+            "composer dump-autoload --optimize",
+            "vendor/bin/phpunit"
+        ],
+        "format": "vendor/bin/pint --test",
+        "format:fix": "vendor/bin/pint",
+        "lint": "vendor/bin/phpstan analyse --memory-limit=1G",
+        "qa": [
+            "@format",
+            "@lint",
+            "@test"
+        ]
+    }
 }
