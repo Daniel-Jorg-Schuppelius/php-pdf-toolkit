@@ -130,6 +130,12 @@ final class PDFBboxLayoutHelper {
             return self::logWarningAndReturn('', "tesseract/pdftoppm nicht verfügbar – OCR-Reassembly übersprungen: {$pdfPath}");
         }
 
+        $cacheParameters = ['language' => $language, 'dpi' => $dpi];
+        $cached = OcrCache::get($pdfPath, 'bbox-row-aligned', $cacheParameters);
+        if ($cached !== null) {
+            return $cached;
+        }
+
         $tempDir = sys_get_temp_dir() . '/pdfocrrow_' . uniqid();
         if (!mkdir($tempDir, 0755, true)) {
             return self::logWarningAndReturn('', "Temp-Verzeichnis nicht erstellbar für OCR-Reassembly: {$tempDir}");
@@ -155,15 +161,18 @@ final class PDFBboxLayoutHelper {
             natsort($pages);
 
             $tessData = TesseractDataHelper::getUsableDataPath($language);
-            $pageTexts = [];
+
+            // Ein Tesseract-Prozess je Seite, mehrere gleichzeitig: die Seiten
+            // sind voneinander unabhängig, und jeder Prozess läuft einthreadig
+            // (siehe TesseractReader::OMP_SINGLE_THREAD).
+            $commands = [];
             foreach ($pages as $png) {
-                $outBase = $png . '_ocr';
                 // TSV-Ausgabe per Parameter erzwingen (NICHT per "tsv"-Configfile:
                 // das liegt im System-tessdata/configs und fehlt, sobald
                 // TESSDATA_PREFIX auf das Toolkit-Datenverzeichnis zeigt).
                 $tessCmd = $config->buildCommand('tesseract', [
                     '[INPUT]' => $png,
-                    '[OUTPUT]' => $outBase,
+                    '[OUTPUT]' => $png . '_ocr',
                     '[LANG]' => $language,
                     '[PSM]' => '3',
                 ], ['-c', 'tessedit_create_tsv=1']);
@@ -173,25 +182,28 @@ final class PDFBboxLayoutHelper {
                 if (!empty($tessData) && Folder::exists($tessData)) {
                     $tessCmd = 'TESSDATA_PREFIX=' . escapeshellarg($tessData) . ' ' . $tessCmd;
                 }
-                // Ein Thread pro Seite: Tesseracts OpenMP bremst die Einzelseite
-                // aus (siehe TesseractReader::OMP_SINGLE_THREAD) – im TSV-Modus
-                // mit zwei Sprachmodellen um mehr als das Zwanzigfache.
-                $tessCmd = TesseractReader::OMP_SINGLE_THREAD . ' ' . $tessCmd;
-                $tessCmd .= ' 2>/dev/null';
-                $out = [];
-                $rc = 0;
-                Shell::executeShellCommand($tessCmd, $out, $rc);
+                $commands[$png] = TesseractReader::OMP_SINGLE_THREAD . ' ' . $tessCmd . ' 2>/dev/null';
+            }
 
-                if (!File::exists($outBase . '.tsv')) {
+            ParallelShell::run($commands);
+
+            // Einlesen in Seitenreihenfolge – die Prozesse enden in beliebiger Folge.
+            $pageTexts = [];
+            foreach ($pages as $png) {
+                $tsvFile = $png . '_ocr.tsv';
+                if (!isset($commands[$png]) || !File::exists($tsvFile)) {
                     continue;
                 }
-                $items = self::parseTsvItems(File::read($outBase . '.tsv'));
+                $items = self::parseTsvItems(File::read($tsvFile));
                 if ($items !== []) {
                     $pageTexts[] = self::reassembleItems($items, self::OCR_Y_TOLERANCE);
                 }
             }
 
-            return implode("\n", $pageTexts);
+            $text = implode("\n", $pageTexts);
+            OcrCache::put($pdfPath, 'bbox-row-aligned', $text, $cacheParameters);
+
+            return $text;
         } finally {
             Folder::delete($tempDir, true);
         }

@@ -18,7 +18,7 @@ use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
-use PDFToolkit\Helper\{PDFHelper, TesseractDataHelper, TextQualityAnalyzer};
+use PDFToolkit\Helper\{OcrCache, PDFHelper, ParallelShell, TesseractDataHelper, TextQualityAnalyzer};
 
 /**
  * PDF-Reader basierend auf Tesseract OCR.
@@ -45,6 +45,14 @@ final class TesseractReader implements PDFReaderInterface {
     private string $tessDataPath;
     private int $defaultPsm;
     private int $defaultDpi;
+    /**
+     * Jede konfigurierte Sprache EINZELN ocr'en und die beste per Qualitäts-Score
+     * wählen. Standardmäßig AUS: der Lauf kostet ein Vielfaches (bei "deu+eng"
+     * drei komplette Durchgänge statt einem), während der kombinierte Modus
+     * praktisch dasselbe liefert — gemessen 2026-07-30 an einem 7-seitigen
+     * Kontoauszug-Scan: 21656 (deu) / 21610 (eng) / 21637 (deu+eng) Zeichen,
+     * also 0,2 % Unterschied für die dreifache Laufzeit.
+     */
     private bool $autoSelectBestLanguage;
     /** Wörterbuch-Deaktivierung (dawg off) – wichtig für zahlenlastige Bankdaten (IBAN/Beträge). */
     private bool $noDict;
@@ -285,14 +293,18 @@ final class TesseractReader implements PDFReaderInterface {
      */
     private function deskewPages(array $pages): void {
         $configKey = $this->denoise ? 'mogrify-deskew-denoise' : 'mogrify-deskew';
+
+        $commands = [];
         foreach ($pages as $page) {
             $command = $this->config->buildCommand($configKey, ['[IMAGE]' => $page]);
             if ($command === null) {
                 return; // mogrify nicht verfügbar → Vorverarbeitung überspringen
             }
-            $output = [];
-            $returnCode = 0;
-            Shell::executeShellCommand($command . ' 2>/dev/null', $output, $returnCode);
+            $commands[$page] = $command . ' 2>/dev/null';
+        }
+
+        // Seiten sind unabhängig voneinander – nebenläufig verarbeiten.
+        foreach (ParallelShell::run($commands) as $page => $returnCode) {
             if ($returnCode !== 0) {
                 $this->logDebug("$configKey fehlgeschlagen (Code $returnCode) für: $page");
             }
@@ -303,6 +315,23 @@ final class TesseractReader implements PDFReaderInterface {
      * Extrahiert Text mit spezifischen Tesseract-Einstellungen (Sprache, PSM, DPI).
      */
     private function extractTextWithSettings(string $pdfPath, string $language, int $psm, int $dpi): ?string {
+        // Prozessübergreifender Cache: OCR ist der teuerste Schritt, und die
+        // Qualitäts-Kaskade ruft diese Methode mehrfach mit unterschiedlichen
+        // Einstellungen auf — jede Kombination wird einzeln zwischengespeichert.
+        $cacheParameters = [
+            'language' => $language,
+            'psm' => $psm,
+            'dpi' => $dpi,
+            'noDict' => $this->noDict,
+            'whitelist' => $this->charWhitelist,
+            'deskew' => $this->preprocessImages,
+            'denoise' => $this->denoise,
+        ];
+        $cached = OcrCache::get($pdfPath, 'tesseract', $cacheParameters);
+        if ($cached !== null) {
+            return $cached;
+        }
+
         $tempDir = sys_get_temp_dir() . '/tesseract_' . uniqid();
 
         if (!mkdir($tempDir, 0755, true)) {
@@ -344,57 +373,60 @@ final class TesseractReader implements PDFReaderInterface {
                 $this->deskewPages($pages);
             }
 
-            $allText = [];
+            // Wörterbuch-Deaktivierung (dawg off): verhindert, dass das LSTM-Sprachmodell
+            // Ziffernketten (IBAN/Kontonummern/Beträge) in Richtung echter Wörter
+            // "korrigiert" – auf zahlenlastigen Bankauszügen schädlich.
+            $extraArgs = $this->noDict
+                ? ['-c', 'load_system_dawg=0', '-c', 'load_freq_dawg=0',
+                    '-c', 'language_model_penalty_non_dict_word=0',
+                    '-c', 'language_model_penalty_non_freq_dict_word=0']
+                : [];
+
+            // Optionale Zeichen-Whitelist (opt-in, v1-Parität no-dict.cfg): begrenzt die
+            // erkannten Zeichen. Standardmäßig leer/deaktiviert.
+            if ($this->charWhitelist !== '') {
+                $extraArgs[] = '-c';
+                $extraArgs[] = 'tessedit_char_whitelist=' . $this->charWhitelist;
+            }
+
+            // Ein Prozess je Seite, mehrere gleichzeitig: die Seiten sind
+            // voneinander unabhängig und jeder Prozess läuft einthreadig.
+            $commands = [];
             foreach ($pages as $pagePath) {
-                $textFile = $pagePath . '_text';
-
-                // Wörterbuch-Deaktivierung (dawg off): verhindert, dass das LSTM-Sprachmodell
-                // Ziffernketten (IBAN/Kontonummern/Beträge) in Richtung echter Wörter
-                // "korrigiert" – auf zahlenlastigen Bankauszügen schädlich.
-                $extraArgs = $this->noDict
-                    ? ['-c', 'load_system_dawg=0', '-c', 'load_freq_dawg=0',
-                        '-c', 'language_model_penalty_non_dict_word=0',
-                        '-c', 'language_model_penalty_non_freq_dict_word=0']
-                    : [];
-
-                // Optionale Zeichen-Whitelist (opt-in, v1-Parität no-dict.cfg): begrenzt die
-                // erkannten Zeichen. Standardmäßig leer/deaktiviert.
-                if ($this->charWhitelist !== '') {
-                    $extraArgs[] = '-c';
-                    $extraArgs[] = 'tessedit_char_whitelist=' . $this->charWhitelist;
-                }
-
-                // Befehl aus Config bauen
                 $command = $this->config->buildCommand('tesseract', [
                     '[INPUT]' => $pagePath,
-                    '[OUTPUT]' => $textFile,
+                    '[OUTPUT]' => $pagePath . '_text',
                     '[LANG]' => $language,
                     '[PSM]' => (string) $psm,
                 ], $extraArgs);
+                if ($command === null) {
+                    continue;
+                }
 
                 // TESSDATA_PREFIX setzen falls eigene Trainingsdaten vorhanden
                 if (!empty($this->tessDataPath) && Folder::exists($this->tessDataPath)) {
                     $command = "TESSDATA_PREFIX=" . escapeshellarg($this->tessDataPath) . " " . $command;
                 }
 
-                // Tesseracts OpenMP-Threading kostet bei Einzelseiten mehr als es
-                // bringt und entgleist bei mehreren Sprachmodellen völlig:
-                // eine A4-Seite mit "deu+eng" braucht 151s statt 7s (gemessen
-                // 2026-07-30, 16 Kerne). Ein Thread pro Seite ist hier schneller.
-                $command = self::OMP_SINGLE_THREAD . ' ' . $command;
-
                 // stderr unterdrücken (OSD "Weak margin" Warnungen sind harmlos)
-                $command .= ' 2>/dev/null';
+                $commands[$pagePath] = self::OMP_SINGLE_THREAD . ' ' . $command . ' 2>/dev/null';
+            }
 
-                $output = [];
-                $returnCode = 0;
-                Shell::executeShellCommand($command, $output, $returnCode);
+            $exitCodes = ParallelShell::run($commands);
 
-                if ($returnCode === 0 && File::exists($textFile . '.txt')) {
-                    $pageText = File::read($textFile . '.txt');
-                    if (trim($pageText) !== '') {
-                        $allText[] = $pageText;
-                    }
+            // Einlesen in Seitenreihenfolge – die Prozesse enden in beliebiger Folge.
+            $allText = [];
+            foreach ($pages as $pagePath) {
+                if (($exitCodes[$pagePath] ?? -1) !== 0) {
+                    continue;
+                }
+                $textFile = $pagePath . '_text.txt';
+                if (!File::exists($textFile)) {
+                    continue;
+                }
+                $pageText = File::read($textFile);
+                if (trim($pageText) !== '') {
+                    $allText[] = $pageText;
                 }
             }
 
@@ -406,6 +438,8 @@ final class TesseractReader implements PDFReaderInterface {
             $text = implode("\n\n--- Seite ---\n\n", $allText);
 
             $this->logDebug("Tesseract ($language, PSM=$psm, DPI=$dpi) extracted " . strlen($text) . " chars from " . count($pages) . " pages");
+
+            OcrCache::put($pdfPath, 'tesseract', $text, $cacheParameters);
 
             return $text;
         } finally {
