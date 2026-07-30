@@ -84,7 +84,7 @@ final class TesseractReader implements PDFReaderInterface {
         $this->tessDataPath = $this->config->getConfig('PDFSettings', 'tesseract_data_path') ?? '';
         $this->defaultPsm = (int) ($this->config->getConfig('PDFSettings', 'tesseract_psm') ?? 3);
         $this->defaultDpi = (int) ($this->config->getConfig('PDFSettings', 'pdftoppm_dpi') ?? 300);
-        $this->autoSelectBestLanguage = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_auto_select_language') ?? true);
+        $this->autoSelectBestLanguage = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_auto_select_language') ?? false);
         $this->noDict = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_no_dict') ?? true);
         $this->preprocessImages = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_preprocess') ?? true);
         $this->denoise = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_denoise') ?? false);
