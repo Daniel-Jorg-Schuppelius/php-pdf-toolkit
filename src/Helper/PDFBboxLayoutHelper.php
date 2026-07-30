@@ -117,10 +117,12 @@ final class PDFBboxLayoutHelper {
      * @param string $pdfPath Pfad zum (gescannten) PDF.
      * @param string $language Tesseract-Sprache(n), Standard "deu+eng".
      * @param int $dpi Render-Auflösung (Standard 300).
+     * @param int $psm Tesseract-Seitensegmentierung (Standard 3 = automatisch;
+     *                 6 = einheitlicher Textblock, trifft Tabellen-Scans oft besser).
      * @return string Zeilen, je eine pro Bild-Zeile (Wörter nach x sortiert), Seiten mit "\n" getrennt.
      *                Leerer String, wenn Tooling fehlt oder OCR nichts liefert.
      */
-    public static function ocrRowAlignedText(string $pdfPath, string $language = 'deu+eng', int $dpi = 300): string {
+    public static function ocrRowAlignedText(string $pdfPath, string $language = 'deu+eng', int $dpi = 300, int $psm = 3): string {
         if (!File::exists($pdfPath) || !PDFHelper::isValidPdf($pdfPath)) {
             return self::logWarningAndReturn('', "Keine gültige PDF-Datei für OCR-Reassembly: {$pdfPath}");
         }
@@ -130,7 +132,7 @@ final class PDFBboxLayoutHelper {
             return self::logWarningAndReturn('', "tesseract/pdftoppm nicht verfügbar – OCR-Reassembly übersprungen: {$pdfPath}");
         }
 
-        $cacheParameters = ['language' => $language, 'dpi' => $dpi];
+        $cacheParameters = ['language' => $language, 'dpi' => $dpi, 'psm' => $psm];
         $cached = OcrCache::get($pdfPath, 'bbox-row-aligned', $cacheParameters);
         if ($cached !== null) {
             return $cached;
@@ -174,7 +176,7 @@ final class PDFBboxLayoutHelper {
                     '[INPUT]' => $png,
                     '[OUTPUT]' => $png . '_ocr',
                     '[LANG]' => $language,
-                    '[PSM]' => '3',
+                    '[PSM]' => (string) $psm,
                 ], ['-c', 'tessedit_create_tsv=1']);
                 if ($tessCmd === null) {
                     continue;

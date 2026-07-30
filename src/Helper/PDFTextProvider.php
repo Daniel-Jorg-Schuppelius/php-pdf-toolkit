@@ -180,14 +180,14 @@ final class PDFTextProvider {
      *
      * @param string $language Tesseract-Sprache(n), Standard "deu+eng".
      */
-    public function ocrRowAlignedText(string $language = 'deu+eng'): ?string {
-        $key = PDFTextVariant::OcrRowAligned->value . ':' . $language;
+    public function ocrRowAlignedText(string $language = 'deu+eng', int $psm = 3): ?string {
+        $key = PDFTextVariant::OcrRowAligned->value . ':' . $language . ':psm' . $psm;
         if (array_key_exists($key, $this->textCache)) {
             $this->logDebug("Cache-Hit für Variante '{$key}': {$this->pdfPath}");
             return $this->textCache[$key];
         }
 
-        $text = PDFBboxLayoutHelper::ocrRowAlignedText($this->pdfPath, $language);
+        $text = PDFBboxLayoutHelper::ocrRowAlignedText($this->pdfPath, $language, 300, $psm);
         $this->textCache[$key] = trim($text) !== '' ? $text : null;
 
         if ($this->textCache[$key] === null) {
