@@ -29,6 +29,16 @@ use PDFToolkit\Helper\{PDFHelper, TesseractDataHelper, TextQualityAnalyzer};
 final class TesseractReader implements PDFReaderInterface {
     use ErrorLog;
 
+    /**
+     * Env-Präfix, das Tesseracts OpenMP-Parallelisierung auf einen Thread begrenzt.
+     *
+     * Pro Seite ist das deutlich schneller: der Thread-Overhead übersteigt den
+     * Nutzen, und mit mehreren Sprachmodellen entgleist er (gemessen 2026-07-30
+     * auf 16 Kernen, A4-Seite, TSV-Ausgabe: "deu+eng" 151s ohne, 7s mit Limit).
+     * Parallelität gehört auf die Seitenebene, nicht in die Einzelseiten-OCR.
+     */
+    public const OMP_SINGLE_THREAD = 'OMP_THREAD_LIMIT=1';
+
     private ?bool $available = null;
     private Config $config;
     private string $defaultLanguage;
@@ -366,6 +376,12 @@ final class TesseractReader implements PDFReaderInterface {
                 if (!empty($this->tessDataPath) && Folder::exists($this->tessDataPath)) {
                     $command = "TESSDATA_PREFIX=" . escapeshellarg($this->tessDataPath) . " " . $command;
                 }
+
+                // Tesseracts OpenMP-Threading kostet bei Einzelseiten mehr als es
+                // bringt und entgleist bei mehreren Sprachmodellen völlig:
+                // eine A4-Seite mit "deu+eng" braucht 151s statt 7s (gemessen
+                // 2026-07-30, 16 Kerne). Ein Thread pro Seite ist hier schneller.
+                $command = self::OMP_SINGLE_THREAD . ' ' . $command;
 
                 // stderr unterdrücken (OSD "Weak margin" Warnungen sind harmlos)
                 $command .= ' 2>/dev/null';

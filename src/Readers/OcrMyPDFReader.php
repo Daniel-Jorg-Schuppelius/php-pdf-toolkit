@@ -182,6 +182,11 @@ final class OcrMyPDFReader implements PDFReaderInterface {
                 $command = "TESSDATA_PREFIX=" . escapeshellarg($this->tessDataPath) . " " . $command;
             }
 
+            // Ein Thread je Tesseract-Aufruf: ocrmypdf verteilt die Seiten bereits
+            // selbst, und Tesseracts OpenMP bremst die Einzelseite aus
+            // (siehe TesseractReader::OMP_SINGLE_THREAD).
+            $command = TesseractReader::OMP_SINGLE_THREAD . ' ' . $command;
+
             // stderr unterdrücken (OSD "Weak margin" Warnungen sind harmlos)
             $command .= ' 2>/dev/null';
 

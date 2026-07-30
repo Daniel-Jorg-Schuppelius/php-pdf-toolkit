@@ -17,6 +17,7 @@ use CommonToolkit\Helper\FileSystem\{File, Folder};
 use CommonToolkit\Helper\Shell;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
+use PDFToolkit\Readers\TesseractReader;
 
 /**
  * Koordinaten-basierte Zeilen-Reassembly für gescannte/columnar PDFs.
@@ -172,6 +173,10 @@ final class PDFBboxLayoutHelper {
                 if (!empty($tessData) && Folder::exists($tessData)) {
                     $tessCmd = 'TESSDATA_PREFIX=' . escapeshellarg($tessData) . ' ' . $tessCmd;
                 }
+                // Ein Thread pro Seite: Tesseracts OpenMP bremst die Einzelseite
+                // aus (siehe TesseractReader::OMP_SINGLE_THREAD) – im TSV-Modus
+                // mit zwei Sprachmodellen um mehr als das Zwanzigfache.
+                $tessCmd = TesseractReader::OMP_SINGLE_THREAD . ' ' . $tessCmd;
                 $tessCmd .= ' 2>/dev/null';
                 $out = [];
                 $rc = 0;
