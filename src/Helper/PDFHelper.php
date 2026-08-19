@@ -86,13 +86,15 @@ final class PDFHelper {
         }
 
         $config = Config::getInstance();
-        if ($config->getShellExecutable('pdfinfo') === null) {
-            return [];
-        }
-
+        // buildCommand() liefert null, wenn pdfinfo nicht verfügbar ist — der
+        // Config-Eintrag existiert auch dann noch (path = null), ein reiner
+        // Eintrags-Check reicht daher nicht.
         $command = $config->buildCommand('pdfinfo', [
             '[PDF-FILE]' => $filePath,
         ]);
+        if ($command === null) {
+            return [];
+        }
 
         $output = [];
         $returnCode = 0;
@@ -209,23 +211,27 @@ final class PDFHelper {
 
         // Seite-1-Probe bevorzugt pdftotext-check; Ganzdokument bevorzugt den layout-losen
         // pdftotext-raw und fällt sonst auf pdftotext (mit Layout) zurück.
-        if ($firstPageOnly && $config->getShellExecutable('pdftotext-check') !== null) {
+        if ($firstPageOnly && $config->isExecutableAvailable('pdftotext-check')) {
             $command = $config->buildCommand('pdftotext-check', [
                 '[LAST-PAGE]' => '1',
                 '[PDF-FILE]' => $filePath,
                 '[TEXT-FILE]' => $tempFile,
             ]);
-        } elseif ($config->getShellExecutable('pdftotext-raw') !== null) {
+        } elseif ($config->isExecutableAvailable('pdftotext-raw')) {
             $command = $config->buildCommand('pdftotext-raw', [
                 '[PDF-FILE]' => $filePath,
                 '[TEXT-FILE]' => $tempFile,
             ]);
-        } elseif ($config->getShellExecutable('pdftotext') !== null) {
+        } elseif ($config->isExecutableAvailable('pdftotext')) {
             $command = $config->buildCommand('pdftotext', [
                 '[PDF-FILE]' => $filePath,
                 '[TEXT-FILE]' => $tempFile,
             ]);
         } else {
+            return null;
+        }
+
+        if ($command === null) {
             return null;
         }
 
@@ -415,9 +421,6 @@ final class PDFHelper {
         }
 
         $config = Config::getInstance();
-        if ($config->getShellExecutable('pdfinfo') === null) {
-            return [];
-        }
 
         $pageCount = self::getPageCount($filePath);
         if ($pageCount === 0) {
@@ -428,6 +431,9 @@ final class PDFHelper {
         $command = $config->buildCommand('pdfinfo', [
             '[PDF-FILE]' => $filePath,
         ], ['-l', (string) $pageCount]);
+        if ($command === null) {
+            return [];
+        }
 
         $output = [];
         $returnCode = 0;

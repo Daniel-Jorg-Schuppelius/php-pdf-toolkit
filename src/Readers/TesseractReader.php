@@ -397,6 +397,10 @@ final class TesseractReader implements PDFReaderInterface {
                     '[PDF-FILE]' => $pdfPath,
                     '[OUTPUT-PREFIX]' => $tempDir . '/page',
                 ]);
+                if ($command === null) {
+                    $this->logDebug("pdftoppm nicht verfügbar für: $pdfPath");
+                    return null;
+                }
 
                 $output = [];
                 $returnCode = 0;

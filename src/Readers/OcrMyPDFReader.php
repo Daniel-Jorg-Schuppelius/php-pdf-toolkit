@@ -176,6 +176,10 @@ final class OcrMyPDFReader implements PDFReaderInterface {
             }
 
             $command = $this->config->buildCommand($configKey, $replacements);
+            if ($command === null) {
+                $this->logDebug("ocrmypdf ($configKey) nicht verfügbar für: $pdfPath");
+                return null;
+            }
 
             // TESSDATA_PREFIX setzen falls eigene Trainingsdaten vorhanden
             if (!empty($this->tessDataPath) && Folder::exists($this->tessDataPath)) {
@@ -221,6 +225,10 @@ final class OcrMyPDFReader implements PDFReaderInterface {
                 '[PDF-FILE]' => $pdfToExtract,
                 '[TEXT-FILE]' => $tempTxt,
             ]);
+            if ($command === null) {
+                $this->logDebug("pdftotext nicht verfügbar für: $pdfPath");
+                return null;
+            }
 
             $output = [];
             $returnCode = 0;
