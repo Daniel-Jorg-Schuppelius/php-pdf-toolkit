@@ -25,6 +25,11 @@ use PDFToolkit\Helper\{OcrCache, PDFHelper, ParallelShell, TesseractDataHelper, 
  *
  * Für gescannte PDFs die keinen eingebetteten Text haben.
  * Konvertiert PDF-Seiten zu Bildern und führt OCR durch.
+ *
+ * Zusätzlich direkte Bild-OCR über {@see extractTextFromImage()}: Handy-Fotos
+ * und Einzelbild-Scans (JPG/PNG/TIFF) laufen ohne PDF-Umweg durch dieselbe
+ * Qualitäts-Kaskade (Deskew, PSM-Fallback, adaptive DPI entfällt — das Bild
+ * hat seine Auflösung bereits).
  */
 final class TesseractReader implements PDFReaderInterface {
     use ErrorLog;
@@ -159,6 +164,33 @@ final class TesseractReader implements PDFReaderInterface {
     }
 
     /**
+     * OCR direkt auf einem Bild (JPG/PNG/TIFF) — ohne PDF-Rasterisierung.
+     *
+     * Braucht nur das tesseract-Binary (pdftoppm ist hier irrelevant). Die
+     * PDF-spezifischen Schritte (Metadaten-Spracherkennung, Seitengrößen-PSM,
+     * adaptive DPI) entfallen; Qualitäts-Kaskade und Sprachauswahl sind
+     * dieselben wie beim PDF-Weg.
+     *
+     * @param array<string, mixed> $options language, psm, qualityCheck,
+     *                                      qualityThreshold, auto_select_language
+     */
+    public function extractTextFromImage(string $imagePath, array $options = []): ?string {
+        if ($this->config->getShellExecutable('tesseract') === null) {
+            return null;
+        }
+
+        $language = $options['language'] ?? $this->defaultLanguage;
+        $autoSelect = $options['auto_select_language'] ?? $this->autoSelectBestLanguage;
+        $options['psm'] ??= $this->defaultPsm;
+
+        if ($autoSelect && str_contains($language, '+')) {
+            return $this->extractTextWithBestLanguage($imagePath, $language, $options);
+        }
+
+        return $this->extractTextWithLanguage($imagePath, $language, $options);
+    }
+
+    /**
      * Extrahiert Text mit automatischer Auswahl der besten Sprache.
      *
      * Testet jede konfigurierte Sprache separat und wählt das Ergebnis
@@ -249,8 +281,10 @@ final class TesseractReader implements PDFReaderInterface {
             }
         }
 
-        // Adaptive DPI: Bei immer noch niedrigem Score mit höherer DPI versuchen
-        if ($score < $qualityThreshold && $dpi < 600) {
+        // Adaptive DPI: Bei immer noch niedrigem Score mit höherer DPI versuchen.
+        // Nur für PDFs sinnvoll — ein Bild hat seine Auflösung bereits, die DPI
+        // wirkt ausschließlich auf die pdftoppm-Rasterisierung.
+        if ($score < $qualityThreshold && $dpi < 600 && $this->isPdfFile($pdfPath)) {
             $higherDpi = min($dpi + 150, 600);
             $this->logDebug("Adaptive DPI: retrying with DPI=$higherDpi (current score: " . round($score, 2) . ")");
 
@@ -266,6 +300,22 @@ final class TesseractReader implements PDFReaderInterface {
         }
 
         return $text;
+    }
+
+    /**
+     * PDF-Erkennung über die Magic-Bytes (%PDF) statt der Dateiendung — die
+     * Kaskade läuft für PDFs und Bilder identisch, nur die Rasterisierung
+     * unterscheidet sich.
+     */
+    private function isPdfFile(string $path): bool {
+        $handle = @fopen($path, 'rb');
+        if ($handle === false) {
+            return str_ends_with(strtolower($path), '.pdf');
+        }
+        $head = (string) fread($handle, 4);
+        fclose($handle);
+
+        return $head === '%PDF';
     }
 
     /**
@@ -340,31 +390,43 @@ final class TesseractReader implements PDFReaderInterface {
         }
 
         try {
-            // 1. PDF zu PNG konvertieren
-            $command = $this->config->buildCommand('pdftoppm', [
-                '[DPI]' => (string) $dpi,
-                '[PDF-FILE]' => $pdfPath,
-                '[OUTPUT-PREFIX]' => $tempDir . '/page',
-            ]);
+            if ($this->isPdfFile($pdfPath)) {
+                // 1. PDF zu PNG konvertieren
+                $command = $this->config->buildCommand('pdftoppm', [
+                    '[DPI]' => (string) $dpi,
+                    '[PDF-FILE]' => $pdfPath,
+                    '[OUTPUT-PREFIX]' => $tempDir . '/page',
+                ]);
 
-            $output = [];
-            $returnCode = 0;
-            Shell::executeShellCommand($command, $output, $returnCode);
+                $output = [];
+                $returnCode = 0;
+                Shell::executeShellCommand($command, $output, $returnCode);
 
-            if ($returnCode !== 0) {
-                $this->logDebug("pdftoppm failed with code $returnCode for: $pdfPath");
-                return null;
+                if ($returnCode !== 0) {
+                    $this->logDebug("pdftoppm failed with code $returnCode for: $pdfPath");
+                    return null;
+                }
+
+                // 2. Alle Seiten mit Tesseract verarbeiten
+                $pages = glob("$tempDir/page-*.png");
+                if (empty($pages)) {
+                    $this->logDebug("No pages extracted from: $pdfPath");
+                    return null;
+                }
+
+                // Natürliche Sortierung für korrekte Seitenreihenfolge
+                natsort($pages);
+            } else {
+                // Bild-Direktpfad: Tesseract liest JPG/PNG/TIFF selbst — nur eine
+                // Kopie ins Temp-Verzeichnis, weil der Deskew IN PLACE mutiert.
+                $extension = strtolower(pathinfo($pdfPath, PATHINFO_EXTENSION) ?: 'png');
+                $target = $tempDir . '/page-1.' . $extension;
+                if (!copy($pdfPath, $target)) {
+                    $this->logError("Failed to copy image for OCR: $pdfPath");
+                    return null;
+                }
+                $pages = [$target];
             }
-
-            // 2. Alle Seiten mit Tesseract verarbeiten
-            $pages = glob("$tempDir/page-*.png");
-            if (empty($pages)) {
-                $this->logDebug("No pages extracted from: $pdfPath");
-                return null;
-            }
-
-            // Natürliche Sortierung für korrekte Seitenreihenfolge
-            natsort($pages);
 
             // Bildvorverarbeitung: Deskew (Schräglagen-Korrektur) vor der OCR – deutlich
             // robustere Erkennung bei schief eingescannten Kontoauszügen. Fehlertolerant
