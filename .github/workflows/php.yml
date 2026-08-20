@@ -27,20 +27,26 @@ jobs:
     - name: Validate composer.json and composer.lock
       run: composer validate --strict
 
-    - name: Install dependencies
-      run: composer install --prefer-dist --no-progress --no-interaction
-
-    - name: Dump Autoload
-      run: composer dump-autoload -o
-
+    # Vor dem Install und auf composer.json geschluesselt: composer.lock ist in
+    # diesem Repo gitignored, ein Schluessel auf '**/composer.lock' greift daher
+    # ins Leere und der restore-key haengt jedem Lauf denselben alten vendor-Baum
+    # an. Stand der Cache hinter dem Install, ueberschrieb er den frisch
+    # aufgeloesten vendor/composer-Stand wieder mit dem alten - neue Pakete waren
+    # fuer Autoloader und PHPStan unsichtbar.
     - name: Cache Composer packages
       id: composer-cache
       uses: actions/cache@v3
       with:
         path: vendor
-        key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
+        key: ${{ runner.os }}-php-8.2-${{ hashFiles('composer.json') }}
         restore-keys: |
-          ${{ runner.os }}-php-
+          ${{ runner.os }}-php-8.2-
+
+    - name: Install dependencies
+      run: composer install --prefer-dist --no-progress --no-interaction
+
+    - name: Dump Autoload
+      run: composer dump-autoload -o
 
     - name: Copy phpunit.xml
       run: php -r "file_exists('phpunit.xml') || copy('phpunit.xml.dist', 'phpunit.xml');"
