@@ -47,7 +47,7 @@ class TesseractReaderTest extends BaseTestCase {
     public function test_ocr_settings_default_to_uniform_block_with_preprocessing(): void {
         $settings = TesseractReader::ocrSettings();
 
-        $this->assertSame(6, $settings['psm']);
+        $this->assertSame(3, $settings['psm'], 'Textpfad/Erkennung: automatische Seitenanalyse behält Überschriften');
         $this->assertSame(6, $settings['rowsPsm']);
         $this->assertSame(300, $settings['dpi']);
         $this->assertTrue($settings['noDict']);

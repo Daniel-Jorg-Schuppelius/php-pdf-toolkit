@@ -87,7 +87,7 @@ final class TesseractReader implements PDFReaderInterface {
 
         $this->defaultLanguage = $this->config->getConfig('PDFSettings', 'tesseract_lang') ?? 'deu+eng';
         $this->tessDataPath = $this->config->getConfig('PDFSettings', 'tesseract_data_path') ?? '';
-        $this->defaultPsm = (int) ($this->config->getConfig('PDFSettings', 'tesseract_psm') ?? 6);
+        $this->defaultPsm = (int) ($this->config->getConfig('PDFSettings', 'tesseract_psm') ?? 3);
         $this->defaultDpi = (int) ($this->config->getConfig('PDFSettings', 'pdftoppm_dpi') ?? 300);
         $this->autoSelectBestLanguage = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_auto_select_language') ?? false);
         $this->noDict = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_no_dict') ?? true);
@@ -373,13 +373,19 @@ final class TesseractReader implements PDFReaderInterface {
      * der zeilenausgerichtete OCR-Pfad ({@see PDFBboxLayoutHelper::ocrRowAlignedText()})
      * dieselbe Vorverarbeitung und dieselben Erkennungsparameter fährt.
      *
+     * Zwei PSM-Standards mit Absicht: `tesseract_psm` (3, automatische Seitenanalyse)
+     * für den Textpfad – er dient der Format-ERKENNUNG und muss Überschriften und
+     * Kopfmarker ("Kontoauszüge") mitnehmen, die PSM 6 auf Seiten mit großen Titeln
+     * verschluckt; `tesseract_rows_psm` (6, einheitlicher Block) für den
+     * zeilenausgerichteten Pfad, der Buchungstabellen für die KONVERTIERUNG liest.
+     *
      * @return array{psm: int, rowsPsm: int, dpi: int, noDict: bool, preprocess: bool, denoise: bool, whitelist: string}
      */
     public static function ocrSettings(): array {
         $config = Config::getInstance();
 
         return [
-            'psm' => (int) ($config->getConfig('PDFSettings', 'tesseract_psm') ?? 6),
+            'psm' => (int) ($config->getConfig('PDFSettings', 'tesseract_psm') ?? 3),
             'rowsPsm' => (int) ($config->getConfig('PDFSettings', 'tesseract_rows_psm') ?? 6),
             'dpi' => (int) ($config->getConfig('PDFSettings', 'pdftoppm_dpi') ?? 300),
             'noDict' => (bool) ($config->getConfig('PDFSettings', 'tesseract_no_dict') ?? true),
