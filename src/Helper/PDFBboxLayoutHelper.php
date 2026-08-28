@@ -122,7 +122,9 @@ final class PDFBboxLayoutHelper {
      * @return string Zeilen, je eine pro Bild-Zeile (Wörter nach x sortiert), Seiten mit "\n" getrennt.
      *                Leerer String, wenn Tooling fehlt oder OCR nichts liefert.
      */
-    public static function ocrRowAlignedText(string $pdfPath, string $language = 'deu+eng', int $dpi = 300, int $psm = 3): string {
+    public static function ocrRowAlignedText(string $pdfPath, string $language = 'deu+eng', int $dpi = 300, ?int $psm = null): string {
+        $settings = TesseractReader::ocrSettings();
+        $psm ??= $settings['rowsPsm'];
         if (!File::exists($pdfPath) || !PDFHelper::isValidPdf($pdfPath)) {
             return self::logWarningAndReturn('', "Keine gültige PDF-Datei für OCR-Reassembly: {$pdfPath}");
         }
@@ -132,7 +134,15 @@ final class PDFBboxLayoutHelper {
             return self::logWarningAndReturn('', "tesseract/pdftoppm nicht verfügbar – OCR-Reassembly übersprungen: {$pdfPath}");
         }
 
-        $cacheParameters = ['language' => $language, 'dpi' => $dpi, 'psm' => $psm];
+        $cacheParameters = [
+            'language' => $language,
+            'dpi' => $dpi,
+            'psm' => $psm,
+            'noDict' => $settings['noDict'],
+            'whitelist' => $settings['whitelist'],
+            'deskew' => $settings['preprocess'],
+            'denoise' => $settings['denoise'],
+        ];
         $cached = OcrCache::get($pdfPath, 'bbox-row-aligned', $cacheParameters);
         if ($cached !== null) {
             return $cached;
@@ -162,6 +172,14 @@ final class PDFBboxLayoutHelper {
             }
             natsort($pages);
 
+            // Gleiche Vorverarbeitung und Erkennungsparameter wie der Textpfad
+            // (TesseractReader): Deskew und Wörterbuch aus – der Zeilenpfad lief
+            // zuvor ohne beides und lieferte auf Scans messbar weniger Buchungen.
+            if ($settings['preprocess']) {
+                TesseractReader::deskewPageImages($config, $pages, $settings['denoise']);
+            }
+            $recognitionArgs = TesseractReader::recognitionArgs($settings['noDict'], $settings['whitelist']);
+
             $tessData = TesseractDataHelper::getUsableDataPath($language);
 
             // Ein Tesseract-Prozess je Seite, mehrere gleichzeitig: die Seiten
@@ -177,7 +195,7 @@ final class PDFBboxLayoutHelper {
                     '[OUTPUT]' => $png . '_ocr',
                     '[LANG]' => $language,
                     '[PSM]' => (string) $psm,
-                ], ['-c', 'tessedit_create_tsv=1']);
+                ], [...$recognitionArgs, '-c', 'tessedit_create_tsv=1']);
                 if ($tessCmd === null) {
                     continue;
                 }

@@ -87,7 +87,7 @@ final class TesseractReader implements PDFReaderInterface {
 
         $this->defaultLanguage = $this->config->getConfig('PDFSettings', 'tesseract_lang') ?? 'deu+eng';
         $this->tessDataPath = $this->config->getConfig('PDFSettings', 'tesseract_data_path') ?? '';
-        $this->defaultPsm = (int) ($this->config->getConfig('PDFSettings', 'tesseract_psm') ?? 3);
+        $this->defaultPsm = (int) ($this->config->getConfig('PDFSettings', 'tesseract_psm') ?? 6);
         $this->defaultDpi = (int) ($this->config->getConfig('PDFSettings', 'pdftoppm_dpi') ?? 300);
         $this->autoSelectBestLanguage = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_auto_select_language') ?? false);
         $this->noDict = (bool) ($this->config->getConfig('PDFSettings', 'tesseract_no_dict') ?? true);
@@ -325,11 +325,68 @@ final class TesseractReader implements PDFReaderInterface {
      * @return int[] Alternative PSM-Modi
      */
     private function getPsmFallbacks(int $currentPsm): array {
+        return self::psmFallbacksFor($currentPsm);
+    }
+
+    /**
+     * Reihenfolge der PSM-Alternativen, wenn der erste Durchlauf unter der
+     * Qualitätsschwelle bleibt. PSM 6 (einheitlicher Block) zuerst: auf
+     * tabellarischen Vorlagen (Kontoauszüge) hält er Zeilen zusammen, die die
+     * automatische Seitenanalyse (PSM 3) in Spaltenblöcke zerlegt – gemessen an
+     * Kontoauszügen mit Saldo-Prüfsumme: PSM 6 12 von 13 Auszügen konsistent,
+     * PSM 3 4 von 13. PSM 11/12 (Sparse Text) bleiben nur als letzte Reserve;
+     * für die zeilenausgerichtete Reassembly sind sie unbrauchbar.
+     *
+     * @return int[]
+     */
+    public static function psmFallbacksFor(int $currentPsm): array {
         // PSM 3 = Auto, PSM 6 = Uniform Block, PSM 4 = Single Column, PSM 1 = Auto + OSD,
-        // PSM 11 = Sparse Text, PSM 12 = Sparse Text + OSD. 11/12 treffen die tabellarische
-        // Struktur gescannter Kontoauszüge oft besser als der Block-Auto-Modus.
-        $all = [3, 6, 4, 1, 11, 12];
+        // PSM 11 = Sparse Text, PSM 12 = Sparse Text + OSD.
+        $all = [6, 3, 4, 1, 11, 12];
         return array_values(array_filter($all, fn (int $psm) => $psm !== $currentPsm));
+    }
+
+    /**
+     * Tesseract-Zusatzargumente für zahlenlastige Vorlagen: Wörterbuch aus
+     * (dawg off), damit das Sprachmodell Ziffernketten (IBAN, Beträge) nicht zu
+     * Wörtern "korrigiert"; optional eine Zeichen-Whitelist.
+     *
+     * @return string[]
+     */
+    public static function recognitionArgs(bool $noDict, string $charWhitelist = ''): array {
+        $args = $noDict
+            ? ['-c', 'load_system_dawg=0', '-c', 'load_freq_dawg=0',
+                '-c', 'language_model_penalty_non_dict_word=0',
+                '-c', 'language_model_penalty_non_freq_dict_word=0']
+            : [];
+
+        if (trim($charWhitelist) !== '') {
+            $args[] = '-c';
+            $args[] = 'tessedit_char_whitelist=' . trim($charWhitelist);
+        }
+
+        return $args;
+    }
+
+    /**
+     * Die OCR-Einstellungen aus PDFSettings, wie sie dieser Reader nutzt – damit
+     * der zeilenausgerichtete OCR-Pfad ({@see PDFBboxLayoutHelper::ocrRowAlignedText()})
+     * dieselbe Vorverarbeitung und dieselben Erkennungsparameter fährt.
+     *
+     * @return array{psm: int, rowsPsm: int, dpi: int, noDict: bool, preprocess: bool, denoise: bool, whitelist: string}
+     */
+    public static function ocrSettings(): array {
+        $config = Config::getInstance();
+
+        return [
+            'psm' => (int) ($config->getConfig('PDFSettings', 'tesseract_psm') ?? 6),
+            'rowsPsm' => (int) ($config->getConfig('PDFSettings', 'tesseract_rows_psm') ?? 6),
+            'dpi' => (int) ($config->getConfig('PDFSettings', 'pdftoppm_dpi') ?? 300),
+            'noDict' => (bool) ($config->getConfig('PDFSettings', 'tesseract_no_dict') ?? true),
+            'preprocess' => (bool) ($config->getConfig('PDFSettings', 'tesseract_preprocess') ?? true),
+            'denoise' => (bool) ($config->getConfig('PDFSettings', 'tesseract_denoise') ?? false),
+            'whitelist' => trim((string) ($config->getConfig('PDFSettings', 'tesseract_char_whitelist') ?? '')),
+        ];
     }
 
     /**
@@ -342,11 +399,21 @@ final class TesseractReader implements PDFReaderInterface {
      * @param string[] $pages Pfade der PNG-Seiten.
      */
     private function deskewPages(array $pages): void {
-        $configKey = $this->denoise ? 'mogrify-deskew-denoise' : 'mogrify-deskew';
+        self::deskewPageImages($this->config, $pages, $this->denoise);
+    }
+
+    /**
+     * Deskew (optional + Denoise) für gerasterte Seiten IN PLACE – gemeinsam für
+     * den Text- und den zeilenausgerichteten OCR-Pfad.
+     *
+     * @param string[] $pages
+     */
+    public static function deskewPageImages(Config $config, array $pages, bool $denoise = false): void {
+        $configKey = $denoise ? 'mogrify-deskew-denoise' : 'mogrify-deskew';
 
         $commands = [];
         foreach ($pages as $page) {
-            $command = $this->config->buildCommand($configKey, ['[IMAGE]' => $page]);
+            $command = $config->buildCommand($configKey, ['[IMAGE]' => $page]);
             if ($command === null) {
                 return; // mogrify nicht verfügbar → Vorverarbeitung überspringen
             }
@@ -356,7 +423,7 @@ final class TesseractReader implements PDFReaderInterface {
         // Seiten sind unabhängig voneinander – nebenläufig verarbeiten.
         foreach (ParallelShell::run($commands) as $page => $returnCode) {
             if ($returnCode !== 0) {
-                $this->logDebug("$configKey fehlgeschlagen (Code $returnCode) für: $page");
+                self::logDebug("$configKey fehlgeschlagen (Code $returnCode) für: $page");
             }
         }
     }
@@ -442,18 +509,8 @@ final class TesseractReader implements PDFReaderInterface {
             // Wörterbuch-Deaktivierung (dawg off): verhindert, dass das LSTM-Sprachmodell
             // Ziffernketten (IBAN/Kontonummern/Beträge) in Richtung echter Wörter
             // "korrigiert" – auf zahlenlastigen Bankauszügen schädlich.
-            $extraArgs = $this->noDict
-                ? ['-c', 'load_system_dawg=0', '-c', 'load_freq_dawg=0',
-                    '-c', 'language_model_penalty_non_dict_word=0',
-                    '-c', 'language_model_penalty_non_freq_dict_word=0']
-                : [];
-
-            // Optionale Zeichen-Whitelist (opt-in, v1-Parität no-dict.cfg): begrenzt die
-            // erkannten Zeichen. Standardmäßig leer/deaktiviert.
-            if ($this->charWhitelist !== '') {
-                $extraArgs[] = '-c';
-                $extraArgs[] = 'tessedit_char_whitelist=' . $this->charWhitelist;
-            }
+            // Optionale Zeichen-Whitelist (opt-in, v1-Parität no-dict.cfg) siehe recognitionArgs().
+            $extraArgs = self::recognitionArgs($this->noDict, $this->charWhitelist);
 
             // Ein Prozess je Seite, mehrere gleichzeitig: die Seiten sind
             // voneinander unabhängig und jeder Prozess läuft einthreadig.

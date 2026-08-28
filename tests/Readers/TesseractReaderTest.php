@@ -27,6 +27,35 @@ class TesseractReaderTest extends BaseTestCase {
         $this->reader = new TesseractReader;
     }
 
+    public function test_psm_fallbacks_prefer_uniform_block_and_skip_current(): void {
+        $this->assertSame([6, 4, 1, 11, 12], TesseractReader::psmFallbacksFor(3));
+        $this->assertSame([3, 4, 1, 11, 12], TesseractReader::psmFallbacksFor(6));
+    }
+
+    public function test_recognition_args_disable_dictionary_and_add_whitelist(): void {
+        $this->assertSame([], TesseractReader::recognitionArgs(false));
+
+        $args = TesseractReader::recognitionArgs(true);
+        $this->assertContains('load_system_dawg=0', $args);
+        $this->assertContains('load_freq_dawg=0', $args);
+        $this->assertNotContains('tessedit_char_whitelist=0123456789', $args);
+
+        $args = TesseractReader::recognitionArgs(true, ' 0123456789 ');
+        $this->assertSame('tessedit_char_whitelist=0123456789', end($args));
+    }
+
+    public function test_ocr_settings_default_to_uniform_block_with_preprocessing(): void {
+        $settings = TesseractReader::ocrSettings();
+
+        $this->assertSame(6, $settings['psm']);
+        $this->assertSame(6, $settings['rowsPsm']);
+        $this->assertSame(300, $settings['dpi']);
+        $this->assertTrue($settings['noDict']);
+        $this->assertTrue($settings['preprocess']);
+        $this->assertFalse($settings['denoise']);
+        $this->assertSame('', $settings['whitelist']);
+    }
+
     public function test_is_available_returns_bool(): void {
         $this->assertIsBool($this->reader->isAvailable());
     }

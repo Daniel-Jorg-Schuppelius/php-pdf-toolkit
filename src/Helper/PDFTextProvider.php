@@ -17,6 +17,7 @@ use ERRORToolkit\Traits\ErrorLog;
 use InvalidArgumentException;
 use PDFToolkit\Entities\PDFDocument;
 use PDFToolkit\Enums\{PDFReaderType, PDFTextVariant};
+use PDFToolkit\Readers\TesseractReader;
 use PDFToolkit\Registries\PDFReaderRegistry;
 
 /**
@@ -180,7 +181,8 @@ final class PDFTextProvider {
      *
      * @param string $language Tesseract-Sprache(n), Standard "deu+eng".
      */
-    public function ocrRowAlignedText(string $language = 'deu+eng', int $psm = 3): ?string {
+    public function ocrRowAlignedText(string $language = 'deu+eng', ?int $psm = null): ?string {
+        $psm ??= TesseractReader::ocrSettings()['rowsPsm'];
         $key = PDFTextVariant::OcrRowAligned->value . ':' . $language . ':psm' . $psm;
         if (array_key_exists($key, $this->textCache)) {
             $this->logDebug("Cache-Hit für Variante '{$key}': {$this->pdfPath}");
