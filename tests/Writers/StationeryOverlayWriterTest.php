@@ -60,7 +60,9 @@ final class StationeryOverlayWriterTest extends BaseTestCase {
         $result = $this->writer->overlayToString($content, $stationery);
 
         $this->assertNotNull($result);
-        $text = $this->textOf($result);
+        // pdftotext bricht den Bogen-Text je nach poppler-/FPDF-Version anders
+        // um — geprüft wird die Präsenz beider Ebenen, nicht der Zeilenfall.
+        $text = (string) preg_replace('/\s+/', ' ', $this->textOf($result));
         $this->assertStringContainsString('Rechnungsinhalt', $text);
         $this->assertStringContainsString('Musterfirma GmbH', $text);
     }

@@ -37,4 +37,7 @@ enum PDFTextVariant: string {
 
     /** Koordinaten-basierte Zeilen-Reassembly via OCR (Tesseract TSV, reine Bild-PDFs) */
     case OcrRowAligned = 'ocr-rowaligned';
+
+    /** Entzifferter Original-Textlayer (Cipher-Layer-Rebuild bei defekter ToUnicode-Map) */
+    case DecodedLayer = 'decoded-layer';
 }

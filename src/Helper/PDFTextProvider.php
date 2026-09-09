@@ -15,7 +15,7 @@ namespace PDFToolkit\Helper;
 use CommonToolkit\Helper\FileSystem\File;
 use ERRORToolkit\Traits\ErrorLog;
 use InvalidArgumentException;
-use PDFToolkit\Entities\PDFDocument;
+use PDFToolkit\Entities\{CipherMap, PDFDocument};
 use PDFToolkit\Enums\{PDFReaderType, PDFTextVariant};
 use PDFToolkit\Readers\TesseractReader;
 use PDFToolkit\Registries\PDFReaderRegistry;
@@ -47,6 +47,9 @@ final class PDFTextProvider {
 
     /** @var array<string, PDFDocument> Cache: key => PDFDocument */
     private array $documentCache = [];
+
+    /** Zuletzt gelernte Cipher-Map ({@see decodedLayerText()}), für Statistiken. */
+    private ?CipherMap $cipherMap = null;
 
     /**
      * @param string $pdfPath Pfad zur PDF-Datei
@@ -197,6 +200,75 @@ final class PDFTextProvider {
         }
 
         return $this->textCache[$key];
+    }
+
+    /**
+     * Entzifferter Original-Textlayer für Reprint-PDFs mit defekter
+     * ToUnicode-Map (Cipher-Layer-Rebuild).
+     *
+     * Lernt die Glyphen→Zeichen-Zuordnung aus dem OCR-Text derselben Seiten
+     * ({@see CipherLayerSolver}) und dekodiert damit den ORIGINAL-Textlayer.
+     * Dekodiert wird {@see rowAlignedText()}: die pdftotext-bbox-Wörter stehen
+     * in korrekter Reihenfolge, während der raw-/layout-Text an den
+     * degenerierten Quads der Space-Glyphe die Zeichenfolge verwürfelt.
+     *
+     * null, wenn eine der Quellen fehlt oder das Qualitäts-Gate des Solvers
+     * (Abdeckung/Konsistenz) nicht erreicht wird — die fachliche Abnahme des
+     * Dekodats bleibt Sache des Aufrufers (z.B. Saldo-Prüfsumme). Auch null
+     * wird gecacht: die Eingaben sind je Datei deterministisch, das Lernen
+     * läuft höchstens einmal.
+     *
+     * Der Schlüssel ist fest {@see ocrText()} — NICHT die zufällig schon
+     * gecachte OCR-Variante. Das kostet bei Aufrufern, die mit
+     * {@see ocrRowAlignedText()} arbeiten, einen zweiten OCR-Lauf, hält das
+     * Dekodat aber unabhängig von der Aufrufreihenfolge reproduzierbar.
+     *
+     * @param string $language Tesseract-Sprache(n) für den OCR-Schlüssel.
+     */
+    public function decodedLayerText(string $language = 'deu+eng'): ?string {
+        $key = PDFTextVariant::DecodedLayer->value . ':' . $language;
+        if (array_key_exists($key, $this->textCache)) {
+            $this->logDebug("Cache-Hit für Variante '{$key}': {$this->pdfPath}");
+            return $this->textCache[$key];
+        }
+
+        $text = null;
+        // Gelernt UND dekodiert wird auf dem bbox-Text: Nur dort stehen die
+        // Zeichen in korrekter Reihenfolge. Der raw-/layout-Text vertauscht an
+        // den degenerierten Quads der Space-Glyphe Zeichen über die
+        // Wortgrenzen ("24A ug" statt "24 Aug") — daran verrutscht das
+        // Alignment genau bei den Wortanfangs-Großbuchstaben.
+        $target = $this->rowAlignedText();
+        $ocr = $target !== null ? $this->ocrText($language) : null;
+        if ($ocr !== null && $target !== null) {
+            $this->cipherMap = CipherLayerSolver::learnMap($target, $ocr);
+            if ($this->cipherMap !== null) {
+                if (CipherLayerSolver::isReliable($this->cipherMap, $target)) {
+                    $text = CipherLayerSolver::decode($target, $this->cipherMap);
+                } else {
+                    $this->logInfo(sprintf(
+                        "Cipher-Layer-Map verfehlt das Gate (Abdeckung %.4f, Konsistenz %.4f, %d/%d Glyphen): %s",
+                        $this->cipherMap->coverageOn($target),
+                        $this->cipherMap->consistency,
+                        $this->cipherMap->glyphsMapped,
+                        $this->cipherMap->glyphsSeen,
+                        $this->pdfPath,
+                    ));
+                }
+            }
+        }
+
+        return $this->textCache[$key] = ($text !== null && trim($text) !== '') ? $text : null;
+    }
+
+    /**
+     * Statistik der zuletzt gelernten Cipher-Map ({@see decodedLayerText()}) —
+     * für Hinweise des Aufrufers. null, solange keine Map gelernt wurde.
+     *
+     * @return array{glyphsSeen: int, glyphsMapped: int, consistency: float, learnCoverage: float, spaceChar: ?string}|null
+     */
+    public function cipherMapStats(): ?array {
+        return $this->cipherMap?->stats();
     }
 
     /**
@@ -407,6 +479,7 @@ final class PDFTextProvider {
         $documents = count($this->documentCache);
         $this->textCache = [];
         $this->documentCache = [];
+        $this->cipherMap = null;
         $this->logDebug("Cache geleert ({$variants} Text-Varianten, {$documents} Dokumente): {$this->pdfPath}");
     }
 
