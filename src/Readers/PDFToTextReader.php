@@ -82,7 +82,14 @@ final class PDFToTextReader implements PDFReaderInterface {
         // Option für Layout-Modus (Standard: true für Abwärtskompatibilität)
         // Bank-PDFs benötigen oft layout: false für korrekte Transaktions-Extraktion
         $useLayout = $options['layout'] ?? true;
-        $dualStrategy = $options['dualStrategy'] ?? true;
+
+        // Eine EXPLIZITE Modus-Wahl wird respektiert: die Doppelstrategie darf
+        // sie nicht per Quality-Score still durch den anderen Modus ersetzen —
+        // wer layout=true anfordert, braucht die Spaltenausrichtung (Erkennung
+        // und Konvertierung sahen sonst verschiedene Texte derselben Datei).
+        // Ohne Modus-Vorgabe bleibt die Doppelstrategie Standard; explizites
+        // dualStrategy=true gewinnt immer.
+        $dualStrategy = $options['dualStrategy'] ?? !array_key_exists('layout', $options);
 
         // Primäre Extraktion
         $text = $this->extractWithMode($pdfPath, $useLayout);
