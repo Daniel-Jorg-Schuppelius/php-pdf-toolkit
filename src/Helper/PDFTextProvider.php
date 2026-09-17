@@ -239,21 +239,23 @@ final class PDFTextProvider {
         // Wortgrenzen ("24A ug" statt "24 Aug") — daran verrutscht das
         // Alignment genau bei den Wortanfangs-Großbuchstaben.
         $target = $this->rowAlignedText();
-        $ocr = $target !== null ? $this->ocrText($language) : null;
-        if ($ocr !== null && $target !== null) {
-            $this->cipherMap = CipherLayerSolver::learnMap($target, $ocr);
-            if ($this->cipherMap !== null) {
-                if (CipherLayerSolver::isReliable($this->cipherMap, $target)) {
-                    $text = CipherLayerSolver::decode($target, $this->cipherMap);
-                } else {
-                    $this->logInfo(sprintf(
-                        "Cipher-Layer-Map verfehlt das Gate (Abdeckung %.4f, Konsistenz %.4f, %d/%d Glyphen): %s",
-                        $this->cipherMap->coverageOn($target),
-                        $this->cipherMap->consistency,
-                        $this->cipherMap->glyphsMapped,
-                        $this->cipherMap->glyphsSeen,
-                        $this->pdfPath,
-                    ));
+        if ($target !== null) {
+            $ocr = $this->ocrText($language);
+            if ($ocr !== null) {
+                $this->cipherMap = CipherLayerSolver::learnMap($target, $ocr);
+                if ($this->cipherMap !== null) {
+                    if (CipherLayerSolver::isReliable($this->cipherMap, $target)) {
+                        $text = CipherLayerSolver::decode($target, $this->cipherMap);
+                    } else {
+                        $this->logInfo(sprintf(
+                            "Cipher-Layer-Map verfehlt das Gate (Abdeckung %.4f, Konsistenz %.4f, %d/%d Glyphen): %s",
+                            $this->cipherMap->coverageOn($target),
+                            $this->cipherMap->consistency,
+                            $this->cipherMap->glyphsMapped,
+                            $this->cipherMap->glyphsSeen,
+                            $this->pdfPath,
+                        ));
+                    }
                 }
             }
         }
