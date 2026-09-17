@@ -143,7 +143,7 @@ final class TesseractReader implements PDFReaderInterface {
         $language = $options['language'] ?? $this->defaultLanguage;
         $autoSelect = $options['auto_select_language'] ?? $this->autoSelectBestLanguage;
 
-        // Start-PSM nach Seitengröße wählen (v1: Nicht-A4 → PSM 12); eine explizit übergebene
+        // Start-PSM nach Seitengröße wählen (v1: Nicht-A4 -> PSM 12); eine explizit übergebene
         // psm-Option hat Vorrang. Wirkt sich vor allem im Erkennungspfad (qualityCheck aus) aus,
         // wo nur der Start-PSM genutzt wird.
         $options['psm'] ??= PDFHelper::suggestScanPsm($pdfPath, $this->defaultPsm);
@@ -421,7 +421,7 @@ final class TesseractReader implements PDFReaderInterface {
         foreach ($pages as $page) {
             $command = $config->buildCommand($configKey, ['[IMAGE]' => $page]);
             if ($command === null) {
-                return; // mogrify nicht verfügbar → Vorverarbeitung überspringen
+                return; // mogrify nicht verfügbar -> Vorverarbeitung überspringen
             }
             $commands[$page] = $command . ' 2>/dev/null';
         }

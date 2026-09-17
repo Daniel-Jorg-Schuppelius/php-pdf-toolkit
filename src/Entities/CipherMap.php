@@ -13,7 +13,7 @@ declare(strict_types=1);
 namespace PDFToolkit\Entities;
 
 /**
- * Gelernte Glyphen→Zeichen-Zuordnung eines Cipher-Textlayers.
+ * Gelernte Glyphen->Zeichen-Zuordnung eines Cipher-Textlayers.
  *
  * Reprint-PDFs ohne ToUnicode-Tabellen liefern je Glyphe einen stabilen
  * falschen Codepoint (auch das Leerzeichen ist eine Glyphe). Diese Map
@@ -66,7 +66,7 @@ final readonly class CipherMap {
      *
      * Bewusst KEIN strtr + Zweitpass: das Dekodat enthält legitime
      * Nicht-ASCII-Zeichen (Umlaute, €), die ein nachgelagerter
-     * "Unbekanntes → U+FFFD"-Pass zerstören würde.
+     * "Unbekanntes -> U+FFFD"-Pass zerstören würde.
      */
     public function decode(string $text): string {
         $map = $this->map;

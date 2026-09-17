@@ -16,7 +16,7 @@ use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Entities\CipherMap;
 
 /**
- * Cipher-Layer-Rebuild: lernt die Glyphen→Zeichen-Zuordnung eines defekten
+ * Cipher-Layer-Rebuild: lernt die Glyphen->Zeichen-Zuordnung eines defekten
  * Textlayers aus dem OCR-Text derselben Seiten und dekodiert damit den
  * ORIGINAL-Textlayer.
  *
@@ -300,7 +300,7 @@ final class CipherLayerSolver {
     }
 
     /**
-     * Komplettpipeline: lernen → Gate → dekodieren. null bei fehlenden
+     * Komplettpipeline: lernen -> Gate -> dekodieren. null bei fehlenden
      * Eingaben oder verfehltem Gate — der Aufrufer bleibt dann bei seiner
      * bisherigen Textquelle.
      */
@@ -592,7 +592,7 @@ final class CipherLayerSolver {
         return [$map, $shares];
     }
 
-    /** Wort über eine (Teil-)Map übersetzen; Ungemapptes → U+FFFD. */
+    /** Wort über eine (Teil-)Map übersetzen; Ungemapptes -> U+FFFD. */
     private static function translate(string $word, array $map): string {
         return (string) preg_replace_callback(
             CipherMap::CIPHER_CHAR_RE,

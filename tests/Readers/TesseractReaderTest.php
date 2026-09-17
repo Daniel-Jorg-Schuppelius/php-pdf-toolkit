@@ -86,7 +86,7 @@ class TesseractReaderTest extends BaseTestCase {
         $imagePath = $this->createTextImage('');
         try {
             $text = $this->reader->extractTextFromImage($imagePath, ['qualityCheck' => false]);
-            // Ohne tesseract null, mit tesseract: leeres Bild → kein Text → null.
+            // Ohne tesseract null, mit tesseract: leeres Bild -> kein Text -> null.
             $this->assertNull($text);
         } finally {
             @unlink($imagePath);

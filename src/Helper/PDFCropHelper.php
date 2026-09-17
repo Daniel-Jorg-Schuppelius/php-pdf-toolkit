@@ -143,10 +143,10 @@ final class PDFCropHelper {
     /**
      * Normalisiert ein Margin-Array nach CSS-Shorthand-Konvention.
      *
-     * - 1 Wert:  [all]                     → [all, all, all, all]
-     * - 2 Werte: [top/bottom, left/right]   → [top/bottom, left/right, top/bottom, left/right]
-     * - 3 Werte: [top, left/right, bottom]  → [top, left/right, bottom, left/right]
-     * - 4 Werte: [top, right, bottom, left] → [top, right, bottom, left]
+     * - 1 Wert:  [all]                     -> [all, all, all, all]
+     * - 2 Werte: [top/bottom, left/right]   -> [top/bottom, left/right, top/bottom, left/right]
+     * - 3 Werte: [top, left/right, bottom]  -> [top, left/right, bottom, left/right]
+     * - 4 Werte: [top, right, bottom, left] -> [top, right, bottom, left]
      *
      * @param array<float> $margins 1–4 Werte (Einheit beliebig, z.B. cm oder pt)
      * @return array{0: float, 1: float, 2: float, 3: float} [top, right, bottom, left]
@@ -335,7 +335,7 @@ final class PDFCropHelper {
      * Skaliert eine PDF-Seite proportional auf eine Zielgröße und zentriert den Inhalt.
      *
      * Mehrstufiges Verfahren:
-     * 1. Bei Orientierungs-Mismatch (Landscape→Portrait oder umgekehrt): Seite physisch rotieren
+     * 1. Bei Orientierungs-Mismatch (Landscape->Portrait oder umgekehrt): Seite physisch rotieren
      * 2. resizeToFit() mit -dPDFFitPage skaliert korrekt (positioniert unten-links)
      * 3. PageOffset verschiebt den Inhalt zur Mitte (funktioniert zuverlässig mit pdfwrite)
      *
@@ -386,7 +386,7 @@ final class PDFCropHelper {
             $offsetX = ($widthPt - $scaledW) / 2;
             $offsetY = ($heightPt - $scaledH) / 2;
 
-            // Kein Offset nötig → einfach resizeToFit
+            // Kein Offset nötig -> einfach resizeToFit
             if ($offsetX < 1.0 && $offsetY < 1.0) {
                 return self::resizeToFit($inputPath, $outputPath, $widthPt, $heightPt);
             }
@@ -400,7 +400,7 @@ final class PDFCropHelper {
             try {
                 // Schritt 2: Mit PageOffset zentrieren
                 // FitPage platziert den Inhalt am oberen Rand. Zum Zentrieren muss
-                // er nach UNTEN verschoben werden → negative Y-Offset-Werte.
+                // er nach UNTEN verschoben werden -> negative Y-Offset-Werte.
                 $postscript = sprintf(
                     '<</PageOffset [%s %s]>> setpagedevice',
                     number_format(-$offsetX, 4, '.', ''),

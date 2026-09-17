@@ -543,7 +543,7 @@ final class TextQualityAnalyzer {
         $normalizedText = preg_replace('/^ | $/m', '', $normalizedText);
 
         // Muster für fehlende Zeichen: einzelner Buchstabe umgeben von Leerzeichen
-        // innerhalb eines Wortkontexts (z.B. "Vermögens" → "Verm gens")
+        // innerhalb eines Wortkontexts (z.B. "Vermögens" -> "Verm gens")
         $singleLetterPattern = '/(?<=\p{L}) \p{L} (?=\p{L}{2})/u';
         $issues += preg_match_all($singleLetterPattern, $normalizedText) * 2;
 
@@ -569,11 +569,11 @@ final class TextQualityAnalyzer {
             '/verf\s+gbar/i',         // verfügbar
             '/Verm\s+gens/i',         // Vermögens
             '/Finanz\s+bersicht/i',   // Finanzübersicht
-            // Häufige OCR-Verwechslungen (Zeichen → ähnliches Zeichen)
-            '/\bUberweisung/i',       // Ü→U: Überweisung
-            '/\bUbersicht/i',         // Ü→U: Übersicht
-            '/\bUber\b/i',            // Ü→U: Über (alleinstehend)
-            '/\b0ffentlich/i',        // ö→0: öffentlich
+            // Häufige OCR-Verwechslungen (Zeichen -> ähnliches Zeichen)
+            '/\bUberweisung/i',       // Ü->U: Überweisung
+            '/\bUbersicht/i',         // Ü->U: Übersicht
+            '/\bUber\b/i',            // Ü->U: Über (alleinstehend)
+            '/\b0ffentlich/i',        // ö->0: öffentlich
             '/Geb\s+hren/i',         // Gebühren
             '/Kontoaus\s+ge/i',      // Kontoauszüge
             '/Empf\s+nger/i',        // Empfänger
@@ -582,7 +582,7 @@ final class TextQualityAnalyzer {
             '/Betr\s+ge/i',          // Beträge
             '/R\s+ckbuchung/i',      // Rückbuchung
             '/Geb\s+hr/i',          // Gebühr
-            '/Stra\s+e\b/i',        // Straße (ß→Leerzeichen)
+            '/Stra\s+e\b/i',        // Straße (ß->Leerzeichen)
             '/Ma\s+nahme/i',        // Maßnahme
         ];
 

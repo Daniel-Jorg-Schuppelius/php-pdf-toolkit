@@ -32,7 +32,7 @@ class CipherMapTest extends TestCase {
     }
 
     public function test_decode_keeps_decoded_non_ascii_and_marks_unknown(): void {
-        // 'Ω' → 'ü' bleibt erhalten; unbekanntes 'Ж' wird U+FFFD.
+        // 'Ω' -> 'ü' bleibt erhalten; unbekanntes 'Ж' wird U+FFFD.
         $this->assertSame("ü\u{FFFD}", self::map()->decode('ΩЖ'));
     }
 

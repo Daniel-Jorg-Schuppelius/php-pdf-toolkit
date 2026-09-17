@@ -60,7 +60,7 @@ enum PaperFormat: string {
      */
     public function widthPt(): float {
         return match ($this) {
-            // A-Serie (mm → pts: mm * 72 / 25.4)
+            // A-Serie (mm -> pts: mm * 72 / 25.4)
             self::A0 => 2383.94,  // 841 mm
             self::A1 => 1683.78,  // 594 mm
             self::A2 => 1190.55,  // 420 mm
@@ -82,7 +82,7 @@ enum PaperFormat: string {
             self::C4 => 649.13,   // 229 mm
             self::C5 => 459.21,   // 162 mm
             self::C6 => 323.15,   // 114 mm
-            // US Formate (Inches → pts: in * 72)
+            // US Formate (Inches -> pts: in * 72)
             self::LETTER => 612.0,    // 8.5 in
             self::LEGAL => 612.0,     // 8.5 in
             self::TABLOID => 792.0,   // 11 in
@@ -267,6 +267,6 @@ enum PaperFormat: string {
      */
     public function description(): string {
         [$wMm, $hMm] = $this->dimensionsMm();
-        return sprintf('%s (%.0f × %.0f mm)', $this->value, $wMm, $hMm);
+        return sprintf('%s (%.0f x %.0f mm)', $this->value, $wMm, $hMm);
     }
 }

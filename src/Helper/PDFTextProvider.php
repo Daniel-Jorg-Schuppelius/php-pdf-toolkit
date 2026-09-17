@@ -206,7 +206,7 @@ final class PDFTextProvider {
      * Entzifferter Original-Textlayer für Reprint-PDFs mit defekter
      * ToUnicode-Map (Cipher-Layer-Rebuild).
      *
-     * Lernt die Glyphen→Zeichen-Zuordnung aus dem OCR-Text derselben Seiten
+     * Lernt die Glyphen->Zeichen-Zuordnung aus dem OCR-Text derselben Seiten
      * ({@see CipherLayerSolver}) und dekodiert damit den ORIGINAL-Textlayer.
      * Dekodiert wird {@see rowAlignedText()}: die pdftotext-bbox-Wörter stehen
      * in korrekter Reihenfolge, während der raw-/layout-Text an den

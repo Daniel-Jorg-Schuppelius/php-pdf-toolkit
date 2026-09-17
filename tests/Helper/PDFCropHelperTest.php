@@ -338,14 +338,14 @@ final class PDFCropHelperTest extends BaseTestCase {
     }
 
     // ===================================================================
-    // Crop mit Margins → resizeToFitCentered ins Ursprungsformat
+    // Crop mit Margins -> resizeToFitCentered ins Ursprungsformat
     // ===================================================================
 
     public function test_crop_with_margins_resized_centered_back_to_a4(): void {
         $cropped = $this->outputPath('pipeline-crop-margins');
         $final = $this->outputPath('pipeline-back-to-a4');
 
-        // 1. Obere 50 % mit asymmetrischen Margins croppen → deutlich kleiner als A4
+        // 1. Obere 50 % mit asymmetrischen Margins croppen -> deutlich kleiner als A4
         $margins = [20.0, 30.0, 10.0, 40.0];
         $this->assertTrue(PDFCropHelper::cropUpperPercent(self::SAMPLE_PDF, $cropped, 50.0, 1, $margins));
 
@@ -367,7 +367,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         // 1. Obere 50 % mit gleichmäßigem Rand
         $this->assertTrue(PDFCropHelper::cropUpperPercent(self::SAMPLE_PDF, $cropped, 50.0, 1, [25.0]));
 
-        // 2. Zentriert auf Versandetiketten-Größe (100×62mm ≈ 283×176pt)
+        // 2. Zentriert auf Versandetiketten-Größe (100x62mm ≈ 283x176pt)
         $labelW = 283.46;
         $labelH = 175.75;
         $this->assertTrue(PDFCropHelper::resizeToFitCentered($cropped, $final, $labelW, $labelH));
@@ -383,10 +383,10 @@ final class PDFCropHelperTest extends BaseTestCase {
         $margins = [15.0, 10.0, 15.0, 10.0];
         $this->assertTrue(PDFCropHelper::cropLowerPercent(self::SAMPLE_PDF, $cropped, 40.0, 1, $margins));
 
-        // 2. Zentriert auf Quadrat 200×200pt
+        // 2. Zentriert auf Quadrat 200x200pt
         $this->assertTrue(PDFCropHelper::resizeToFitCentered($cropped, $final, 200.0, 200.0));
         $this->assertFileExists($final);
-        $this->assertPdfDimensions($final, 200.0, 200.0, 'Lower Crop → Quadrat zentriert');
+        $this->assertPdfDimensions($final, 200.0, 200.0, 'Lower Crop -> Quadrat zentriert');
     }
 
     // ===================================================================
@@ -485,7 +485,7 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertTrue(PDFCropHelper::resizeToFitCentered($cropped, $final, $targetW, $targetH));
 
         $this->assertFileExists($final);
-        $this->assertPdfDimensions($final, $targetW, $targetH, 'Pipeline: Crop→Resize');
+        $this->assertPdfDimensions($final, $targetW, $targetH, 'Pipeline: Crop->Resize');
 
         // Ergebnis muss kleiner als Original sein
         $this->assertPdfSmaller($final, self::A4_WIDTH, self::A4_HEIGHT);

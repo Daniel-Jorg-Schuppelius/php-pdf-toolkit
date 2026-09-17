@@ -94,7 +94,7 @@ final class OcrMyPDFReader implements PDFReaderInterface {
         // forceOcr: vorhandenen (unbrauchbaren) Textlayer per --force-ocr verwerfen und neu
         // rastern, statt ihn mit --skip-text stehen zu lassen (v1-Parität pdfsandwich(true)).
         $forceOcr = (bool) ($options['forceOcr'] ?? false);
-        // Start-PSM nach Seitengröße (v1: Nicht-A4 → PSM 12); explizite Option hat Vorrang.
+        // Start-PSM nach Seitengröße (v1: Nicht-A4 -> PSM 12); explizite Option hat Vorrang.
         $psm = $options['psm'] ?? PDFHelper::suggestScanPsm($pdfPath, $this->defaultPsm);
         $qualityCheck = $options['qualityCheck'] ?? true;
         $qualityThreshold = (float) ($options['qualityThreshold'] ?? Config::getInstance()->getConfig('PDFSettings', 'quality_threshold') ?? 60.0);
@@ -146,8 +146,8 @@ final class OcrMyPDFReader implements PDFReaderInterface {
      * Nutzt --sidecar für direkte Textausgabe wenn verfügbar,
      * ansonsten Fallback auf pdftotext-Nachverarbeitung.
      *
-     * @param bool $forceOcr true → --force-ocr-Variante (vorhandenen Textlayer verwerfen),
-     *                        false → --skip-text-Variante (vorhandenen Textlayer behalten)
+     * @param bool $forceOcr true -> --force-ocr-Variante (vorhandenen Textlayer verwerfen),
+     *                        false -> --skip-text-Variante (vorhandenen Textlayer behalten)
      */
     private function extractWithSettings(string $pdfPath, string $language, int $psm, bool $forceOcr = false): ?string {
         $tempPdf = sys_get_temp_dir() . '/ocrmypdf_' . uniqid() . '.pdf';
@@ -214,7 +214,7 @@ final class OcrMyPDFReader implements PDFReaderInterface {
                 if ($validated !== null) {
                     return $validated;
                 }
-                // Sidecar zu wenig Text (z.B. --skip-text bei Text-PDF) → pdftotext-Fallback
+                // Sidecar zu wenig Text (z.B. --skip-text bei Text-PDF) -> pdftotext-Fallback
                 $this->logDebug("Sidecar text insufficient, falling back to pdftotext on output PDF");
             }
 

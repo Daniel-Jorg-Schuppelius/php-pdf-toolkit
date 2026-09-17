@@ -164,7 +164,7 @@ final class PDFHelper {
      *   - Bild-Deckblatt + Text-Folgeseiten würde ein Seite-1-Check fälschlich als Scan werten.
      *   - Layouts, an denen pdftotext scheitert, liest pdfbox oft problemlos.
      *
-     * Reihenfolge (schnell → gründlich, damit der Normalfall den billigen Pfad nimmt):
+     * Reihenfolge (schnell -> gründlich, damit der Normalfall den billigen Pfad nimmt):
      *   1. Schneller Probe-Check auf Seite 1 (häufigster Fall: digitales PDF mit Text ab S.1)
      *   2. Erst wenn Seite 1 leer wirkt: Ganzdokument-pdftotext
      *   3. Zuletzt: pdfbox als zweiter Extraktor (anderes Engine, andere Stärken)
@@ -195,7 +195,7 @@ final class PDFHelper {
             return true;
         }
 
-        // Kein Extraktor fand über das gesamte Dokument genug Text → echter Scan (OCR nötig)
+        // Kein Extraktor fand über das gesamte Dokument genug Text -> echter Scan (OCR nötig)
         return false;
     }
 
@@ -508,7 +508,7 @@ final class PDFHelper {
 
     /**
      * Wählt einen Start-PSM (Page Segmentation Mode) für die OCR gescannter Seiten anhand
-     * der Seitengröße (v1-Parität, file_converter: A4 → Standard-PSM, abweichende Größen → 12).
+     * der Seitengröße (v1-Parität, file_converter: A4 -> Standard-PSM, abweichende Größen -> 12).
      *
      * Nicht-A4-Scans (Endlospapier, Quer-/Sonderformate) sind häufiger mehrspaltig oder
      * gedreht; PSM 12 (Sparse Text + OSD) trifft solche Layouts besser als der Block-Auto-Modus.

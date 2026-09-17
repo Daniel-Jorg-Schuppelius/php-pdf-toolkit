@@ -172,7 +172,7 @@ final readonly class PageSize {
 
         if ($format !== null) {
             return sprintf(
-                '%s %s (%.1f × %.1f mm)',
+                '%s %s (%.1f x %.1f mm)',
                 $format->value,
                 $orientation,
                 $this->widthMm(),
@@ -181,7 +181,7 @@ final readonly class PageSize {
         }
 
         return sprintf(
-            'Custom %s (%.1f × %.1f mm)',
+            'Custom %s (%.1f x %.1f mm)',
             $orientation,
             $this->widthMm(),
             $this->heightMm()
