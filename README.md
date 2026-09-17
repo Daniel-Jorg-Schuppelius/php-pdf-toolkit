@@ -26,6 +26,12 @@ A PHP 8.2+ library for extracting text from PDF documents and creating PDFs with
 - **Automatic Writer Selection** - Uses the first available writer by priority
 - **Multiple Input Formats** - HTML, plain text, or HTML files
 - **Metadata Support** - Title, author, subject for generated PDFs
+- **Stationery Overlay** - `StationeryOverlayWriter` places a letterhead PDF as a layer *under* imported content pages, with separate assets for the first and following pages
+
+### Additional Helpers
+
+- **Image OCR** - `TesseractReader::extractTextFromImage()` runs OCR on a single image file instead of a PDF
+- **Encrypted Layers** - `CipherLayerSolver` resolves encrypted content layers so that text extraction also works on protected documents
 
 ## Requirements
 
@@ -202,3 +208,7 @@ PDFWriterRegistry → [Writers by Priority] → PDF File
 ## License
 
 AGPL-3.0-or-later - see [LICENSE](LICENSE) file.
+
+## Versions
+
+Releases are tagged in Git; `git tag --sort=-v:refname` lists them (latest: v0.17.2). There is no separate changelog file — the tags and the commit history are the record.
