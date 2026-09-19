@@ -40,4 +40,7 @@ enum PDFTextVariant: string {
 
     /** Entzifferter Original-Textlayer (Cipher-Layer-Rebuild bei defekter ToUnicode-Map) */
     case DecodedLayer = 'decoded-layer';
+
+    /** Textebene aus den Glyphennamen des Fonts (exakt, ohne OCR - bei defekter ToUnicode-Map) */
+    case GlyphNames = 'glyph-names';
 }

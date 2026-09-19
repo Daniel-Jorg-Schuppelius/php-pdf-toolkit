@@ -15,7 +15,7 @@ namespace PDFToolkit\Helper;
 use CommonToolkit\Helper\FileSystem\File;
 use ERRORToolkit\Traits\ErrorLog;
 use InvalidArgumentException;
-use PDFToolkit\Entities\{CipherMap, PDFDocument};
+use PDFToolkit\Entities\{CipherMap, GlyphLayerResult, PDFDocument};
 use PDFToolkit\Enums\{PDFReaderType, PDFTextVariant};
 use PDFToolkit\Readers\TesseractReader;
 use PDFToolkit\Registries\PDFReaderRegistry;
@@ -50,6 +50,9 @@ final class PDFTextProvider {
 
     /** Zuletzt gelernte Cipher-Map ({@see decodedLayerText()}), für Statistiken. */
     private ?CipherMap $cipherMap = null;
+
+    /** @var GlyphLayerResult|null Zuletzt gebaute Glyphennamen-Ebene (für die Statistik). */
+    private ?GlyphLayerResult $glyphLayer = null;
 
     /**
      * @param string $pdfPath Pfad zur PDF-Datei
@@ -271,6 +274,41 @@ final class PDFTextProvider {
      */
     public function cipherMapStats(): ?array {
         return $this->cipherMap?->stats();
+    }
+
+    /**
+     * Textebene aus den GLYPHENNAMEN des Fonts - die exakte Antwort auf eine
+     * defekte ToUnicode-Tabelle ({@see GlyphNameLayer}).
+     *
+     * Anders als {@see decodedLayerText()} wird hier nichts gelernt und nichts
+     * geraten: Der Name der Glyphe im Font sagt, welches Zeichen gesetzt wurde.
+     * Deshalb steht diese Quelle VOR dem Cipher-Solver und vor OCR - sie
+     * scheitert nur, wenn der Font seine Glyphen nicht benennt (reine Subsets
+     * mit "g17"/"cid42"), und liefert dann null.
+     *
+     * Ob der rekonstruierte Text fachlich stimmt, entscheidet weiterhin der
+     * Aufrufer (z.B. ueber die Saldo-Pruefsumme). Auch null wird gecacht.
+     */
+    public function glyphNameText(): ?string {
+        $key = PDFTextVariant::GlyphNames->value;
+        if (array_key_exists($key, $this->textCache)) {
+            $this->logDebug("Cache-Hit für Variante '{$key}': {$this->pdfPath}");
+
+            return $this->textCache[$key];
+        }
+
+        $this->glyphLayer = GlyphNameLayer::build($this->pdfPath);
+
+        return $this->textCache[$key] = $this->glyphLayer?->text;
+    }
+
+    /**
+     * Statistik der zuletzt gebauten Glyphennamen-Ebene ({@see glyphNameText()}).
+     *
+     * @return array{glyphs: int, unnamed: int, unnamedShare: float}|null
+     */
+    public function glyphLayerStats(): ?array {
+        return $this->glyphLayer?->stats();
     }
 
     /**

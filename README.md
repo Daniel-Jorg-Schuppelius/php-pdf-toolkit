@@ -32,6 +32,7 @@ A PHP 8.2+ library for extracting text from PDF documents and creating PDFs with
 
 - **Image OCR** - `TesseractReader::extractTextFromImage()` runs OCR on a single image file instead of a PDF
 - **Encrypted Layers** - `CipherLayerSolver` resolves encrypted content layers so that text extraction also works on protected documents
+- **Broken ToUnicode Tables** - `GlyphNameLayer` (via `PDFTextProvider::glyphNameText()`) rebuilds the text layer from the fonts' glyph names, so a PDF whose ToUnicode table maps every glyph to the wrong character still yields its exact text - no OCR, no guessing. Needs `mutool` (mupdf-tools)
 
 ## Requirements
 
@@ -42,6 +43,7 @@ A PHP 8.2+ library for extracting text from PDF documents and creating PDFs with
 - `pdftotext` (`apt install poppler-utils`)
 - `tesseract-ocr` (`apt install tesseract-ocr tesseract-ocr-deu`)
 - `ocrmypdf` (`apt install ocrmypdf`)
+- `mutool` (`apt install mupdf-tools`) - optional, needed for `glyphNameText()` on PDFs with broken ToUnicode tables
 - Java + PDFBox JAR (optional)
 
 ### For PDF Creation (at least one)

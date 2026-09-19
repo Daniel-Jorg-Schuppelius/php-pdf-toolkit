@@ -25,6 +25,20 @@
                 "[TEXT-FILE]"
             ]
         },
+        "mutool-trace": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF glyph trace (glyph names for broken ToUnicode tables)",
+            "package": "mupdf-tools",
+            "arguments": [
+                "draw",
+                "-F",
+                "trace",
+                "-o",
+                "[TRACE-FILE]",
+                "[PDF-FILE]"
+            ]
+        },
         "pdftotext-check": {
             "path": "pdftotext",
             "required": false,
