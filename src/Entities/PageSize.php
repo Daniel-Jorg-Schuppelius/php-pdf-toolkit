@@ -28,8 +28,28 @@ final readonly class PageSize {
     public function __construct(
         public float $widthPt,
         public float $heightPt,
-        public ?int $pageNumber = null
+        public ?int $pageNumber = null,
+        /** Anzeigedrehung aus /Rotate (0, 90, 180, 270); bei 90 und 270 erscheint die Seite mit vertauschten Kanten */
+        public int $rotation = 0,
     ) {}
+
+    /**
+     * Breite, wie die Seite angezeigt wird: bei 90/270 Grad Drehung die
+     * gespeicherte Höhe. Gescannte Stapel tragen die Drehung oft im /Rotate
+     * statt in den Maßen, sonst gälte ein quer eingescannter Auszug als hoch.
+     */
+    public function displayWidthPt(): float {
+        return $this->isRotatedSideways() ? $this->heightPt : $this->widthPt;
+    }
+
+    /** Höhe, wie die Seite angezeigt wird (siehe {@see displayWidthPt()}). */
+    public function displayHeightPt(): float {
+        return $this->isRotatedSideways() ? $this->widthPt : $this->heightPt;
+    }
+
+    private function isRotatedSideways(): bool {
+        return ((($this->rotation % 180) + 180) % 180) === 90;
+    }
 
     /**
      * Erstellt eine PageSize aus pdfinfo-Output.
@@ -119,14 +139,14 @@ final readonly class PageSize {
      * Prüft ob die Seite im Landscape-Format ist.
      */
     public function isLandscape(): bool {
-        return $this->widthPt > $this->heightPt;
+        return $this->displayWidthPt() > $this->displayHeightPt();
     }
 
     /**
      * Prüft ob die Seite im Portrait-Format ist.
      */
     public function isPortrait(): bool {
-        return $this->heightPt > $this->widthPt;
+        return $this->displayHeightPt() > $this->displayWidthPt();
     }
 
     /**

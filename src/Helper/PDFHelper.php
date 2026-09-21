@@ -443,18 +443,26 @@ final class PDFHelper {
             return [];
         }
 
-        $sizes = [];
-
+        // "Page    1 size:  ..." und "Page    1 rot:   90" (pdfinfo -l);
+        // die Drehung kommt erst nach der Größe, deshalb zwei Durchgänge.
+        $dimensions = [];
+        $rotations = [];
         foreach ($output as $line) {
-            // "Page    1 size:  ..." oder "Page   12 size:  ..."
             if (preg_match('/^Page\s+(\d+)\s+size:\s*([0-9.]+)\s*x\s*([0-9.]+)\s*pts/i', $line, $matches)) {
-                $pageNum = (int) $matches[1];
-                $sizes[$pageNum] = new PageSize(
-                    widthPt: (float) $matches[2],
-                    heightPt: (float) $matches[3],
-                    pageNumber: $pageNum
-                );
+                $dimensions[(int) $matches[1]] = [(float) $matches[2], (float) $matches[3]];
+            } elseif (preg_match('/^Page\s+(\d+)\s+rot:\s*(\d+)/i', $line, $matches)) {
+                $rotations[(int) $matches[1]] = (int) $matches[2];
             }
+        }
+
+        $sizes = [];
+        foreach ($dimensions as $pageNum => [$widthPt, $heightPt]) {
+            $sizes[$pageNum] = new PageSize(
+                widthPt: $widthPt,
+                heightPt: $heightPt,
+                pageNumber: $pageNum,
+                rotation: $rotations[$pageNum] ?? 0,
+            );
         }
 
         // Fallback auf Standard-Seitengröße wenn keine seitenweisen Daten

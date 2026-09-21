@@ -51,7 +51,12 @@ final class PDFSplitHelper {
         }
 
         if (!self::isAvailable()) {
-            self::logError('pdftk ist nicht verfügbar');
+            // Ohne pdftk übernimmt poppler: pdfseparate vereinzelt, pdfunite fügt
+            // wieder zusammen. Gleiche Ausgabe, nur zwei Werkzeuge statt einem.
+            if (self::isPopplerAvailable()) {
+                return self::extractPagesWithPoppler($inputPath, $outputPath, range($firstPage, $lastPage));
+            }
+            self::logError('Weder pdftk noch poppler (pdfseparate + pdfunite) verfügbar');
             return false;
         }
 
@@ -197,5 +202,146 @@ final class PDFSplitHelper {
     public static function isAvailable(): bool {
         $config = Config::getInstance();
         return $config->isExecutableAvailable('pdftk-cat');
+    }
+    /**
+     * Extrahiert eine beliebige Seitenmenge in der angegebenen Reihenfolge,
+     * etwa alle Querformatseiten einer Datei. Seiten dürfen sich wiederholen.
+     *
+     * @param string $inputPath Pfad zur Quell-PDF
+     * @param string $outputPath Pfad zur Ziel-PDF
+     * @param list<int> $pages 1-basierte Seitennummern in Zielreihenfolge
+     * @return bool true bei Erfolg
+     */
+    public static function extractPageSet(string $inputPath, string $outputPath, array $pages): bool {
+        $pages = array_values(array_filter(array_map('intval', $pages), static fn (int $page): bool => $page >= 1));
+        if ($pages === []) {
+            self::logError('Keine Seiten zum Extrahieren angegeben', ['path' => $inputPath]);
+            return false;
+        }
+        if (!File::exists($inputPath)) {
+            self::logError('PDF-Datei nicht gefunden', ['path' => $inputPath]);
+            return false;
+        }
+        if (!PDFHelper::isValidPdf($inputPath)) {
+            self::logError('Ungültige PDF-Datei', ['path' => $inputPath]);
+            return false;
+        }
+        if (self::isAvailable()) {
+            return self::extractPageSetWithPdftk($inputPath, $outputPath, $pages);
+        }
+        if (self::isPopplerAvailable()) {
+            return self::extractPagesWithPoppler($inputPath, $outputPath, $pages);
+        }
+        self::logError('Weder pdftk noch poppler (pdfseparate + pdfunite) verfügbar');
+        return false;
+    }
+
+    /**
+     * pdftk kennt beliebige Seitenlisten direkt: `cat 1 3 5`.
+     *
+     * @param list<int> $pages
+     */
+    private static function extractPageSetWithPdftk(string $inputPath, string $outputPath, array $pages): bool {
+        $pdftk = Config::getInstance()->getExecutablePathWithFallback('pdftk');
+        $parts = [escapeshellarg($pdftk), escapeshellarg($inputPath), 'cat'];
+        foreach ($pages as $page) {
+            $parts[] = (string) $page;
+        }
+        $parts[] = 'output';
+        $parts[] = escapeshellarg($outputPath);
+
+        $output = [];
+        $returnCode = 0;
+        if (!Shell::executeShellCommand(implode(' ', $parts), $output, $returnCode) || $returnCode !== 0) {
+            self::logError('PDF-Seitenauswahl (pdftk) fehlgeschlagen', [
+                'returnCode' => $returnCode,
+                'output' => implode("\n", $output),
+                'pages' => $pages,
+            ]);
+            return false;
+        }
+        if (!File::exists($outputPath)) {
+            self::logError('Extrahierte PDF wurde nicht erstellt', ['path' => $outputPath]);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * poppler-Weg: jede gewünschte Seite mit pdfseparate vereinzeln, dann in
+     * Zielreihenfolge mit pdfunite zusammenfügen (eine Seite: nur kopieren).
+     *
+     * @param list<int> $pages
+     */
+    private static function extractPagesWithPoppler(string $inputPath, string $outputPath, array $pages): bool {
+        $config = Config::getInstance();
+        $pdfseparate = $config->getExecutablePathWithFallback('pdfseparate');
+        $pdfunite = $config->getExecutablePathWithFallback('pdfunite');
+
+        $tempDir = sys_get_temp_dir() . '/pdf-split-poppler-' . bin2hex(random_bytes(6));
+        Folder::create($tempDir);
+
+        try {
+            $singles = [];
+            foreach ($pages as $page) {
+                $single = $tempDir . '/p-' . $page . '.pdf';
+                if (!File::exists($single)) {
+                    // pdfseparate setzt %d im Muster durch die Seitennummer
+                    $command = escapeshellarg($pdfseparate) . ' -f ' . $page . ' -l ' . $page . ' '
+                        . escapeshellarg($inputPath) . ' ' . escapeshellarg($tempDir . '/p-%d.pdf');
+                    $output = [];
+                    $returnCode = 0;
+                    if (!Shell::executeShellCommand($command, $output, $returnCode) || $returnCode !== 0 || !File::exists($single)) {
+                        self::logError('PDF-Seite konnte nicht vereinzelt werden (pdfseparate)', [
+                            'page' => $page,
+                            'returnCode' => $returnCode,
+                            'output' => implode("\n", $output),
+                        ]);
+                        return false;
+                    }
+                }
+                $singles[] = $single;
+            }
+
+            if (count($singles) === 1) {
+                return copy($singles[0], $outputPath);
+            }
+
+            $parts = [escapeshellarg($pdfunite)];
+            foreach ($singles as $single) {
+                $parts[] = escapeshellarg($single);
+            }
+            $parts[] = escapeshellarg($outputPath);
+
+            $output = [];
+            $returnCode = 0;
+            if (!Shell::executeShellCommand(implode(' ', $parts), $output, $returnCode) || $returnCode !== 0) {
+                self::logError('PDF-Seiten konnten nicht zusammengefügt werden (pdfunite)', [
+                    'returnCode' => $returnCode,
+                    'output' => implode("\n", $output),
+                ]);
+                return false;
+            }
+
+            return File::exists($outputPath);
+        } finally {
+            Folder::delete($tempDir, recursive: true);
+        }
+    }
+
+    /**
+     * Prüft ob poppler (pdfseparate + pdfunite) als Ersatz für pdftk verfügbar ist.
+     */
+    public static function isPopplerAvailable(): bool {
+        $config = Config::getInstance();
+        return $config->isExecutableAvailable('pdfseparate') && $config->isExecutableAvailable('pdfunite');
+    }
+
+    /**
+     * Prüft ob Seiten extrahiert werden können, egal mit welchem Werkzeug.
+     */
+    public static function isPageExtractionAvailable(): bool {
+        return self::isAvailable() || self::isPopplerAvailable();
     }
 }

@@ -356,6 +356,20 @@
                 "[OUTPUT]"
             ]
         },
+        "pdfseparate": {
+            "path": "pdfseparate",
+            "required": false,
+            "description": "PDF Seiten vereinzeln (poppler-Ersatz fuer pdftk cat)",
+            "package": "poppler-utils",
+            "arguments": [
+                "-f",
+                "[FIRST]",
+                "-l",
+                "[LAST]",
+                "[INPUT]",
+                "[OUTPUT-PATTERN]"
+            ]
+        },
         "pdftk-cat": {
             "path": "pdftk",
             "required": false,
