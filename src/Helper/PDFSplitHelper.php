@@ -197,6 +197,31 @@ final class PDFSplitHelper {
     }
 
     /**
+     * Vereinzelt eine Seite mit pdfseparate nach <tempDir>/p-<seite>.pdf.
+     */
+    private static function separatePage(string $pdfseparate, string $inputPath, string $tempDir, int $page): bool {
+        // pdfseparate setzt %d im Muster durch die Seitennummer
+        $command = escapeshellarg($pdfseparate) . ' -f ' . $page . ' -l ' . $page . ' '
+            . escapeshellarg($inputPath) . ' ' . escapeshellarg($tempDir . '/p-%d.pdf');
+        $output = [];
+        $returnCode = 0;
+        if (!Shell::executeShellCommand($command, $output, $returnCode) || $returnCode !== 0) {
+            self::logError('PDF-Seite konnte nicht vereinzelt werden (pdfseparate)', [
+                'page' => $page,
+                'returnCode' => $returnCode,
+                'output' => implode("\n", $output),
+            ]);
+            return false;
+        }
+        if (!File::exists($tempDir . '/p-' . $page . '.pdf')) {
+            self::logError('pdfseparate hat keine Seitendatei erzeugt', ['page' => $page]);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Prüft ob pdftk verfügbar ist.
      */
     public static function isAvailable(): bool {
@@ -286,20 +311,9 @@ final class PDFSplitHelper {
             $singles = [];
             foreach ($pages as $page) {
                 $single = $tempDir . '/p-' . $page . '.pdf';
-                if (!File::exists($single)) {
-                    // pdfseparate setzt %d im Muster durch die Seitennummer
-                    $command = escapeshellarg($pdfseparate) . ' -f ' . $page . ' -l ' . $page . ' '
-                        . escapeshellarg($inputPath) . ' ' . escapeshellarg($tempDir . '/p-%d.pdf');
-                    $output = [];
-                    $returnCode = 0;
-                    if (!Shell::executeShellCommand($command, $output, $returnCode) || $returnCode !== 0 || !File::exists($single)) {
-                        self::logError('PDF-Seite konnte nicht vereinzelt werden (pdfseparate)', [
-                            'page' => $page,
-                            'returnCode' => $returnCode,
-                            'output' => implode("\n", $output),
-                        ]);
-                        return false;
-                    }
+                // Eine Seite, die mehrfach gewünscht ist, wird nur einmal vereinzelt
+                if (!File::exists($single) && !self::separatePage($pdfseparate, $inputPath, $tempDir, $page)) {
+                    return false;
                 }
                 $singles[] = $single;
             }
