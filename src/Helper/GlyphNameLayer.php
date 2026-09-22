@@ -101,7 +101,8 @@ final class GlyphNameLayer {
      *
      * @param string $pdfPath Pfad zur PDF-Datei.
      * @return GlyphLayerResult|null null, wenn mutool fehlt, die Datei keine
-     *         Textglyphen traegt oder zu viele Glyphen unbenannt sind.
+     *         Textglyphen traegt oder auf JEDER Seite zu viele Glyphen
+     *         unbenannt sind (Gate je Seite, siehe fromTraceFile()).
      */
     public static function build(string $pdfPath): ?GlyphLayerResult {
         $traceFile = self::trace($pdfPath);
@@ -176,6 +177,10 @@ final class GlyphNameLayer {
         $matrix = [1.0, 0.0, 0.0, 1.0, 0.0, 0.0];
         $glyphs = 0;
         $unknown = 0;
+        /** @var array<int, int> Glyphen je Seite */
+        $pageGlyphs = [];
+        /** @var array<int, int> unbenannte Glyphen je Seite */
+        $pageUnknown = [];
 
         while ($reader->read()) {
             if ($reader->nodeType !== XMLReader::ELEMENT) {
@@ -203,10 +208,12 @@ final class GlyphNameLayer {
                     break;
                 case 'g':
                     $glyphs++;
+                    $pageGlyphs[max($page, 1)] = ($pageGlyphs[max($page, 1)] ?? 0) + 1;
                     $name = (string) $reader->getAttribute('glyph');
                     $char = self::charForGlyphName($name);
                     if ($char === null) {
                         $unknown++;
+                        $pageUnknown[max($page, 1)] = ($pageUnknown[max($page, 1)] ?? 0) + 1;
                         // Besser die Luege der ToUnicode-Tabelle als ein Loch:
                         // der Aufrufer sieht den Anteil im Ergebnis.
                         $char = (string) $reader->getAttribute('unicode');
@@ -233,21 +240,45 @@ final class GlyphNameLayer {
             return null;
         }
 
-        $unknownShare = $unknown / $glyphs;
-        if ($unknownShare > self::MAX_UNKNOWN_SHARE) {
+        // Gate JE SEITE, nicht dokumentweit: Reprint-PDFs mischen Fonts - die
+        // Buchungsseiten in Arial mit sprechenden Namen, eine Werbeseite in
+        // einem Subset ohne Namen. Dokumentweit verwirft der Anteil der
+        // Werbeseite die exakten Seiten mit; je Seite bleibt die Wahrheit
+        // dort erhalten, wo sie steht. Seiten ueber der Schwelle werden mit
+        // den ToUnicode-Zeichen gerendert und im Ergebnis benannt - ob ein
+        // solcher Teil-Layer fachlich reicht, entscheidet der Aufrufer
+        // (Saldo-Pruefsumme). Erst wenn KEINE Seite die Schwelle haelt, gibt
+        // es keine Ebene.
+        $unreliable = [];
+        foreach ($pageGlyphs as $pageNumber => $count) {
+            if (($pageUnknown[$pageNumber] ?? 0) / $count > self::MAX_UNKNOWN_SHARE) {
+                $unreliable[] = $pageNumber;
+            }
+        }
+        if (count($unreliable) === count($pageGlyphs)) {
             self::logInfo(sprintf(
-                'Glyphennamen-Ebene verworfen: %.1f%% der %d Glyphen tragen keinen sprechenden Namen: %s',
-                $unknownShare * 100,
+                'Glyphennamen-Ebene verworfen: %.1f%% der %d Glyphen tragen keinen sprechenden Namen (alle %d Seiten): %s',
+                $unknown / $glyphs * 100,
                 $glyphs,
+                count($pageGlyphs),
                 $pdfPath
             ));
 
             return null;
         }
+        if ($unreliable !== []) {
+            self::logInfo(sprintf(
+                'Glyphennamen-Ebene teilweise: Seite(n) %s ohne sprechende Namen, %d von %d Seiten exakt: %s',
+                implode(', ', $unreliable),
+                count($pageGlyphs) - count($unreliable),
+                count($pageGlyphs),
+                $pdfPath
+            ));
+        }
 
         $text = self::render($pages);
 
-        return trim($text) === '' ? null : new GlyphLayerResult($text, $glyphs, $unknown);
+        return trim($text) === '' ? null : new GlyphLayerResult($text, $glyphs, $unknown, count($pageGlyphs), $unreliable);
     }
 
     /**

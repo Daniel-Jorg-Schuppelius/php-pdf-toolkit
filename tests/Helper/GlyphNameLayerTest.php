@@ -128,6 +128,51 @@ class GlyphNameLayerTest extends TestCase {
         $this->assertStringEndsWith('B', $result->text, 'Rueckfall auf das ToUnicode-Zeichen');
     }
 
+    /**
+     * Reprint-PDF mit Font-Mix (Deutsche Bank Kreditkarte 11/2021): die
+     * Buchungsseiten tragen sprechende Namen, die Werbeseite ein Subset ohne
+     * Namen. Das Gate gilt je Seite - die exakten Seiten bleiben erhalten, die
+     * unbenannte wird benannt, damit der Aufrufer den Teil-Layer pruefen kann.
+     */
+    public function test_pages_are_gated_separately(): void {
+        $named = [];
+        for ($i = 0; $i < 20; $i++) {
+            $named[] = ['x', 'a', 50.0 + $i * 5.838];
+        }
+        $unnamed = [];
+        for ($i = 0; $i < 20; $i++) {
+            $unnamed[] = ['x', 'g' . $i, 50.0 + $i * 5.838];
+        }
+
+        $result = GlyphNameLayer::fromTraceFile($this->traceWithPages([
+            [$this->line(500.0, $named)],
+            [$this->line(500.0, $unnamed)],
+        ]));
+
+        $this->assertNotNull($result, 'Eine exakte Seite genuegt fuer eine Ebene');
+        $this->assertSame(2, $result->pages);
+        $this->assertSame([2], $result->unreliablePages);
+        $this->assertTrue($result->isPartial());
+        $this->assertFalse($result->isComplete());
+        $this->assertSame(20, $result->unnamed);
+        $this->assertStringStartsWith(str_repeat('a', 20), $result->text, 'Seite 1 exakt aus den Glyphennamen');
+        $this->assertStringEndsWith(str_repeat('x', 20), $result->text, 'Seite 2 mit den ToUnicode-Zeichen, nicht verschwiegen');
+        $this->assertSame([2], $result->stats()['unreliablePages']);
+    }
+
+    /** Sind ALLE Seiten unbenannt, gibt es weiterhin keine Ebene. */
+    public function test_all_pages_unnamed_reject_the_layer(): void {
+        $unnamed = [];
+        for ($i = 0; $i < 20; $i++) {
+            $unnamed[] = ['x', 'g' . $i, 50.0 + $i * 5.838];
+        }
+
+        $this->assertNull(GlyphNameLayer::fromTraceFile($this->traceWithPages([
+            [$this->line(500.0, $unnamed)],
+            [$this->line(400.0, $unnamed)],
+        ])));
+    }
+
     public function test_empty_trace_yields_null(): void {
         $this->assertNull(GlyphNameLayer::fromTraceFile($this->trace([])));
     }
@@ -150,6 +195,25 @@ class GlyphNameLayerTest extends TestCase {
         }
 
         return $xml . '</span>' . "\n" . '</fill_text>' . "\n";
+    }
+
+    /**
+     * Mehrseitiger Trace: je Seite eine Liste von Zeilen.
+     *
+     * @param list<list<string>> $pages
+     */
+    private function traceWithPages(array $pages): string {
+        $xml = '<?xml version="1.0"?>' . "\n" . '<document name="test.pdf">' . "\n";
+        foreach ($pages as $lines) {
+            $xml .= '<page mediabox="0 0 595.276 841.89">' . "\n" . implode('', $lines) . '</page>' . "\n";
+        }
+        $xml .= '</document>' . "\n";
+
+        $file = tempnam(sys_get_temp_dir(), 'glyphtrace_test_');
+        file_put_contents($file, $xml);
+        $this->tempFiles[] = $file;
+
+        return $file;
     }
 
     /**

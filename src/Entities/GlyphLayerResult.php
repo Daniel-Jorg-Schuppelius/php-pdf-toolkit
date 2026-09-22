@@ -26,11 +26,23 @@ final readonly class GlyphLayerResult {
      * @param int $glyphs Anzahl gelesener Glyphen.
      * @param int $unnamed Davon ohne sprechenden Glyphennamen (aus der ToUnicode-Tabelle uebernommen).
      */
+    /**
+     * @param int $pages Seiten mit Textglyphen
+     * @param list<int> $unreliablePages Seiten ueber der Unbenannt-Schwelle (dort steht
+     *                                   nur das ToUnicode-Zeichen, keine Wahrheit)
+     */
     public function __construct(
         public string $text,
         public int $glyphs,
         public int $unnamed,
+        public int $pages = 1,
+        public array $unreliablePages = [],
     ) {}
+
+    /** Mindestens eine Seite traegt nur ToUnicode-Zeichen: Teil-Layer, fachlich zu bestaetigen. */
+    public function isPartial(): bool {
+        return $this->unreliablePages !== [];
+    }
 
     /** Anteil der Glyphen ohne sprechenden Namen (0.0 = vollstaendig benannt). */
     public function unnamedShare(): float {
@@ -50,6 +62,8 @@ final readonly class GlyphLayerResult {
             'glyphs' => $this->glyphs,
             'unnamed' => $this->unnamed,
             'unnamedShare' => round($this->unnamedShare(), 4),
+            'pages' => $this->pages,
+            'unreliablePages' => $this->unreliablePages,
         ];
     }
 }
