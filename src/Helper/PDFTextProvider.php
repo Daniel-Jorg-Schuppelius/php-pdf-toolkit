@@ -186,16 +186,22 @@ final class PDFTextProvider {
      * für gescannte Tabellen ohne Textlayer, die OCR sonst spaltenweise zerreißt.
      *
      * @param string $language Tesseract-Sprache(n), Standard "deu+eng".
+     * @param int|null $psm Seitensegmentierung, Standard die konfigurierte Zeilen-PSM.
+     * @param int|null $dpi Rasterauflösung, Standard 300. Kleine Schriftgrade
+     *                      (Kreditkartenabrechnungen, Gebührenzeilen) verlieren bei
+     *                      300 dpi Ziffern, die 400 oder 600 dpi noch tragen – der
+     *                      Aufrufer kann die Auflösung als Variante durchprobieren.
      */
-    public function ocrRowAlignedText(string $language = 'deu+eng', ?int $psm = null): ?string {
+    public function ocrRowAlignedText(string $language = 'deu+eng', ?int $psm = null, ?int $dpi = null): ?string {
         $psm ??= TesseractReader::ocrSettings()['rowsPsm'];
-        $key = PDFTextVariant::OcrRowAligned->value . ':' . $language . ':psm' . $psm;
+        $dpi ??= 300;
+        $key = PDFTextVariant::OcrRowAligned->value . ':' . $language . ':psm' . $psm . ($dpi !== 300 ? ':dpi' . $dpi : '');
         if (array_key_exists($key, $this->textCache)) {
             $this->logDebug("Cache-Hit für Variante '{$key}': {$this->pdfPath}");
             return $this->textCache[$key];
         }
 
-        $text = PDFBboxLayoutHelper::ocrRowAlignedText($this->pdfPath, $language, 300, $psm);
+        $text = PDFBboxLayoutHelper::ocrRowAlignedText($this->pdfPath, $language, $dpi, $psm);
         $this->textCache[$key] = trim($text) !== '' ? $text : null;
 
         if ($this->textCache[$key] === null) {
