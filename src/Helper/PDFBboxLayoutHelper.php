@@ -42,6 +42,22 @@ final class PDFBboxLayoutHelper {
     private const OCR_Y_TOLERANCE = 15.0;
 
     /**
+     * Version des OCR-Reassembly-Algorithmus - Teil des Cache-Schlüssels, damit
+     * eine geänderte Zeilenbildung nicht alte Ergebnisse aus dem OcrCache liest.
+     * 3: kleine Zeichen verschieben die gleitende Zeilenlage nicht (2 war eine
+     *    verworfene Fassung mit Boxmitte - ihre Cache-Eintraege gelten nicht).
+     */
+    private const OCR_REASSEMBLY_VERSION = 3;
+
+    /**
+     * Anteil der typischen Worthöhe, ab dem ein OCR-Wort die gleitende
+     * Zeilenlage verschieben darf. Kleinere Zeichen (Vorzeichen, Punkte,
+     * Tabellenlinien als "|") gehören zur nächstgelegenen Zeile, ketten aber
+     * nicht zwei Zeilen zusammen.
+     */
+    private const OCR_ANCHOR_MIN_HEIGHT_RATIO = 0.5;
+
+    /**
      * Liefert den spaltentreu zeilen-reassemblierten Text eines PDF.
      *
      * @return string Zeilen, je eine pro Bildschirm-Zeile, Wörter nach x sortiert.
@@ -142,6 +158,7 @@ final class PDFBboxLayoutHelper {
             'whitelist' => $settings['whitelist'],
             'deskew' => $settings['preprocess'],
             'denoise' => $settings['denoise'],
+            'reassembly' => self::OCR_REASSEMBLY_VERSION,
         ];
         $cached = OcrCache::get($pdfPath, 'bbox-row-aligned', $cacheParameters);
         if ($cached !== null) {
@@ -248,7 +265,11 @@ final class PDFBboxLayoutHelper {
             if ($text === '') {
                 continue;
             }
-            $items[] = ['x' => (float) $f[6], 'y' => (float) $f[7], 't' => $text];
+            // Lage bleibt die Oberkante: bei gleicher Schrift fluchtet sie, die
+            // Boxmitte dagegen wandert mit Unterlaengen ("INFORMATIONEN," 26 px statt
+            // 21 px hoch) und zog eng gesetzte Zeilen zusammen (UniCredit 0398).
+            // Die Hoehe dient nur dazu, kleine Zeichen zu erkennen.
+            $items[] = ['x' => (float) $f[6], 'y' => (float) $f[7], 'h' => (float) $f[9], 't' => $text];
         }
         return $items;
     }
@@ -257,10 +278,20 @@ final class PDFBboxLayoutHelper {
      * Clustert Wort-Items (x, y, text) nach y zu Zeilen (gleitende Toleranz) und
      * sortiert jede Zeile nach x.
      *
-     * @param list<array{x: float, y: float, t: string}> $items
+     * Tragen die Items eine Höhe (OCR), verschieben nur Wörter ab
+     * {@see OCR_ANCHOR_MIN_HEIGHT_RATIO} der typischen Höhe die Zeilenlage:
+     * Vorzeichen, Punkte und als Zeichen gelesene Tabellenlinien zwischen zwei
+     * Zeilen ketteten sonst beide zu einer zusammen ("30.03.2022 +697 MIELE
+     * AMAZON ONLINE SHOP PUNKTE ...", Handyfoto 29.09.2026).
+     *
+     * @param list<array{x: float, y: float, t: string, h?: float}> $items
      */
     private static function reassembleItems(array $items, float $yTolerance): string {
         usort($items, static fn (array $a, array $b): int => $a['y'] <=> $b['y']);
+
+        $heights = array_values(array_filter(array_map(static fn (array $it): float => $it['h'] ?? 0.0, $items)));
+        sort($heights);
+        $minAnchorHeight = $heights === [] ? 0.0 : $heights[intdiv(count($heights), 2)] * self::OCR_ANCHOR_MIN_HEIGHT_RATIO;
 
         $lines = [];
         $row = [];
@@ -270,9 +301,13 @@ final class PDFBboxLayoutHelper {
                 usort($row, static fn (array $a, array $b): int => $a['x'] <=> $b['x']);
                 $lines[] = implode(' ', array_column($row, 't'));
                 $row = [];
+                $rowY = null;
             }
             $row[] = $it;
-            $rowY = $it['y']; // gleitend: erlaubt leichten Spalten-Versatz innerhalb einer Zeile
+            // gleitend: erlaubt leichten Spalten-Versatz innerhalb einer Zeile
+            if ($rowY === null || ($it['h'] ?? $minAnchorHeight) >= $minAnchorHeight) {
+                $rowY = $it['y'];
+            }
         }
         if ($row !== []) {
             usort($row, static fn (array $a, array $b): int => $a['x'] <=> $b['x']);
