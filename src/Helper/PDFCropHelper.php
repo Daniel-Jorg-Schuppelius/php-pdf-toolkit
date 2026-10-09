@@ -593,7 +593,7 @@ final class PDFCropHelper {
 
         // Das Skript nummeriert sechsstellig mit führenden Nullen - die
         // Sortierung nach Namen ist die Ergebnisreihenfolge
-        $files = glob($outputDir . '/[0-9][0-9][0-9][0-9][0-9][0-9].pdf') ?: [];
+        $files = Folder::findByPattern($outputDir, '[0-9][0-9][0-9][0-9][0-9][0-9].pdf');
         sort($files, SORT_STRING);
 
         if (count($files) !== $pages) {
