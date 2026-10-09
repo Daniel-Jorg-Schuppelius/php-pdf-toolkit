@@ -63,17 +63,33 @@ jobs:
     - name: Static analysis (PHPStan)
       run: composer run-script lint
 
+    # install-dependencies.sh installiert nur die Pflichtwerkzeuge; mutool und
+    # ImageMagick sind optional und fehlten bisher waehrend der Hauptsuite - die
+    # Raster-, Seiten-, Schutz- und Metadaten-Tests (37) sowie die Tests mit
+    # bildlastigen PDFs (4) uebersprangen still. Beide hier vor der Suite
+    # nachziehen. Ubuntu liefert ImageMagick 6, dessen policy.xml das Schreiben
+    # von PDF sperren kann; die Testhilfe PdfProbe::imageHeavy baut ihre PDF mit
+    # convert, deshalb die PDF-Zeile freischalten, falls vorhanden.
+    - name: Systemwerkzeuge fuer die Tests sicherstellen
+      run: |
+        missing=()
+        command -v mutool >/dev/null || missing+=(mupdf-tools)
+        command -v convert >/dev/null || missing+=(imagemagick)
+        if ((${#missing[@]})); then
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "${missing[@]}"
+        fi
+        for policy in /etc/ImageMagick-6/policy.xml /etc/ImageMagick-7/policy.xml; do
+          [[ -f "$policy" ]] && sudo sed -i -E 's/rights="none" (pattern="PDF")/rights="read|write" \1/' "$policy"
+        done
+        echo "mutool: $(mutool -v 2>&1 | head -1)"; echo "convert: $(convert -version | head -1)"
+
     - name: Run test suite
       run: composer run-script test
 
     # Die MuPDF-Skripte unter data/mupdf laufen auf dem Server mit einer
-    # aelteren Version als hier (ADR-0034 E5). Erst die aktuelle sicherstellen
-    # (sonst ueberspringen die Raster- und Seiten-Tests still), dann 1.17 und
-    # 1.21 aus dem Debian-Pool davorstellen und die betroffenen Tests
-    # wiederholen. scripts/ci/mupdf-alt.sh prueft feste SHA-256-Summen.
-    - name: MuPDF sicherstellen
-      run: command -v mutool >/dev/null || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mupdf-tools
-
+    # aelteren Version als hier (ADR-0034 E5): 1.17 und 1.21 aus dem
+    # Debian-Pool davorstellen und die betroffenen Tests wiederholen.
+    # scripts/ci/mupdf-alt.sh prueft feste SHA-256-Summen.
     - name: Cache aeltere MuPDF-Versionen
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
