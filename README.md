@@ -33,6 +33,10 @@ A PHP 8.2+ library for extracting text from PDF documents and creating PDFs with
 - **Image OCR** - `TesseractReader::extractTextFromImage()` runs OCR on a single image file instead of a PDF
 - **Encrypted Layers** - `CipherLayerSolver` resolves encrypted content layers so that text extraction also works on protected documents
 - **Broken ToUnicode Tables** - `GlyphNameLayer` (via `PDFTextProvider::glyphNameText()`) rebuilds the text layer from the fonts' glyph names, so a PDF whose ToUnicode table maps every glyph to the wrong character still yields its exact text - no OCR, no guessing. Needs `mutool` (mupdf-tools)
+- **Pages** - `PDFPageHelper` arranges pages (order, rotation per page, drop, duplicate), rotates, puts several pages on one sheet (`nup`), renders thumbnails and page images; `PDFCropHelper::cropToGrid()` splits every page into a grid of parts. All page operations keep the content streams - nothing is rasterised, text stays text. Needs `mutool`; the scripts under `data/mupdf/` run with MuPDF 1.17, 1.21 and 1.25
+- **Security** - `PDFSecurityHelper` probes, sets (AES-256 with permissions) and removes password protection. Passwords never travel on the command line. Needs `mutool`
+- **Optimize** - `PDFOptimizeHelper` shrinks PDFs (`strong` via Ghostscript, `lossless` via OCRmyPDF's optimizer) and converts to PDF/A-2b
+- **OCR languages** - `TesseractDataHelper::SUPPORTED_LANGUAGES` is the allow-list for language codes that reach Tesseract and the tessdata download
 
 ## Requirements
 
@@ -43,7 +47,8 @@ A PHP 8.2+ library for extracting text from PDF documents and creating PDFs with
 - `pdftotext` (`apt install poppler-utils`)
 - `tesseract-ocr` (`apt install tesseract-ocr tesseract-ocr-deu`)
 - `ocrmypdf` (`apt install ocrmypdf`)
-- `mutool` (`apt install mupdf-tools`) - optional, needed for `glyphNameText()` on PDFs with broken ToUnicode tables
+- `mutool` (`apt install mupdf-tools`) - optional, needed for `glyphNameText()` on PDFs with broken ToUnicode tables and for all page and security helpers
+- `gs` (`apt install ghostscript`) - optional, cropping and strong compression
 - Java + PDFBox JAR (optional)
 
 ### For PDF Creation (at least one)
@@ -213,4 +218,6 @@ AGPL-3.0-or-later - see [LICENSE](LICENSE) file.
 
 ## Versions
 
-Releases are tagged in Git; `git tag --sort=-v:refname` lists them (latest: v0.17.2). There is no separate changelog file — the tags and the commit history are the record.
+Releases are tagged in Git; `git tag --sort=-v:refname` lists them (latest: v0.21.0). There is no separate changelog file — the tags and the commit history are the record.
+
+The CI runs the MuPDF-based tests against MuPDF 1.17 and 1.21 as well (`scripts/ci/mupdf-alt.sh`, packages from the Debian pool with pinned checksums), because servers often run an older MuPDF than the development machine.

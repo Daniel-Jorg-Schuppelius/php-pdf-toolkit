@@ -1,7 +1,7 @@
 // Zerlegt die Seiten einer PDF in ein Raster aus gleich grossen Teilen.
 //
 // Aufruf (mutool run):
-//   grid-split.js <eingabe> <ausgabe> <zeilen> <spalten> <von> <bis>
+//   grid-split.js <lib.js> <eingabe> <ausgabe> <zeilen> <spalten> <von> <bis>
 //                 <rand-oben> <rand-rechts> <rand-unten> <rand-links> <single|separate>
 //
 // Jeder Teil wird eine eigene Seite, die denselben Inhaltsstrom wie die
@@ -15,77 +15,11 @@
 // single:   <ausgabe> ist die Ziel-PDF.
 // separate: <ausgabe> ist ein Verzeichnis; jede Seite des Ergebnisses wird
 //           eine eigene Datei 000001.pdf, 000002.pdf, ...
-//
-// Die JS-Schnittstelle von MuPDF unterscheidet sich je Version (geprueft mit
-// 1.17, 1.21 und 1.25): Document.openDocument gibt es erst nach 1.21 - new
-// PDFDocument(pfad) geht ueberall; PDFObject.forEach ruft alt mit
-// (Schluessel, Wert), neu mit (Wert, Schluessel); graftPage fehlt in 1.17;
-// ein fehlender Schluessel ist alt undefined, neu null.
+
+var SCRIPT = "grid-split";
+load(scriptArgs[0]);
 
 var BOXES = ["MediaBox", "CropBox", "BleedBox", "TrimBox", "ArtBox"];
-var INHERITED = ["Resources", "MediaBox", "CropBox", "Rotate"];
-
-function fail(message) {
-    throw new Error("grid-split: " + message);
-}
-
-function intArg(index, name) {
-    var value = parseInt(scriptArgs[index], 10);
-    if (isNaN(value)) fail(name + " fehlt oder ist keine Zahl");
-    return value;
-}
-
-function floatArg(index, name) {
-    var value = parseFloat(scriptArgs[index]);
-    if (isNaN(value) || value < 0) fail(name + " fehlt oder ist negativ");
-    return value;
-}
-
-function isMissing(obj) {
-    return obj === null || obj === undefined || obj.isNull();
-}
-
-// Eintraege eines Dictionaries als (Schluessel, Wert), in jeder MuPDF-Version
-function eachEntry(dict, fn) {
-    dict.forEach(function (a, b) {
-        if (typeof a === "string") fn(a, b);
-        else fn(b, a);
-    });
-}
-
-// Seitenattribut, notfalls vom Seitenbaum geerbt
-function lookup(page, key) {
-    var node = page;
-    for (var depth = 0; depth < 64 && !isMissing(node); depth++) {
-        var value = node.get(key);
-        if (!isMissing(value)) return value;
-        node = node.get("Parent");
-    }
-    return null;
-}
-
-function toRect(obj) {
-    if (isMissing(obj) || !obj.isArray() || obj.length !== 4) return null;
-    var v = [];
-    for (var i = 0; i < 4; i++) v.push(obj.get(i).valueOf());
-    return [Math.min(v[0], v[2]), Math.min(v[1], v[3]), Math.max(v[0], v[2]), Math.max(v[1], v[3])];
-}
-
-// Sichtbarer Bereich: CropBox geschnitten mit MediaBox
-function visibleBox(page) {
-    var media = toRect(lookup(page, "MediaBox"));
-    if (media === null) fail("Seite ohne MediaBox");
-    var crop = toRect(lookup(page, "CropBox"));
-    if (crop === null) return media;
-    var box = [Math.max(media[0], crop[0]), Math.max(media[1], crop[1]), Math.min(media[2], crop[2]), Math.min(media[3], crop[3])];
-    return (box[2] > box[0] && box[3] > box[1]) ? box : media;
-}
-
-function rotation(page) {
-    var value = lookup(page, "Rotate");
-    var angle = isMissing(value) ? 0 : Math.round(value.valueOf());
-    return ((angle % 360) + 360) % 360;
-}
 
 // Punkt in Anzeigekoordinaten (u nach rechts, v nach unten, Ursprung oben
 // links der angezeigten Seite) in PDF-Koordinaten des Seitenrahmens
@@ -96,23 +30,6 @@ function toUser(box, angle, u, v) {
         case 270: return [box[2] - v, box[3] - u];
         default: return [box[0] + u, box[3] - v];
     }
-}
-
-// Flache Kopie des Seitenobjekts mit aufgeloesten geerbten Attributen
-function copyPage(doc, page, withAnnots) {
-    var copy = doc.newDictionary();
-    eachEntry(page, function (key, value) {
-        if (key === "Parent" || (key === "Annots" && !withAnnots)) return;
-        copy.put(key, value);
-    });
-    for (var i = 0; i < INHERITED.length; i++) {
-        var key = INHERITED[i];
-        if (isMissing(copy.get(key))) {
-            var value = lookup(page, key);
-            if (!isMissing(value)) copy.put(key, value);
-        }
-    }
-    return copy;
 }
 
 function cellPages(doc, page, rows, cols, margins) {
@@ -150,10 +67,10 @@ function cellPages(doc, page, rows, cols, margins) {
     return result;
 }
 
-if (scriptArgs.length < 11) fail("zu wenige Argumente");
+if (args.length < 11) fail("zu wenige Argumente");
 
-var input = scriptArgs[0];
-var output = scriptArgs[1];
+var input = args[0];
+var output = args[1];
 var rows = intArg(2, "Zeilen");
 var cols = intArg(3, "Spalten");
 var first = intArg(4, "Von-Seite");
@@ -164,12 +81,11 @@ var margins = {
     bottom: floatArg(8, "Rand unten"),
     left: floatArg(9, "Rand links"),
 };
-var separate = scriptArgs[10] === "separate";
+var separate = args[10] === "separate";
 
 if (rows < 1 || cols < 1 || rows * cols < 2) fail("mindestens zwei Teile noetig");
 
-var doc = new PDFDocument(input);
-if (doc.needsPassword()) fail("PDF ist passwortgeschuetzt");
+var doc = openPdf(input);
 
 var count = doc.countPages();
 if (first < 1) first = 1;
@@ -200,9 +116,7 @@ if (separate) {
             // Verweis auf die Ursprungsseite zoege sonst das ganze Dokument mit
             single.insertPage(-1, single.addObject(single.graftObject(copyPage(doc, doc.findPage(n), false))));
         }
-        var name = String(n + 1);
-        while (name.length < 6) name = "0" + name;
-        single.save(output + "/" + name + ".pdf", "garbage,compress");
+        single.save(output + "/" + padNumber(n + 1, 6) + ".pdf", "garbage,compress");
     }
 } else {
     doc.save(output, "garbage,compress");

@@ -27,3 +27,5 @@ Thumbs.db
 
 # PHPStan
 /var/phpstan
+# Aeltere MuPDF-Versionen fuer die CI (scripts/ci/mupdf-alt.sh)
+/.mupdf-alt/

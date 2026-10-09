@@ -107,6 +107,42 @@
                 "[OUTPUT-PREFIX]"
             ]
         },
+        "pdftoppm-range-png": {
+            "path": "pdftoppm",
+            "required": false,
+            "description": "PDF-Seitenbereich als PNG, je Seite eine Datei",
+            "package": "poppler-utils",
+            "arguments": [
+                "-png",
+                "-r",
+                "[DPI]",
+                "-f",
+                "[FIRST]",
+                "-l",
+                "[LAST]",
+                "[PDF-FILE]",
+                "[OUTPUT-PREFIX]"
+            ]
+        },
+        "pdftoppm-range-jpeg": {
+            "path": "pdftoppm",
+            "required": false,
+            "description": "PDF-Seitenbereich als JPEG, je Seite eine Datei",
+            "package": "poppler-utils",
+            "arguments": [
+                "-jpeg",
+                "-jpegopt",
+                "quality=[QUALITY]",
+                "-r",
+                "[DPI]",
+                "-f",
+                "[FIRST]",
+                "-l",
+                "[LAST]",
+                "[PDF-FILE]",
+                "[OUTPUT-PREFIX]"
+            ]
+        },
         "pdfdetach-list": {
             "path": "pdfdetach",
             "required": false,
@@ -265,6 +301,36 @@
                 "[OUTPUT]"
             ]
         },
+        "ocrmypdf-optimize": {
+            "path": "ocrmypdf",
+            "required": false,
+            "description": "OCRmyPDF: verlustfrei optimieren (JBIG2, pngquant), ohne OCR, Stufe 'verlustfrei' von PDFOptimizeHelper",
+            "package": "ocrmypdf",
+            "arguments": [
+                "-q",
+                "--skip-text",
+                "--output-type",
+                "pdf",
+                "--optimize",
+                "3",
+                "[INPUT]",
+                "[OUTPUT]"
+            ]
+        },
+        "ocrmypdf-pdfa": {
+            "path": "ocrmypdf",
+            "required": false,
+            "description": "OCRmyPDF: nach PDF/A-2b wandeln, vorhandener Text bleibt, keine OCR",
+            "package": "ocrmypdf",
+            "arguments": [
+                "-q",
+                "--skip-text",
+                "--output-type",
+                "pdfa-2",
+                "[INPUT]",
+                "[OUTPUT]"
+            ]
+        },
         "ocrmypdf-force-sidecar": {
             "path": "ocrmypdf",
             "required": false,
@@ -328,11 +394,12 @@
         "mutool-grid-split": {
             "path": "mutool",
             "required": false,
-            "description": "MuPDF: Seiten in ein Raster aus Teilen zerlegen (data/mupdf/grid-split.js)",
+            "description": "MuPDF: Seiten in ein Raster aus Teilen zerlegen (data/mupdf/grid-split.js, lib.js als [LIB])",
             "package": "mupdf-tools",
             "arguments": [
                 "run",
                 "[SCRIPT]",
+                "[LIB]",
                 "[INPUT]",
                 "[OUTPUT]",
                 "[ROWS]",
@@ -344,6 +411,70 @@
                 "[MARGIN-BOTTOM]",
                 "[MARGIN-LEFT]",
                 "[LAYOUT]"
+            ]
+        },
+        "mutool-page-arrange": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF: Seiten anordnen, drehen, weglassen, verdoppeln (data/mupdf/page-arrange.js)",
+            "package": "mupdf-tools",
+            "arguments": [
+                "run",
+                "[SCRIPT]",
+                "[LIB]",
+                "[INPUT]",
+                "[OUTPUT]",
+                "[SEQUENCE]"
+            ]
+        },
+        "mutool-page-nup": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF: mehrere Seiten je Blatt (data/mupdf/page-nup.js)",
+            "package": "mupdf-tools",
+            "arguments": [
+                "run",
+                "[SCRIPT]",
+                "[LIB]",
+                "[INPUT]",
+                "[OUTPUT]",
+                "[PER-SHEET]",
+                "[SHEET]",
+                "[GAP-MM]",
+                "[ORIENTATION]"
+            ]
+        },
+        "mutool-pdf-protect": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF: Passwortschutz pruefen, setzen (AES-256), entfernen (data/mupdf/pdf-protect.js); Passwoerter aus Dateien, nie als Argument",
+            "package": "mupdf-tools",
+            "arguments": [
+                "run",
+                "[SCRIPT]",
+                "[LIB]",
+                "[MODE]",
+                "[INPUT]",
+                "[OUTPUT]",
+                "[USER-PASSWORD-FILE]",
+                "[OWNER-PASSWORD-FILE]",
+                "[PERMISSIONS]"
+            ]
+        },
+        "mutool-image-page": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF: Bilder ohne Neukodierung auf Seiten eines Blatts (data/mupdf/image-page.js); [IMAGES] als escapte Pfadfolge",
+            "package": "mupdf-tools",
+            "arguments": [
+                "run",
+                "[SCRIPT]",
+                "[LIB]",
+                "[OUTPUT]",
+                "[SHEET]",
+                "[MARGIN-MM]",
+                "[ORIENTATION]",
+                "[IMAGES]"
             ]
         },
         "gs-resize": {
@@ -362,6 +493,24 @@
                 "-dPDFFitPage",
                 "-dAutoRotatePages=/None",
                 "-dCompatibilityLevel=1.4",
+                "-sOutputFile=[OUTPUT]",
+                "-f",
+                "[INPUT]"
+            ]
+        },
+        "gs-compress": {
+            "path": "gs",
+            "required": false,
+            "description": "Ghostscript: Bilder auf 150 dpi abtasten (/ebook), Stufe 'stark' von PDFOptimizeHelper",
+            "package": "ghostscript",
+            "arguments": [
+                "-sDEVICE=pdfwrite",
+                "-dNOPAUSE",
+                "-dBATCH",
+                "-dQUIET",
+                "-dCompatibilityLevel=1.5",
+                "-dPDFSETTINGS=/ebook",
+                "-dAutoRotatePages=/None",
                 "-sOutputFile=[OUTPUT]",
                 "-f",
                 "[INPUT]"
@@ -401,18 +550,6 @@
                 "cat",
                 "[PAGE-RANGE]",
                 "output",
-                "[OUTPUT]"
-            ]
-        },
-        "qpdf-rotate": {
-            "path": "qpdf",
-            "required": false,
-            "description": "QPDF PDF Rotation mit physischer Transformation",
-            "package": "qpdf",
-            "arguments": [
-                "--rotate=[ANGLE]:1",
-                "--flatten-rotation",
-                "[INPUT]",
                 "[OUTPUT]"
             ]
         }

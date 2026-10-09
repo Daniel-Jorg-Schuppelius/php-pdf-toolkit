@@ -26,6 +26,16 @@ final class TesseractDataHelper {
 
     private const TESSDATA_BASE_URL = 'https://github.com/tesseract-ocr/tessdata/raw/main/';
     private const DEFAULT_LANGUAGES = ['deu', 'eng'];
+
+    /**
+     * Sprachen, die geladen und an Tesseract gegeben werden. Die Angabe kommt
+     * auch aus Kundenaufrufen; ohne diese Liste ginge freier Text in Pfade
+     * und Download-Adressen. Codes nach tessdata (ISO 639-2 plus Varianten).
+     */
+    public const SUPPORTED_LANGUAGES = [
+        'deu', 'eng', 'fra', 'ita', 'spa', 'nld', 'pol', 'por', 'ces', 'dan', 'swe', 'nor',
+        'fin', 'hun', 'ron', 'tur', 'ell', 'rus', 'ukr', 'deu_frak', 'osd',
+    ];
     private const REQUIRED_DATA_FILES = ['osd']; // Für Auto-Orientation/Script-Detection
     private const MIN_TRAINEDDATA_SIZE = 1024 * 1024; // 1 MB
 
@@ -41,10 +51,47 @@ final class TesseractDataHelper {
     }
 
     /**
+     * Zerlegt eine Sprachangabe ("deu+eng") in ihre Codes; leer für eine
+     * leere Angabe, null, wenn ein Code nicht in {@see SUPPORTED_LANGUAGES}
+     * steht.
+     *
+     * @return list<string>|null
+     */
+    public static function languageCodes(string $language): ?array {
+        $codes = [];
+        foreach (explode('+', $language) as $code) {
+            $code = trim($code);
+            if ($code === '') {
+                continue;
+            }
+            if (!in_array($code, self::SUPPORTED_LANGUAGES, true)) {
+                self::logError('Nicht unterstützte OCR-Sprache abgelehnt', ['language' => $language]);
+                return null;
+            }
+            $codes[] = $code;
+        }
+
+        return array_values(array_unique($codes));
+    }
+
+    /**
+     * Ob eine Sprachangabe ("deu+eng") mindestens einen und nur unterstützte
+     * Codes enthält.
+     */
+    public static function isSupportedLanguage(string $language): bool {
+        $codes = self::languageCodes($language);
+
+        return $codes !== null && $codes !== [];
+    }
+
+    /**
      * Prüft ob eine bestimmte Sprache verfügbar ist.
      */
     public static function hasLanguage(string $path, string $language): bool {
-        $languages = explode('+', $language);
+        $languages = self::languageCodes($language);
+        if ($languages === null) {
+            return false;
+        }
         foreach ($languages as $lang) {
             $lang = trim($lang);
             if (!empty($lang) && !File::exists($path . '/' . $lang . '.traineddata')) {
@@ -72,10 +119,11 @@ final class TesseractDataHelper {
             }
         }
 
-        // Zu ladende Sprachen ermitteln
-        $languages = $language !== null
-            ? array_map('trim', explode('+', $language))
-            : self::DEFAULT_LANGUAGES;
+        // Zu ladende Sprachen ermitteln; nur Codes aus der Positivliste
+        $languages = $language !== null ? self::languageCodes($language) : self::DEFAULT_LANGUAGES;
+        if ($languages === null) {
+            return false;
+        }
 
         // osd.traineddata ist Pflicht für Auto-Orientation/Script-Detection
         $languages = array_unique(array_merge(self::REQUIRED_DATA_FILES, $languages));
@@ -155,6 +203,10 @@ final class TesseractDataHelper {
      * @return string|null Pfad zu den Trainingsdaten oder null wenn nicht verfügbar
      */
     public static function getUsableDataPath(?string $language = null): ?string {
+        if ($language !== null && self::languageCodes($language) === null) {
+            return null;
+        }
+
         $localPath = self::getLocalDataPath();
 
         // Prüfe ob Daten vorhanden oder herunterladbar

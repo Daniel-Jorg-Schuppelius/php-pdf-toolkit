@@ -65,3 +65,30 @@ jobs:
 
     - name: Run test suite
       run: composer run-script test
+
+    # Die MuPDF-Skripte unter data/mupdf laufen auf dem Server mit einer
+    # aelteren Version als hier (ADR-0034 E5). Erst die aktuelle sicherstellen
+    # (sonst ueberspringen die Raster- und Seiten-Tests still), dann 1.17 und
+    # 1.21 aus dem Debian-Pool davorstellen und die betroffenen Tests
+    # wiederholen. scripts/ci/mupdf-alt.sh prueft feste SHA-256-Summen.
+    - name: MuPDF sicherstellen
+      run: command -v mutool >/dev/null || sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mupdf-tools
+
+    - name: Cache aeltere MuPDF-Versionen
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: .mupdf-alt/deb
+        key: mupdf-alt-${{ hashFiles('scripts/ci/mupdf-alt.sh') }}
+
+    - name: Aeltere MuPDF-Versionen bereitstellen
+      run: bash scripts/ci/mupdf-alt.sh "$PWD/.mupdf-alt"
+
+    - name: Tests gegen MuPDF 1.17 und 1.21
+      run: |
+        for version in 1.17.0 1.21.1; do
+          echo "== MuPDF $version"
+          PATH="$PWD/.mupdf-alt/bin-$version:$PATH" vendor/bin/phpunit \
+            tests/Helper/PDFCropHelperGridTest.php \
+            tests/Helper/PDFPageHelperTest.php \
+            tests/Helper/PDFSecurityHelperTest.php
+        done

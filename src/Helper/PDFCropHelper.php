@@ -460,10 +460,10 @@ final class PDFCropHelper {
     }
 
     /**
-     * Rotiert eine PDF-Seite physisch um den angegebenen Winkel.
+     * Dreht alle Seiten einer PDF um den angegebenen Winkel (/Rotate).
      *
-     * Nutzt qpdf mit --flatten-rotation um die Rotation physisch in das
-     * Koordinatensystem der Seite einzuarbeiten (keine /Rotate-Metadaten).
+     * Läuft über das MuPDF-Skript page-arrange.js ({@see PDFPageHelper::rotate()});
+     * der frühere Weg über qpdf drehte nur die erste Seite.
      *
      * @param string $inputPath Pfad zur Quell-PDF
      * @param string $outputPath Pfad zur Ziel-PDF
@@ -471,50 +471,7 @@ final class PDFCropHelper {
      * @return bool true bei Erfolg
      */
     public static function rotatePage(string $inputPath, string $outputPath, int $angle): bool {
-        if (!in_array($angle, [90, 180, 270], true)) {
-            self::logError('Ungültiger Rotationswinkel', ['angle' => $angle]);
-            return false;
-        }
-
-        $config = Config::getInstance();
-        if (!$config->isExecutableAvailable('qpdf-rotate')) {
-            self::logError('qpdf ist nicht konfiguriert oder nicht verfügbar');
-            return false;
-        }
-
-        $command = $config->buildCommand('qpdf-rotate', [
-            '[ANGLE]' => "+{$angle}",
-            '[INPUT]' => $inputPath,
-            '[OUTPUT]' => $outputPath,
-        ]);
-
-        if ($command === null) {
-            self::logError('Konnte qpdf-rotate Befehl nicht erstellen');
-            return false;
-        }
-
-        $output = [];
-        $returnCode = 0;
-        if (!Shell::executeShellCommand($command, $output, $returnCode) || $returnCode !== 0) {
-            self::logError('PDF-Rotation fehlgeschlagen', [
-                'returnCode' => $returnCode,
-                'output' => implode("\n", $output),
-            ]);
-            return false;
-        }
-
-        if (!File::exists($outputPath)) {
-            self::logError('Rotierte PDF wurde nicht erstellt', ['path' => $outputPath]);
-            return false;
-        }
-
-        self::logInfo('PDF erfolgreich rotiert', [
-            'input' => $inputPath,
-            'output' => $outputPath,
-            'angle' => $angle,
-        ]);
-
-        return true;
+        return PDFPageHelper::rotate($inputPath, $outputPath, $angle) !== null;
     }
 
     /**
@@ -644,7 +601,8 @@ final class PDFCropHelper {
             : [0.0, 0.0, 0.0, 0.0];
 
         $command = $config->buildCommand('mutool-grid-split', [
-            '[SCRIPT]' => self::gridSplitScript(),
+            '[SCRIPT]' => PDFPageHelper::scriptPath('grid-split.js'),
+            '[LIB]' => PDFPageHelper::libraryPath(),
             '[INPUT]' => $inputPath,
             '[OUTPUT]' => $output,
             '[ROWS]' => (string) $rows,
@@ -688,11 +646,6 @@ final class PDFCropHelper {
         ]);
 
         return $pages;
-    }
-
-    /** Pfad des MuPDF-Skripts, das die Seiten zerlegt. */
-    private static function gridSplitScript(): string {
-        return dirname(__DIR__, 2) . '/data/mupdf/grid-split.js';
     }
 
     /**
