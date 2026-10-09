@@ -532,23 +532,10 @@
                 "[DATA-FILE]"
             ]
         },
-        "mutool-clean-web": {
-            "path": "mutool",
-            "required": false,
-            "description": "MuPDF: PDF neu schreiben, unbenutzte Objekte entfernen und linearisieren (Web-optimiert)",
-            "package": "mupdf-tools",
-            "arguments": [
-                "clean",
-                "-g",
-                "-l",
-                "[INPUT]",
-                "[OUTPUT]"
-            ]
-        },
         "mutool-clean-repair": {
             "path": "mutool",
             "required": false,
-            "description": "MuPDF: PDF reparieren und neu schreiben (Querverweise neu aufbauen, Objekte zusammenfassen)",
+            "description": "MuPDF: PDF reparieren und neu schreiben (Querverweise neu aufbauen, Objekte zusammenfassen, ohne Objektstroeme)",
             "package": "mupdf-tools",
             "arguments": [
                 "clean",

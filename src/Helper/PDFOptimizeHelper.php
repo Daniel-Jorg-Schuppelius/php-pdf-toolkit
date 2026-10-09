@@ -25,8 +25,10 @@ use PDFToolkit\Config\Config;
  * CCITT-Scans aber nichts; "verlustfrei" nutzt den Optimierer von OCRmyPDF
  * (JBIG2, pngquant; Scan 1,92 MB -> 1,44 MB); "custom" nimmt Auflösung und
  * JPEG-Qualität als Zahl. Das Ergebnis zählt nur, wenn es kleiner ist.
- * {@see clean()} schreibt die Datei über MuPDF neu (reparieren) oder
- * linearisiert sie für den Abruf im Browser.
+ * {@see clean()} schreibt die Datei über MuPDF neu (reparieren, ohne
+ * Objektströme - auch Voraussetzung für FPDI-Überlagerungen). Linearisieren
+ * gibt es bewusst nicht: `mutool clean -l` (1.25) schreibt Dateien, deren
+ * Querverweise poppler nicht liest.
  */
 final class PDFOptimizeHelper {
     use ErrorLog;
@@ -108,15 +110,14 @@ final class PDFOptimizeHelper {
 
     /**
      * Schreibt die PDF über MuPDF neu: unbenutzte Objekte weg, Querverweise
-     * neu aufgebaut (reparieren); mit $linearize für den seitenweisen Abruf im
-     * Browser (Web-optimiert).
+     * neu aufgebaut, keine Objektströme (reparieren).
      */
-    public static function clean(string $inputPath, string $outputPath, bool $linearize = false): bool {
+    public static function clean(string $inputPath, string $outputPath): bool {
         if (!PDFHelper::isValidPdf($inputPath)) {
             self::logError('Ungültige PDF-Datei', ['path' => $inputPath]);
             return false;
         }
-        if (!self::run($linearize ? 'mutool-clean-web' : 'mutool-clean-repair', $inputPath, $outputPath)) {
+        if (!self::run('mutool-clean-repair', $inputPath, $outputPath)) {
             return false;
         }
         if (!PDFHelper::isValidPdf($outputPath)) {
@@ -125,7 +126,7 @@ final class PDFOptimizeHelper {
             return false;
         }
 
-        self::logInfo($linearize ? 'PDF linearisiert' : 'PDF repariert', ['input' => $inputPath]);
+        self::logInfo('PDF repariert', ['input' => $inputPath]);
 
         return true;
     }
@@ -143,8 +144,8 @@ final class PDFOptimizeHelper {
         };
     }
 
-    public static function isCleanAvailable(bool $linearize = false): bool {
-        return Config::getInstance()->isExecutableAvailable($linearize ? 'mutool-clean-web' : 'mutool-clean-repair');
+    public static function isCleanAvailable(): bool {
+        return Config::getInstance()->isExecutableAvailable('mutool-clean-repair');
     }
 
     /**

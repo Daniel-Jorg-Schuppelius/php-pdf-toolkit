@@ -118,8 +118,8 @@ final class PDFOptimizeHelperTest extends BaseTestCase {
         $this->assertFileDoesNotExist($this->workDir . '/x.pdf');
     }
 
-    public function test_clean_repairs_and_linearizes(): void {
-        if (!PDFOptimizeHelper::isCleanAvailable() || !PDFOptimizeHelper::isCleanAvailable(true)) {
+    public function test_clean_rewrites_without_object_streams(): void {
+        if (!PDFOptimizeHelper::isCleanAvailable()) {
             $this->markTestSkipped('mutool clean nicht verfügbar');
         }
         $source = PdfProbe::labelled($this, $this->workDir, 2);
@@ -127,12 +127,10 @@ final class PDFOptimizeHelperTest extends BaseTestCase {
         $repaired = $this->workDir . '/repaired.pdf';
         $this->assertTrue(PDFOptimizeHelper::clean($source, $repaired));
         $this->assertSame(2, PdfProbe::pageCount($repaired));
+        $this->assertStringStartsWith('P1-', PdfProbe::pageText($repaired, 1));
         $this->assertStringStartsWith('P2-', PdfProbe::pageText($repaired, 2));
-
-        $web = $this->workDir . '/web.pdf';
-        $this->assertTrue(PDFOptimizeHelper::clean($source, $web, true));
-        $this->assertStringContainsString('Linearized', (string) file_get_contents($web, false, null, 0, 2048));
-        $this->assertStringStartsWith('P1-', PdfProbe::pageText($web, 1));
+        // Klassische Querverweistabelle statt Objektstroeme (lesbar fuer FPDI)
+        $this->assertStringNotContainsString('/ObjStm', (string) file_get_contents($repaired));
 
         $this->assertFalse(PDFOptimizeHelper::clean($this->workDir . '/fehlt.pdf', $this->workDir . '/x.pdf'));
     }

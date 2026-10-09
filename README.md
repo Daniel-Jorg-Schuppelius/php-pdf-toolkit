@@ -35,7 +35,7 @@ A PHP 8.2+ library for extracting text from PDF documents and creating PDFs with
 - **Broken ToUnicode Tables** - `GlyphNameLayer` (via `PDFTextProvider::glyphNameText()`) rebuilds the text layer from the fonts' glyph names, so a PDF whose ToUnicode table maps every glyph to the wrong character still yields its exact text - no OCR, no guessing. Needs `mutool` (mupdf-tools)
 - **Pages** - `PDFPageHelper` arranges pages (order, rotation per page, drop, duplicate, blank pages), rotates, puts several pages on one sheet (`nup`, 1-16, optional frame; 1 per sheet resizes), stamps page numbers and text watermarks (`stamp`), renders thumbnails and page images, extracts embedded images (`extractImages`, pdfimages); `PDFCropHelper::cropToGrid()` splits every page into a grid of parts. All page operations keep the content streams - nothing is rasterised, text stays text. Needs `mutool`; the scripts under `data/mupdf/` run with MuPDF 1.17, 1.21 and 1.25
 - **Security** - `PDFSecurityHelper` probes, sets (AES-256 with permissions) and removes password protection. Passwords never travel on the command line. Needs `mutool`
-- **Optimize** - `PDFOptimizeHelper` shrinks PDFs (`strong` via Ghostscript, `lossless` via OCRmyPDF's optimizer, `custom` with resolution and JPEG quality), repairs or linearises them (`clean`) and converts to PDF/A-2b
+- **Optimize** - `PDFOptimizeHelper` shrinks PDFs (`strong` via Ghostscript, `lossless` via OCRmyPDF's optimizer, `custom` with resolution and JPEG quality), repairs them (`clean`, rewrite without object streams) and converts to PDF/A-2b
 - **Metadata** - `PDFMetadataHelper` sets or clears the Info dictionary (and drops stale XMP); reading stays in `PDFHelper::getMetadata()`
 - **OCR languages** - `TesseractDataHelper::SUPPORTED_LANGUAGES` is the allow-list for language codes that reach Tesseract and the tessdata download
 
@@ -219,6 +219,6 @@ AGPL-3.0-or-later - see [LICENSE](LICENSE) file.
 
 ## Versions
 
-Releases are tagged in Git; `git tag --sort=-v:refname` lists them (latest: v0.22.0). There is no separate changelog file — the tags and the commit history are the record.
+Releases are tagged in Git; `git tag --sort=-v:refname` lists them (latest: v0.22.1). There is no separate changelog file — the tags and the commit history are the record.
 
 The CI runs the MuPDF-based tests against MuPDF 1.17 and 1.21 as well (`scripts/ci/mupdf-alt.sh`, packages from the Debian pool with pinned checksums), because servers often run an older MuPDF than the development machine.
