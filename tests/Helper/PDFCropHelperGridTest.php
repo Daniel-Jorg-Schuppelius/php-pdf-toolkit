@@ -197,7 +197,7 @@ final class PDFCropHelperGridTest extends BaseTestCase {
     private function rotate(string $pdf, int $angle): string {
         $script = $this->workDir . '/rotate.js';
         file_put_contents($script, <<<JS
-            var doc = Document.openDocument(scriptArgs[0]);
+            var doc = new PDFDocument(scriptArgs[0]);
             for (var i = 0; i < doc.countPages(); i++) doc.findPage(i).put("Rotate", $angle);
             doc.save(scriptArgs[1]);
             JS);

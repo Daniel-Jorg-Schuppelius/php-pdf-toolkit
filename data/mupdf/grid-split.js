@@ -15,6 +15,12 @@
 // single:   <ausgabe> ist die Ziel-PDF.
 // separate: <ausgabe> ist ein Verzeichnis; jede Seite des Ergebnisses wird
 //           eine eigene Datei 000001.pdf, 000002.pdf, ...
+//
+// Die JS-Schnittstelle von MuPDF unterscheidet sich je Version (geprueft mit
+// 1.17, 1.21 und 1.25): Document.openDocument gibt es erst nach 1.21 - new
+// PDFDocument(pfad) geht ueberall; PDFObject.forEach ruft alt mit
+// (Schluessel, Wert), neu mit (Wert, Schluessel); graftPage fehlt in 1.17;
+// ein fehlender Schluessel ist alt undefined, neu null.
 
 var BOXES = ["MediaBox", "CropBox", "BleedBox", "TrimBox", "ArtBox"];
 var INHERITED = ["Resources", "MediaBox", "CropBox", "Rotate"];
@@ -37,6 +43,14 @@ function floatArg(index, name) {
 
 function isMissing(obj) {
     return obj === null || obj === undefined || obj.isNull();
+}
+
+// Eintraege eines Dictionaries als (Schluessel, Wert), in jeder MuPDF-Version
+function eachEntry(dict, fn) {
+    dict.forEach(function (a, b) {
+        if (typeof a === "string") fn(a, b);
+        else fn(b, a);
+    });
 }
 
 // Seitenattribut, notfalls vom Seitenbaum geerbt
@@ -87,7 +101,7 @@ function toUser(box, angle, u, v) {
 // Flache Kopie des Seitenobjekts mit aufgeloesten geerbten Attributen
 function copyPage(doc, page, withAnnots) {
     var copy = doc.newDictionary();
-    page.forEach(function (value, key) {
+    eachEntry(page, function (key, value) {
         if (key === "Parent" || (key === "Annots" && !withAnnots)) return;
         copy.put(key, value);
     });
@@ -154,7 +168,7 @@ var separate = scriptArgs[10] === "separate";
 
 if (rows < 1 || cols < 1 || rows * cols < 2) fail("mindestens zwei Teile noetig");
 
-var doc = Document.openDocument(input);
+var doc = new PDFDocument(input);
 if (doc.needsPassword()) fail("PDF ist passwortgeschuetzt");
 
 var count = doc.countPages();
@@ -179,7 +193,13 @@ for (var d = 0; d < count; d++) doc.deletePage(0);
 if (separate) {
     for (var n = 0; n < pages.length; n++) {
         var single = new PDFDocument();
-        single.graftPage(-1, doc, n);
+        if (typeof single.graftPage === "function") {
+            single.graftPage(-1, doc, n);
+        } else {
+            // MuPDF 1.17: Kopie ohne Parent und Anmerkungen uebertragen - deren
+            // Verweis auf die Ursprungsseite zoege sonst das ganze Dokument mit
+            single.insertPage(-1, single.addObject(single.graftObject(copyPage(doc, doc.findPage(n), false))));
+        }
         var name = String(n + 1);
         while (name.length < 6) name = "0" + name;
         single.save(output + "/" + name + ".pdf", "garbage,compress");
