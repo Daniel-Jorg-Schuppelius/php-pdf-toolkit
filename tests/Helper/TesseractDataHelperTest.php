@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 namespace Tests\Helper;
 
+use CommonToolkit\Helper\FileSystem\Folder;
 use PDFToolkit\Helper\TesseractDataHelper;
 use Tests\Contracts\BaseTestCase;
 
@@ -23,15 +24,9 @@ final class TesseractDataHelperTest extends BaseTestCase {
     }
 
     protected function tearDown(): void {
-        // Aufräumen
+        // Aufräumen (ensureConfigs legt Unterverzeichnisse an)
         if (is_dir($this->tempDir)) {
-            $files = glob($this->tempDir . '/*');
-            foreach ($files as $file) {
-                if (is_file($file)) {
-                    unlink($file);
-                }
-            }
-            rmdir($this->tempDir);
+            Folder::delete($this->tempDir, true);
         }
     }
 
@@ -131,5 +126,75 @@ final class TesseractDataHelperTest extends BaseTestCase {
         // Bei fehlgeschlagenem Download sollte null zurückgegeben werden
         // (Fallback auf System-Tesseract)
         $this->assertNull($result);
+    }
+
+    /**
+     * Das mitgelieferte Verzeichnis wird TESSDATA_PREFIX und muss deshalb die
+     * Parameterdateien tragen, die ocrmypdf per Namen aufruft ("pdf txt",
+     * "hocr txt"). Ohne sie: "read_params_file: Can't open pdf", kein PDF.
+     */
+    public function test_bundled_data_path_ships_tesseract_configs(): void {
+        $localPath = TesseractDataHelper::getLocalDataPath();
+
+        $this->assertTrue(TesseractDataHelper::hasConfigs($localPath), 'configs/pdf, txt, hocr, tsv liegen im Toolkit');
+        $this->assertStringContainsString('tessedit_create_pdf 1', (string) file_get_contents($localPath . '/configs/pdf'));
+        $this->assertStringContainsString('tessedit_create_txt 1', (string) file_get_contents($localPath . '/configs/txt'));
+        $this->assertStringContainsString('tessedit_create_hocr 1', (string) file_get_contents($localPath . '/configs/hocr'));
+        $this->assertStringContainsString('tessedit_create_tsv 1', (string) file_get_contents($localPath . '/configs/tsv'));
+        $this->assertFileExists($localPath . '/tessconfigs/batch.nochop');
+        $this->assertFileExists($localPath . '/pdf.ttf');
+    }
+
+    public function test_has_configs_requires_every_output_config(): void {
+        mkdir($this->tempDir . '/configs', 0755, true);
+        file_put_contents($this->tempDir . '/configs/pdf', "tessedit_create_pdf 1\n");
+        file_put_contents($this->tempDir . '/configs/txt', "tessedit_create_txt 1\n");
+
+        $this->assertFalse(TesseractDataHelper::hasConfigs($this->tempDir), 'hocr und tsv fehlen noch');
+        $this->assertFalse(TesseractDataHelper::hasConfigs('/nonexistent/path'));
+    }
+
+    /**
+     * Ein fremdes Datenverzeichnis (tesseract_data_path in der Konfiguration,
+     * nur Sprachdaten) bekommt die Konfigurationsdateien aus dem Toolkit.
+     */
+    public function test_ensure_configs_copies_into_foreign_data_path(): void {
+        mkdir($this->tempDir, 0755, true);
+        file_put_contents($this->tempDir . '/deu.traineddata', 'dummy');
+
+        $this->assertFalse(TesseractDataHelper::hasConfigs($this->tempDir));
+        $this->assertTrue(TesseractDataHelper::ensureConfigs($this->tempDir));
+        $this->assertTrue(TesseractDataHelper::hasConfigs($this->tempDir));
+        $this->assertFileExists($this->tempDir . '/configs/pdf');
+        $this->assertFileExists($this->tempDir . '/tessconfigs/batch.nochop');
+        $this->assertFileExists($this->tempDir . '/pdf.ttf');
+        // Sprachdaten bleiben, wie sie waren
+        $this->assertSame('dummy', file_get_contents($this->tempDir . '/deu.traineddata'));
+    }
+
+    public function test_ensure_configs_keeps_existing_files_and_is_idempotent(): void {
+        mkdir($this->tempDir . '/configs', 0755, true);
+        file_put_contents($this->tempDir . '/configs/pdf', "tessedit_create_pdf 1\ntextonly_pdf 1\n");
+
+        $this->assertTrue(TesseractDataHelper::ensureConfigs($this->tempDir));
+        $this->assertTrue(TesseractDataHelper::ensureConfigs($this->tempDir));
+        $this->assertStringContainsString('textonly_pdf 1', (string) file_get_contents($this->tempDir . '/configs/pdf'), 'eigene Datei wird nicht ueberschrieben');
+        $this->assertFileExists($this->tempDir . '/configs/hocr');
+    }
+
+    public function test_ensure_configs_fails_for_missing_directory(): void {
+        $this->assertFalse(TesseractDataHelper::ensureConfigs($this->tempDir . '/missing'));
+    }
+
+    public function test_usable_data_path_carries_configs(): void {
+        $localPath = TesseractDataHelper::getLocalDataPath();
+        if (!TesseractDataHelper::hasTrainedData($localPath)) {
+            $this->markTestSkipped('Keine lokalen Tesseract-Daten vorhanden');
+        }
+
+        $usablePath = TesseractDataHelper::getUsableDataPath();
+
+        $this->assertNotNull($usablePath);
+        $this->assertTrue(TesseractDataHelper::hasConfigs($usablePath), 'TESSDATA_PREFIX-Verzeichnis traegt configs/');
     }
 }

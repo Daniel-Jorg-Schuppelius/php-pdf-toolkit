@@ -101,6 +101,10 @@ final class TesseractReader implements PDFReaderInterface {
             if ($usablePath !== null) {
                 $this->tessDataPath = $usablePath;
             }
+        } elseif (Folder::exists($this->tessDataPath)) {
+            // Konfiguriertes Verzeichnis (tesseract_data_path) wird TESSDATA_PREFIX:
+            // configs/ muss auch dort liegen, sonst schreibt Tesseract kein PDF/hOCR
+            TesseractDataHelper::ensureConfigs($this->tessDataPath);
         }
     }
 

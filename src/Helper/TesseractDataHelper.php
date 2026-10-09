@@ -40,6 +40,29 @@ final class TesseractDataHelper {
     private const MIN_TRAINEDDATA_SIZE = 1024 * 1024; // 1 MB
 
     /**
+     * Was Tesseract neben den Sprachdaten im Datenverzeichnis erwartet:
+     * configs/ und tessconfigs/ (Parameterdateien, die als Namen auf der
+     * Kommandozeile stehen - ocrmypdf ruft "pdf txt" bzw. "hocr txt" auf)
+     * und pdf.ttf (Schrift der PDF-Ausgabe aelterer Versionen). Zeigt
+     * TESSDATA_PREFIX auf ein Verzeichnis ohne sie, meldet Tesseract
+     * "read_params_file: Can't open pdf" und schreibt kein PDF: ocrmypdf
+     * bricht ab oder liefert still eine Ausgabe ohne Textebene.
+     */
+    private const CONFIG_DIRS = ['configs', 'tessconfigs'];
+    private const CONFIG_FILES = ['pdf.ttf'];
+
+    /** Ohne diese vier Dateien gibt es keine PDF-, Text-, hOCR- oder TSV-Ausgabe. */
+    private const REQUIRED_CONFIGS = ['configs/pdf', 'configs/txt', 'configs/hocr', 'configs/tsv'];
+
+    /** Uebliche Orte der System-Sprachdaten (Debian/Ubuntu, Quelle, Homebrew). */
+    private const SYSTEM_DATA_PATHS = [
+        '/usr/share/tesseract-ocr/*/tessdata',
+        '/usr/share/tessdata',
+        '/usr/local/share/tessdata',
+        '/opt/homebrew/share/tessdata',
+    ];
+
+    /**
      * Prüft ob traineddata-Dateien im Verzeichnis vorhanden sind.
      */
     public static function hasTrainedData(string $path): bool {
@@ -197,6 +220,131 @@ final class TesseractDataHelper {
     }
 
     /**
+     * Ob ein Datenverzeichnis die Parameterdateien traegt, die Tesseract fuer
+     * die PDF-, Text-, hOCR- und TSV-Ausgabe braucht (configs/pdf usw.).
+     */
+    public static function hasConfigs(string $path): bool {
+        foreach (self::REQUIRED_CONFIGS as $relative) {
+            if (!File::exists($path . '/' . $relative)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Stellt configs/, tessconfigs/ und pdf.ttf in einem Datenverzeichnis
+     * sicher, das als TESSDATA_PREFIX dienen soll. Quelle ist das mitgelieferte
+     * Verzeichnis des Toolkits, sonst die System-Sprachdaten; vorhandene
+     * Dateien bleiben unangetastet.
+     *
+     * @return bool true, wenn die Pflichtdateien danach vorhanden sind
+     */
+    public static function ensureConfigs(string $path): bool {
+        if (self::hasConfigs($path)) {
+            return true;
+        }
+        if (!Folder::exists($path)) {
+            return false;
+        }
+
+        foreach (self::configSources($path) as $source) {
+            try {
+                self::copyConfigs($source, $path);
+            } catch (\Throwable $e) {
+                self::logWarning('Tesseract-Konfigurationsdateien konnten nicht kopiert werden', ['from' => $source, 'to' => $path, 'error' => $e->getMessage()]);
+            }
+            if (self::hasConfigs($path)) {
+                self::logDebug("Tesseract-Konfigurationsdateien ergaenzt: $path (aus $source)");
+
+                return true;
+            }
+        }
+
+        self::logError('Tesseract-Konfigurationsdateien (configs/pdf, configs/txt, configs/hocr, configs/tsv) fehlen, keine Quelle gefunden', ['path' => $path]);
+
+        return false;
+    }
+
+    /**
+     * Das Datenverzeichnis des installierten Tesseract: TESSDATA_PREFIX der
+     * Umgebung, sonst der erste uebliche Installationsort mit configs/pdf
+     * (neueste Version zuerst).
+     */
+    public static function systemDataPath(): ?string {
+        $env = getenv('TESSDATA_PREFIX');
+        if (is_string($env) && $env !== '' && File::exists(rtrim($env, '/') . '/configs/pdf')) {
+            return rtrim($env, '/');
+        }
+
+        foreach (self::SYSTEM_DATA_PATHS as $pattern) {
+            $matches = glob($pattern, GLOB_ONLYDIR) ?: [];
+            rsort($matches, SORT_NATURAL);
+            foreach ($matches as $dir) {
+                if (File::exists($dir . '/configs/pdf')) {
+                    return $dir;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Quellen fuer die Konfigurationsdateien, in Reihenfolge: das mitgelieferte
+     * Verzeichnis (sofern es nicht selbst das Ziel ist), dann das System.
+     *
+     * @return list<string>
+     */
+    private static function configSources(string $target): array {
+        $sources = [];
+        $bundled = self::getLocalDataPath();
+        if (realpath($bundled) !== realpath($target) && self::hasConfigs($bundled)) {
+            $sources[] = $bundled;
+        }
+        $system = self::systemDataPath();
+        if ($system !== null && realpath($system) !== realpath($target)) {
+            $sources[] = $system;
+        }
+
+        return $sources;
+    }
+
+    private static function copyConfigs(string $source, string $target): void {
+        foreach (self::CONFIG_DIRS as $dir) {
+            $from = $source . '/' . $dir;
+            if (!Folder::exists($from)) {
+                continue;
+            }
+            $to = $target . '/' . $dir;
+            if (!Folder::exists($to)) {
+                Folder::create($to, 0755, true);
+            }
+            foreach (glob($from . '/*') ?: [] as $file) {
+                $dest = $to . '/' . basename($file);
+                if (is_file($file) && !File::exists($dest)) {
+                    File::copy($file, $dest);
+                }
+            }
+        }
+        foreach (self::CONFIG_FILES as $name) {
+            $from = $source . '/' . $name;
+            $dest = $target . '/' . $name;
+            if (File::exists($from) && !File::exists($dest)) {
+                File::copy($from, $dest);
+            }
+        }
+    }
+
+    /** Liefert den Pfad nach Sicherung der Konfigurationsdateien; ein Fehlschlag steht im Log. */
+    private static function withConfigs(string $path): string {
+        self::ensureConfigs($path);
+
+        return $path;
+    }
+
+    /**
      * Prüft ob der lokale Datenpfad verwendbar ist und lädt ggf. Daten herunter.
      *
      * @param string|null $language Sprachen im Format "deu+eng"
@@ -209,21 +357,22 @@ final class TesseractDataHelper {
 
         $localPath = self::getLocalDataPath();
 
-        // Prüfe ob Daten vorhanden oder herunterladbar
+        // Prüfe ob Daten vorhanden oder herunterladbar. Das Verzeichnis wird zum
+        // TESSDATA_PREFIX und muss deshalb auch die Konfigurationsdateien tragen.
         if (self::hasTrainedData($localPath)) {
             // Prüfe ob die benötigten Sprachen vorhanden sind
             if ($language === null || self::hasLanguage($localPath, $language)) {
-                return $localPath;
+                return self::withConfigs($localPath);
             }
 
             // Versuche fehlende Sprachen herunterzuladen
             if (self::ensureTrainedData($localPath, $language)) {
-                return $localPath;
+                return self::withConfigs($localPath);
             }
         } else {
             // Keine Daten vorhanden, versuche herunterzuladen
             if (self::ensureTrainedData($localPath, $language)) {
-                return $localPath;
+                return self::withConfigs($localPath);
             }
         }
 

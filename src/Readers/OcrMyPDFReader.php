@@ -51,6 +51,11 @@ final class OcrMyPDFReader implements PDFReaderInterface {
             if ($usablePath !== null) {
                 $this->tessDataPath = $usablePath;
             }
+        } elseif (Folder::exists($this->tessDataPath)) {
+            // Konfiguriertes Verzeichnis (tesseract_data_path) wird TESSDATA_PREFIX:
+            // ocrmypdf ruft Tesseract mit "pdf txt"/"hocr txt" auf, die Dateien
+            // muessen unter configs/ dieses Verzeichnisses liegen
+            TesseractDataHelper::ensureConfigs($this->tessDataPath);
         }
     }
 
