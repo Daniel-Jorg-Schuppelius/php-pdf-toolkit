@@ -152,6 +152,32 @@ final class PDFPageHelperTest extends BaseTestCase {
         $this->assertSame([], PDFPageHelper::renderPages($this->source, $this->workDir . '/x', 'png', 50, 5, 9));
     }
 
+    public function test_images_to_pdf_keeps_the_bytes(): void {
+        if (!function_exists('imagecreatetruecolor')) {
+            $this->markTestSkipped('GD fehlt');
+        }
+        $wide = $this->workDir . '/wide.jpg';
+        $tall = $this->workDir . '/tall.png';
+        imagejpeg(imagecreatetruecolor(1200, 800), $wide, 90);
+        imagepng(imagecreatetruecolor(300, 500), $tall);
+        $output = $this->workDir . '/images.pdf';
+
+        $this->assertSame(2, PDFPageHelper::imagesToPdf([$wide, $tall], $output, 'a4', 10.0));
+
+        $this->assertSame(2, PdfProbe::pageCount($output));
+        // Querbild auf Querblatt, Hochbild auf Hochblatt (auto)
+        [$w1, $h1] = PdfProbe::pageSize($output, 1);
+        [$w2, $h2] = PdfProbe::pageSize($output, 2);
+        $this->assertGreaterThan($h1, $w1);
+        $this->assertGreaterThan($w2, $h2);
+        // Das JPEG liegt unverändert in der PDF
+        $this->assertStringContainsString('/DCTDecode', (string) file_get_contents($output));
+
+        $this->assertNull(PDFPageHelper::imagesToPdf([], $output));
+        $this->assertNull(PDFPageHelper::imagesToPdf(['/nonexistent.jpg'], $output));
+        $this->assertNull(PDFPageHelper::imagesToPdf([$wide], $this->workDir . '/x.pdf', 'b5'));
+    }
+
     public function test_sequence_to_string(): void {
         $this->assertSame('3:90,1,1,2:180', PDFPageHelper::sequenceToString([
             ['page' => 3, 'rotate' => 90], ['page' => 1], ['page' => 1, 'rotate' => 360], ['page' => 2, 'rotate' => -180],

@@ -154,6 +154,52 @@ final class PDFPageHelper {
     }
 
     /**
+     * Legt Bilder je auf eine Seite eines Blatts, ohne sie neu zu kodieren
+     * (JPEG bleibt JPEG). Jedes Bild wird in den Bereich innerhalb des Rands
+     * eingepasst und zentriert, über seine Größe bei 150 dpi nicht vergrößert.
+     *
+     * @param list<string> $imagePaths Bilder in Seitenreihenfolge
+     * @param string $sheet a3, a4, a5, letter oder legal
+     * @param float $marginMm Rand rundum in Millimetern
+     * @param string $orientation auto (Blatt dreht sich nach dem Bild), portrait oder landscape
+     * @return int|null Seitenzahl des Ergebnisses, null bei Fehler
+     */
+    public static function imagesToPdf(array $imagePaths, string $outputPath, string $sheet = 'a4', float $marginMm = 0.0, string $orientation = 'auto'): ?int {
+        $sheet = strtolower($sheet);
+        $orientation = strtolower($orientation);
+        if ($imagePaths === []) {
+            self::logError('Keine Bilder angegeben');
+            return null;
+        }
+        if (!in_array($sheet, self::SHEETS, true) || !in_array($orientation, self::ORIENTATIONS, true) || $marginMm < 0) {
+            self::logError('Ungültige Blattangaben', ['sheet' => $sheet, 'orientation' => $orientation, 'marginMm' => $marginMm]);
+            return null;
+        }
+        foreach ($imagePaths as $path) {
+            if (!File::exists($path)) {
+                self::logError('Bilddatei nicht gefunden', ['path' => $path]);
+                return null;
+            }
+        }
+
+        $pages = self::runScript('mutool-image-page', 'image-page.js', [
+            '[OUTPUT]' => $outputPath,
+            '[SHEET]' => $sheet,
+            '[MARGIN-MM]' => number_format($marginMm, 2, '.', ''),
+            '[ORIENTATION]' => $orientation,
+            // Mehrere Pfade als eine bereits escapte Folge (CommandBuilder übernimmt sie unverändert)
+            '[IMAGES]' => implode(' ', array_map('escapeshellarg', $imagePaths)),
+        ]);
+        if ($pages === null || !File::exists($outputPath)) {
+            return null;
+        }
+
+        self::logInfo('Bilder auf PDF-Seiten gelegt', ['images' => count($imagePaths), 'sheet' => $sheet]);
+
+        return $pages;
+    }
+
+    /**
      * Miniaturen aller Seiten in einem Aufruf, für Seitenübersichten.
      *
      * @param string $outputDir Verzeichnis (wird angelegt)
