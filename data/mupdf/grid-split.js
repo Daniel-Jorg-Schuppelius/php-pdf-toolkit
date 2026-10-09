@@ -83,7 +83,9 @@ var margins = {
 };
 var separate = args[10] === "separate";
 
-if (rows < 1 || cols < 1 || rows * cols < 2) fail("mindestens zwei Teile noetig");
+if (rows < 1 || cols < 1) fail("Zeilen und Spalten muessen mindestens 1 sein");
+// Ein Raster aus einem Teil ist nur mit Rand sinnvoll: Das beschneidet die Seite um den Rand
+if (rows * cols < 2 && margins.top + margins.right + margins.bottom + margins.left <= 0) fail("mindestens zwei Teile oder ein Rand noetig");
 
 var doc = openPdf(input);
 

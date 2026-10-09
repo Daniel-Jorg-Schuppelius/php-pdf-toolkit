@@ -580,8 +580,13 @@ final class PDFCropHelper {
         array $margins,
         bool $separate
     ): ?int {
-        if ($rows < 1 || $columns < 1 || $rows * $columns < 2) {
-            self::logError('Raster braucht mindestens zwei Teile', ['rows' => $rows, 'columns' => $columns]);
+        if ($rows < 1 || $columns < 1) {
+            self::logError('Zeilen und Spalten müssen mindestens 1 sein', ['rows' => $rows, 'columns' => $columns]);
+            return null;
+        }
+        // Ein Teil je Seite ist nur mit Rand sinnvoll: beschneidet die Seite um den Rand
+        if ($rows * $columns < 2 && array_sum($margins) <= 0) {
+            self::logError('Raster braucht mindestens zwei Teile oder einen Rand', ['rows' => $rows, 'columns' => $columns]);
             return null;
         }
 

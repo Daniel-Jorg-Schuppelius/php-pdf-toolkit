@@ -91,6 +91,52 @@ final class PDFOptimizeHelperTest extends BaseTestCase {
         }
     }
 
+    public function test_custom_compression_takes_resolution_and_quality(): void {
+        if (!PDFOptimizeHelper::isAvailable(PDFOptimizeHelper::LEVEL_CUSTOM)) {
+            $this->markTestSkipped('gs-compress-custom nicht verfügbar');
+        }
+        $source = PdfProbe::imageHeavy($this, $this->workDir);
+        if ($source === null) {
+            $this->markTestSkipped('ImageMagick (convert) nicht verfügbar');
+        }
+
+        $small = $this->workDir . '/small.pdf';
+        $size = PDFOptimizeHelper::compress($source, $small, PDFOptimizeHelper::LEVEL_CUSTOM, 72, 30);
+        $this->assertNotNull($size);
+        $this->assertLessThan(filesize($source) / 4, $size);
+        $this->assertSame(1, PdfProbe::pageCount($small));
+
+        // Hoehere Qualitaet bei gleicher Aufloesung ergibt die groessere Datei
+        $fine = $this->workDir . '/fine.pdf';
+        $fineSize = PDFOptimizeHelper::compress($source, $fine, PDFOptimizeHelper::LEVEL_CUSTOM, 72, 95);
+        $this->assertNotNull($fineSize);
+        $this->assertGreaterThan($size, $fineSize);
+
+        // Ohne Zahlen keine eigene Stufe
+        $this->assertNull(PDFOptimizeHelper::compress($source, $this->workDir . '/x.pdf', PDFOptimizeHelper::LEVEL_CUSTOM));
+        $this->assertNull(PDFOptimizeHelper::compress($source, $this->workDir . '/x.pdf', PDFOptimizeHelper::LEVEL_CUSTOM, 10, 50));
+        $this->assertFileDoesNotExist($this->workDir . '/x.pdf');
+    }
+
+    public function test_clean_repairs_and_linearizes(): void {
+        if (!PDFOptimizeHelper::isCleanAvailable() || !PDFOptimizeHelper::isCleanAvailable(true)) {
+            $this->markTestSkipped('mutool clean nicht verfügbar');
+        }
+        $source = PdfProbe::labelled($this, $this->workDir, 2);
+
+        $repaired = $this->workDir . '/repaired.pdf';
+        $this->assertTrue(PDFOptimizeHelper::clean($source, $repaired));
+        $this->assertSame(2, PdfProbe::pageCount($repaired));
+        $this->assertStringStartsWith('P2-', PdfProbe::pageText($repaired, 2));
+
+        $web = $this->workDir . '/web.pdf';
+        $this->assertTrue(PDFOptimizeHelper::clean($source, $web, true));
+        $this->assertStringContainsString('Linearized', (string) file_get_contents($web, false, null, 0, 2048));
+        $this->assertStringStartsWith('P1-', PdfProbe::pageText($web, 1));
+
+        $this->assertFalse(PDFOptimizeHelper::clean($this->workDir . '/fehlt.pdf', $this->workDir . '/x.pdf'));
+    }
+
     public function test_rejects_unknown_level_and_invalid_input(): void {
         $this->assertNull(PDFOptimizeHelper::compress('/nonexistent.pdf', $this->workDir . '/x.pdf'));
         $source = PdfProbe::labelled($this, $this->workDir, 1);

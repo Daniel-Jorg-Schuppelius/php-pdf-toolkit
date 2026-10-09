@@ -1,13 +1,15 @@
 // Legt mehrere Seiten verkleinert auf ein Blatt ("Seiten pro Blatt", N-up).
 //
 // Aufruf (mutool run):
-//   page-nup.js <lib.js> <eingabe> <ausgabe> <proBlatt> <blatt> <abstandMm> <ausrichtung>
+//   page-nup.js <lib.js> <eingabe> <ausgabe> <proBlatt> <blatt> <abstandMm> <ausrichtung> [rahmen]
 //
-// <proBlatt>    2, 4, 6 oder 9
+// <proBlatt>    1, 2, 4, 6, 8, 9, 12 oder 16; 1 legt jede Seite allein auf das
+//               Blatt (Seitengroesse aendern)
 // <blatt>       a3, a4, a5, letter, legal
 // <abstandMm>   Abstand zwischen den Seiten und zum Blattrand in Millimetern
 // <ausrichtung> auto (quer bei 2 und 6 quer liegenden Seiten, sonst hoch),
 //               portrait oder landscape
+// [rahmen]      1 zeichnet einen duennen Rahmen um jede belegte Zelle
 //
 // Reihenfolge auf dem Blatt: zeilenweise, links -> rechts, oben -> unten. Jede
 // Seite wird gleichmaessig so verkleinert, dass sie in ihre Zelle passt, und
@@ -26,10 +28,11 @@ var perSheet = intArg(2, "Seiten je Blatt");
 var sheetName = args[3];
 var gap = mmToPt(floatArg(4, "Abstand"));
 var orientation = String(args[5]).toLowerCase();
+var frame = args.length > 6 && String(args[6]) === "1";
 
-var GRIDS = { 2: [1, 2], 4: [2, 2], 6: [3, 2], 9: [3, 3] };
+var GRIDS = { 1: [1, 1], 2: [1, 2], 4: [2, 2], 6: [3, 2], 8: [4, 2], 9: [3, 3], 12: [4, 3], 16: [4, 4] };
 var grid = GRIDS[perSheet];
-if (!grid) fail("Seiten je Blatt muss 2, 4, 6 oder 9 sein");
+if (!grid) fail("Seiten je Blatt muss 1, 2, 4, 6, 8, 9, 12 oder 16 sein");
 var rows = grid[0], cols = grid[1];
 
 var doc = openPdf(input);
@@ -99,6 +102,9 @@ for (var start = 0; start < count; start += perSheet) {
             + m.join(" ") + " cm "
             + "1 0 0 1 " + (-b[0]) + " " + (-b[1]) + " cm "
             + "/" + name + " Do Q\n";
+        if (frame) {
+            content += "q 0.5 w 0 G " + cellX + " " + cellY + " " + cellWidth + " " + cellHeight + " re S Q\n";
+        }
     }
 
     out.insertPage(-1, out.addPage([0, 0, sheet[0], sheet[1]], 0, resources, content));

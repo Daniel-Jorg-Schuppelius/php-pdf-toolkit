@@ -13,15 +13,15 @@ declare(strict_types=1);
 namespace PDFToolkit\Helper;
 
 use CommonToolkit\Helper\FileSystem\{File, Folder};
-use CommonToolkit\Helper\Shell;
+use CommonToolkit\Helper\{Platform, Shell};
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 
 /**
- * Seiten einer PDF anordnen, drehen, auf Blätter legen und als Bilder
- * ausgeben.
+ * Seiten einer PDF anordnen, drehen, auf Blätter legen, stempeln und als
+ * Bilder ausgeben.
  *
- * Anordnen, Drehen und Seiten pro Blatt laufen über MuPDF-Skripte
+ * Anordnen, Drehen, Seiten pro Blatt und Stempel laufen über MuPDF-Skripte
  * (data/mupdf/*.js, mutool run): Die Seiten behalten ihren Inhaltsstrom,
  * nichts wird gerendert, Text bleibt Text. Die Skripte laufen mit MuPDF 1.17,
  * 1.21 und 1.25. Bilder und Miniaturen liefert pdftoppm.
@@ -32,8 +32,19 @@ final class PDFPageHelper {
     /** Mehr Miniaturen fragt kein Dialog ab; darüber liefert thumbnails() die ersten */
     public const MAX_THUMBNAILS = 300;
 
-    /** Seiten je Blatt, die page-nup.js kennt */
-    public const NUP_PER_SHEET = [2, 4, 6, 9];
+    /** Seiten je Blatt, die page-nup.js kennt; 1 legt jede Seite allein auf das Blatt (Seitengröße ändern) */
+    public const NUP_PER_SHEET = [1, 2, 4, 6, 8, 9, 12, 16];
+
+    /** Stempel: Seitenzahlen ({n}, {total}) oder Wasserzeichen */
+    public const STAMP_NUMBER = 'number';
+    public const STAMP_WATERMARK = 'watermark';
+    public const STAMP_MODES = [self::STAMP_NUMBER, self::STAMP_WATERMARK];
+
+    /** Positionen eines Stempels; fill kachelt ein Wasserzeichen über die Seite */
+    public const STAMP_POSITIONS = [
+        'top-left', 'top-center', 'top-right', 'middle-left', 'center', 'middle-right',
+        'bottom-left', 'bottom-center', 'bottom-right', 'fill',
+    ];
 
     /** Blätter, die lib.js kennt */
     public const SHEETS = ['a3', 'a4', 'a5', 'letter', 'legal'];
@@ -55,13 +66,14 @@ final class PDFPageHelper {
     }
 
     /**
-     * Ordnet die Seiten neu: Reihenfolge, Drehung je Seite, Weglassen und
-     * Verdoppeln in einem Schritt. Nicht genannte Seiten fallen weg.
+     * Ordnet die Seiten neu: Reihenfolge, Drehung je Seite, Weglassen,
+     * Verdoppeln und leere Seiten in einem Schritt. Nicht genannte Seiten
+     * fallen weg.
      *
      * @param string $inputPath Pfad zur Quell-PDF
      * @param string $outputPath Pfad zur Ziel-PDF
      * @param list<array{page: int, rotate?: int}> $sequence Zielseiten in ihrer Reihenfolge:
-     *        Quellseite (1-basiert) und Drehung in Grad, die zur bestehenden hinzukommt
+     *        Quellseite (1-basiert; 0 = leere Seite wie die davor) und Drehung in Grad, die zur bestehenden hinzukommt
      * @return int|null Seitenzahl des Ergebnisses, null bei Fehler
      */
     public static function arrange(string $inputPath, string $outputPath, array $sequence): ?int {
@@ -118,17 +130,18 @@ final class PDFPageHelper {
      * Legt mehrere Seiten verkleinert auf ein Blatt (Seiten pro Blatt, N-up).
      * Reihenfolge auf dem Blatt: zeilenweise, links -> rechts, oben -> unten.
      *
-     * @param int $perSheet 2, 4, 6 oder 9
+     * @param int $perSheet 1, 2, 4, 6, 8, 9, 12 oder 16 (1 = Seitengröße ändern)
      * @param string $sheet a3, a4, a5, letter oder legal
      * @param float $gapMm Abstand zwischen den Seiten und zum Blattrand in Millimetern
      * @param string $orientation auto, portrait oder landscape
+     * @param bool $frame Dünner Rahmen um jede belegte Zelle
      * @return int|null Zahl der Blätter, null bei Fehler
      */
-    public static function nup(string $inputPath, string $outputPath, int $perSheet, string $sheet = 'a4', float $gapMm = 5.0, string $orientation = 'auto'): ?int {
+    public static function nup(string $inputPath, string $outputPath, int $perSheet, string $sheet = 'a4', float $gapMm = 5.0, string $orientation = 'auto', bool $frame = false): ?int {
         $sheet = strtolower($sheet);
         $orientation = strtolower($orientation);
         if (!in_array($perSheet, self::NUP_PER_SHEET, true)) {
-            self::logError('Seiten je Blatt muss 2, 4, 6 oder 9 sein', ['perSheet' => $perSheet]);
+            self::logError('Seiten je Blatt muss 1, 2, 4, 6, 8, 9, 12 oder 16 sein', ['perSheet' => $perSheet]);
             return null;
         }
         if (!in_array($sheet, self::SHEETS, true) || !in_array($orientation, self::ORIENTATIONS, true) || $gapMm < 0) {
@@ -143,6 +156,7 @@ final class PDFPageHelper {
             '[SHEET]' => $sheet,
             '[GAP-MM]' => number_format($gapMm, 2, '.', ''),
             '[ORIENTATION]' => $orientation,
+            '[FRAME]' => $frame ? '1' : '0',
         ]);
         if ($sheets === null || !File::exists($outputPath)) {
             return null;
@@ -151,6 +165,135 @@ final class PDFPageHelper {
         self::logInfo('PDF-Seiten auf Blätter gelegt', ['input' => $inputPath, 'perSheet' => $perSheet, 'sheets' => $sheets]);
 
         return $sheets;
+    }
+
+    /**
+     * Stempelt Text über den Seiteninhalt: Seitenzahlen oder ein Wasserzeichen.
+     * Der Text reist in einer Datei, nie auf der Befehlszeile.
+     *
+     * @param string $mode STAMP_NUMBER (Text mit {n} und {total}) oder STAMP_WATERMARK
+     * @param string $text Der Text bzw. das Muster, z. B. "Seite {n} von {total}"
+     * @param array{position?: string, size?: float, marginMm?: float, angle?: float, opacity?: float, color?: string, firstPage?: int, start?: int} $options
+     *        position aus {@see STAMP_POSITIONS} (Vorgabe bottom-center bzw. center), size in Punkt (10 bzw. 48),
+     *        marginMm (10), angle in Grad (0 bzw. 45), opacity 0-1 (1 bzw. 0.3), color rrggbb (000000 bzw. 808080),
+     *        firstPage (1), start = Wert von {n} auf der ersten gestempelten Seite (1)
+     * @return int|null Zahl der gestempelten Seiten, null bei Fehler
+     */
+    public static function stamp(string $inputPath, string $outputPath, string $mode, string $text, array $options = []): ?int {
+        if (!in_array($mode, self::STAMP_MODES, true)) {
+            self::logError('Unbekannter Stempel-Modus', ['mode' => $mode]);
+            return null;
+        }
+        $watermark = $mode === self::STAMP_WATERMARK;
+        $position = strtolower((string) ($options['position'] ?? ($watermark ? 'center' : 'bottom-center')));
+        $size = (float) ($options['size'] ?? ($watermark ? 48 : 10));
+        $marginMm = (float) ($options['marginMm'] ?? 10);
+        $angle = (float) ($options['angle'] ?? ($watermark ? 45 : 0));
+        $opacity = (float) ($options['opacity'] ?? ($watermark ? 0.3 : 1));
+        $color = strtolower((string) ($options['color'] ?? ($watermark ? '808080' : '000000')));
+        $firstPage = (int) ($options['firstPage'] ?? 1);
+        $start = (int) ($options['start'] ?? 1);
+
+        $text = trim((string) preg_replace('/[\r\n]+/', ' ', $text));
+        if ($text === '') {
+            self::logError('Der Stempeltext ist leer');
+            return null;
+        }
+        if (!in_array($position, self::STAMP_POSITIONS, true) || ($position === 'fill' && !$watermark)) {
+            self::logError('Ungültige Stempel-Position', ['position' => $position, 'mode' => $mode]);
+            return null;
+        }
+        if ($size < 4 || $size > 400 || $marginMm < 0 || $marginMm > 200 || $opacity < 0 || $opacity > 1
+            || $firstPage < 1 || preg_match('/^[0-9a-f]{6}$/', $color) !== 1) {
+            self::logError('Ungültige Stempel-Angaben', ['size' => $size, 'marginMm' => $marginMm, 'opacity' => $opacity, 'firstPage' => $firstPage, 'color' => $color]);
+            return null;
+        }
+
+        $dir = Platform::getTempDirectory() . '/pdfstamp_' . bin2hex(random_bytes(8));
+        Folder::create($dir, 0700);
+        $textFile = $dir . '/text.txt';
+
+        try {
+            File::write($textFile, $text . "\n");
+
+            $stamped = self::runScript('mutool-page-stamp', 'page-stamp.js', [
+                '[INPUT]' => $inputPath,
+                '[OUTPUT]' => $outputPath,
+                '[MODE]' => $mode,
+                '[TEXT-FILE]' => $textFile,
+                '[POSITION]' => $position,
+                '[SIZE]' => number_format($size, 2, '.', ''),
+                '[MARGIN-MM]' => number_format($marginMm, 2, '.', ''),
+                '[ANGLE]' => number_format($angle, 2, '.', ''),
+                '[OPACITY]' => number_format($opacity, 3, '.', ''),
+                '[COLOR]' => $color,
+                '[FIRST-PAGE]' => (string) $firstPage,
+                '[START]' => (string) $start,
+            ]);
+        } finally {
+            Folder::delete($dir, true);
+        }
+        if ($stamped === null || !File::exists($outputPath)) {
+            return null;
+        }
+
+        self::logInfo('PDF-Seiten gestempelt', ['input' => $inputPath, 'mode' => $mode, 'pages' => $stamped]);
+
+        return $stamped;
+    }
+
+    /**
+     * Zieht die eingebetteten Bilder eines Seitenbereichs als PNG heraus
+     * (pdfimages); der Dateiname trägt die Seitennummer.
+     *
+     * @param string $outputDir Verzeichnis (wird angelegt)
+     * @param int $firstPage Erste Seite (1-basiert)
+     * @param int $lastPage Letzte Seite (0 = bis zur letzten)
+     * @return list<string> Pfade in Seitenreihenfolge; leer, wenn es keine Bilder gibt oder ein Fehler auftrat
+     */
+    public static function extractImages(string $inputPath, string $outputDir, int $firstPage = 1, int $lastPage = 0): array {
+        if (!PDFHelper::isValidPdf($inputPath)) {
+            self::logError('Ungültige PDF-Datei', ['path' => $inputPath]);
+            return [];
+        }
+        $count = PDFHelper::getPageCount($inputPath);
+        $firstPage = max(1, $firstPage);
+        $lastPage = $lastPage < 1 || $lastPage > $count ? $count : $lastPage;
+        if ($count < 1 || $firstPage > $lastPage) {
+            self::logError('Seitenbereich liegt außerhalb der Datei', ['first' => $firstPage, 'last' => $lastPage, 'pages' => $count]);
+            return [];
+        }
+
+        $config = Config::getInstance();
+        if (!$config->isExecutableAvailable('pdfimages-extract')) {
+            self::logError('pdfimages ist nicht konfiguriert oder nicht verfügbar');
+            return [];
+        }
+
+        Folder::create($outputDir);
+        $command = $config->buildCommand('pdfimages-extract', [
+            '[FIRST]' => (string) $firstPage,
+            '[LAST]' => (string) $lastPage,
+            '[PDF-FILE]' => $inputPath,
+            '[OUTPUT-PREFIX]' => $outputDir . '/bild',
+        ]);
+        if ($command === null) {
+            self::logError('Konnte pdfimages-Befehl nicht erstellen');
+            return [];
+        }
+
+        $output = [];
+        $returnCode = 0;
+        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0) {
+            self::logError('pdfimages fehlgeschlagen', ['returnCode' => $returnCode, 'output' => implode("\n", $output)]);
+            return [];
+        }
+
+        $files = Folder::findByPattern($outputDir, 'bild-*.png');
+        sort($files, SORT_NATURAL);
+        self::logInfo('Bilder aus PDF gezogen', ['input' => $inputPath, 'images' => count($files)]);
+
+        return $files;
     }
 
     /**
@@ -298,7 +441,7 @@ final class PDFPageHelper {
     }
 
     /**
-     * Textform einer Folge für page-arrange.js: "3:90,1,1,2:180".
+     * Textform einer Folge für page-arrange.js: "3:90,1,0,2:180" (0 = leere Seite).
      *
      * @param list<array{page: int, rotate?: int}> $sequence
      */
@@ -312,8 +455,8 @@ final class PDFPageHelper {
         foreach ($sequence as $entry) {
             $page = $entry['page'];
             $rotate = $entry['rotate'] ?? 0;
-            if ($page < 1) {
-                self::logError('Seitennummer muss mindestens 1 sein', ['entry' => $entry]);
+            if ($page < 0) {
+                self::logError('Seitennummer darf nicht negativ sein (0 = leere Seite)', ['entry' => $entry]);
                 return null;
             }
             if ($rotate % 90 !== 0) {
@@ -328,12 +471,13 @@ final class PDFPageHelper {
     }
 
     /**
-     * Ruft ein MuPDF-Skript auf; die letzte Ausgabezeile ist eine Zahl
-     * (Seiten oder Blätter des Ergebnisses).
+     * Ruft ein MuPDF-Skript aus data/mupdf auf; die letzte Ausgabezeile ist
+     * eine Zahl (Seiten oder Blätter des Ergebnisses). Für die Helfer dieses
+     * Pakets, nicht für Aufrufer von außen.
      *
      * @param array<string, string> $replacements
      */
-    private static function runScript(string $executable, string $script, array $replacements): ?int {
+    public static function runScript(string $executable, string $script, array $replacements): ?int {
         $config = Config::getInstance();
         if (!$config->isExecutableAvailable($executable)) {
             self::logError('mutool ist nicht konfiguriert oder nicht verfügbar', ['executable' => $executable]);

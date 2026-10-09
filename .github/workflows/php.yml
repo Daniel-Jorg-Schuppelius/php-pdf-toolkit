@@ -90,5 +90,7 @@ jobs:
           PATH="$PWD/.mupdf-alt/bin-$version:$PATH" vendor/bin/phpunit \
             tests/Helper/PDFCropHelperGridTest.php \
             tests/Helper/PDFPageHelperTest.php \
-            tests/Helper/PDFSecurityHelperTest.php
+            tests/Helper/PDFSecurityHelperTest.php \
+            tests/Helper/PDFMetadataHelperTest.php \
+            tests/Helper/PDFOptimizeHelperTest.php
         done

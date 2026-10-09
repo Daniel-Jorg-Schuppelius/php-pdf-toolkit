@@ -155,6 +155,13 @@ final class PDFCropHelperGridTest extends BaseTestCase {
 
     public function test_rejects_a_single_part(): void {
         $this->assertNull(PDFCropHelper::cropToGrid($this->source, $this->workDir . '/one.pdf', 1, 1));
+        // Ein Teil mit Rand: die Seite wird um den Rand beschnitten ("Raender in mm")
+        $trimmed = $this->workDir . '/trimmed.pdf';
+        $this->assertSame(3, PDFCropHelper::cropToGrid($this->source, $trimmed, 1, 1, 1, 0, [56.7, 28.35, 56.7, 28.35]));
+        [$width, $height] = PdfProbe::pageSize($trimmed, 1);
+        $this->assertEqualsWithDelta(595 - 2 * 28.35, $width, 1.0);
+        $this->assertEqualsWithDelta(842 - 2 * 56.7, $height, 1.0);
+        $this->assertStringContainsString('P1-', PdfProbe::pageText($trimmed, 1));
     }
 
     public function test_rejects_margins_larger_than_the_page(): void {

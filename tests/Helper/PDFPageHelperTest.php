@@ -50,7 +50,7 @@ final class PDFPageHelperTest extends BaseTestCase {
 
     public function test_scripts_exist(): void {
         $this->assertFileExists(PDFPageHelper::libraryPath());
-        foreach (['grid-split.js', 'page-arrange.js', 'page-nup.js', 'pdf-protect.js', 'image-page.js'] as $script) {
+        foreach (['grid-split.js', 'page-arrange.js', 'page-nup.js', 'pdf-protect.js', 'image-page.js', 'page-stamp.js', 'pdf-metadata.js'] as $script) {
             $this->assertFileExists(PDFPageHelper::scriptPath($script));
         }
     }
@@ -73,6 +73,26 @@ final class PDFPageHelperTest extends BaseTestCase {
         $this->assertSame(0, PdfProbe::pageRotation($output, 2));
         $this->assertStringStartsWith('P2-', PdfProbe::pageText($output, 4));
         $this->assertSame(180, PdfProbe::pageRotation($output, 4));
+    }
+
+    public function test_arrange_inserts_blank_pages_like_the_page_before(): void {
+        $output = $this->workDir . '/blank.pdf';
+
+        $pages = PDFPageHelper::arrange($this->source, $output, [
+            ['page' => 1, 'rotate' => 90],
+            ['page' => 0],
+            ['page' => 2],
+            ['page' => 0],
+        ]);
+
+        $this->assertSame(4, $pages);
+        $this->assertSame('', trim(PdfProbe::pageText($output, 2)));
+        $this->assertSame('', trim(PdfProbe::pageText($output, 4)));
+        // Die leere Seite erbt Rahmen und Drehung der Seite davor
+        $this->assertSame(90, PdfProbe::pageRotation($output, 2));
+        $this->assertSame(0, PdfProbe::pageRotation($output, 4));
+        $this->assertSame(PdfProbe::pageSize($output, 3), PdfProbe::pageSize($output, 4));
+        $this->assertStringStartsWith('P2-', PdfProbe::pageText($output, 3));
     }
 
     public function test_arrange_rejects_bad_sequences(): void {
@@ -123,6 +143,82 @@ final class PDFPageHelperTest extends BaseTestCase {
 
         $this->assertNull(PDFPageHelper::nup($this->source, $this->workDir . '/x.pdf', 3));
         $this->assertNull(PDFPageHelper::nup($this->source, $this->workDir . '/x.pdf', 2, 'b5'));
+    }
+
+    public function test_nup_one_per_sheet_resizes_and_sixteen_fit_on_one_sheet(): void {
+        // 1 je Blatt = Seitengroesse aendern: A4-Seiten auf A5, Inhalt bleibt
+        $a5 = $this->workDir . '/a5.pdf';
+        $this->assertSame(3, PDFPageHelper::nup($this->source, $a5, 1, 'a5', 0.0));
+        [$width, $height] = PdfProbe::pageSize($a5, 2);
+        $this->assertEqualsWithDelta(419.5, $width, 1.0);
+        $this->assertEqualsWithDelta(595.3, $height, 1.0);
+        $this->assertStringContainsString('P2-R1C1', PdfProbe::pageText($a5, 2));
+
+        $sixteen = $this->workDir . '/sixteen.pdf';
+        $this->assertSame(1, PDFPageHelper::nup($this->source, $sixteen, 16, 'a3', 2.0, 'portrait', true));
+        $this->assertSame(1, PdfProbe::pageCount($sixteen));
+        $this->assertStringContainsString('P3-R1C1', PdfProbe::pageText($sixteen, 1));
+    }
+
+    public function test_stamp_page_numbers_and_watermarks(): void {
+        $numbered = $this->workDir . '/numbered.pdf';
+        $this->assertSame(2, PDFPageHelper::stamp($this->source, $numbered, PDFPageHelper::STAMP_NUMBER, 'Seite {n} von {total}', [
+            'firstPage' => 2,
+            'start' => 7,
+        ]));
+        $this->assertStringNotContainsString('Seite', PdfProbe::pageText($numbered, 1));
+        $this->assertStringContainsString('Seite 7 von 3', PdfProbe::pageText($numbered, 2));
+        $this->assertStringContainsString('Seite 8 von 3', PdfProbe::pageText($numbered, 3));
+        // Der Seiteninhalt bleibt
+        $this->assertStringContainsString('P3-R1C1', PdfProbe::pageText($numbered, 3));
+
+        // Auch auf einer gedrehten Seite liegt der Stempel in der Anzeige unten
+        $rotated = $this->workDir . '/rotated.pdf';
+        $this->assertSame(3, PDFPageHelper::rotate($this->source, $rotated, 90));
+        $rotatedNumbered = $this->workDir . '/rotated-numbered.pdf';
+        $this->assertSame(3, PDFPageHelper::stamp($rotated, $rotatedNumbered, PDFPageHelper::STAMP_NUMBER, '{n}'));
+        $this->assertSame(90, PdfProbe::pageRotation($rotatedNumbered, 1));
+        $this->assertMatchesRegularExpression('/\b1\b/', PdfProbe::pageText($rotatedNumbered, 1));
+
+        // Wasserzeichen mit Umlaut, gekachelt (ohne Drehung, damit pdftotext es liest)
+        $watermark = $this->workDir . '/watermark.pdf';
+        $this->assertSame(3, PDFPageHelper::stamp($this->source, $watermark, PDFPageHelper::STAMP_WATERMARK, "Entwurf – ungültig\n", [
+            'position' => 'fill',
+            'angle' => 0,
+            'size' => 24,
+            'opacity' => 0.4,
+            'color' => 'ff0000',
+        ]));
+        $this->assertGreaterThan(1, substr_count(PdfProbe::pageText($watermark, 2), 'Entwurf – ungültig'));
+
+        $this->assertNull(PDFPageHelper::stamp($this->source, $this->workDir . '/x.pdf', 'stamp', 'x'));
+        $this->assertNull(PDFPageHelper::stamp($this->source, $this->workDir . '/x.pdf', PDFPageHelper::STAMP_NUMBER, 'x', ['position' => 'fill']));
+        $this->assertNull(PDFPageHelper::stamp($this->source, $this->workDir . '/x.pdf', PDFPageHelper::STAMP_NUMBER, 'x', ['firstPage' => 9]));
+        $this->assertNull(PDFPageHelper::stamp($this->source, $this->workDir . '/x.pdf', PDFPageHelper::STAMP_NUMBER, '   '));
+        $this->assertNull(PDFPageHelper::stamp($this->source, $this->workDir . '/x.pdf', PDFPageHelper::STAMP_NUMBER, 'x', ['color' => 'rot']));
+        $this->assertFileDoesNotExist($this->workDir . '/x.pdf');
+    }
+
+    public function test_extract_images_from_a_page_range(): void {
+        if (trim((string) shell_exec('command -v pdfimages')) === '') {
+            $this->markTestSkipped('pdfimages nicht verfügbar');
+        }
+        $source = PdfProbe::imageHeavy($this, $this->workDir, 2);
+        if ($source === null) {
+            $this->markTestSkipped('ImageMagick (convert) nicht verfügbar');
+        }
+
+        $all = PDFPageHelper::extractImages($source, $this->workDir . '/images');
+        $this->assertCount(2, $all);
+        $this->assertStringEndsWith('.png', $all[0]);
+        $this->assertSame(IMAGETYPE_PNG, getimagesize($all[1])[2] ?? null);
+
+        $second = PDFPageHelper::extractImages($source, $this->workDir . '/images2', 2, 2);
+        $this->assertCount(1, $second);
+        $this->assertStringContainsString('bild-002-', basename($second[0]));
+
+        // Eine reine Text-PDF hat keine Bilder
+        $this->assertSame([], PDFPageHelper::extractImages($this->source, $this->workDir . '/images3'));
     }
 
     public function test_thumbnails_for_all_pages(): void {
@@ -178,12 +274,17 @@ final class PDFPageHelperTest extends BaseTestCase {
         $this->assertNull(PDFPageHelper::imagesToPdf([$wide], $this->workDir . '/x.pdf', 'b5'));
     }
 
+    public function test_sequence_to_string_with_blank_pages(): void {
+        $this->assertSame('1,0,2:90', PDFPageHelper::sequenceToString([['page' => 1], ['page' => 0], ['page' => 2, 'rotate' => 90]]));
+        $this->assertNull(PDFPageHelper::sequenceToString([['page' => -1]]));
+    }
+
     public function test_sequence_to_string(): void {
         $this->assertSame('3:90,1,1,2:180', PDFPageHelper::sequenceToString([
             ['page' => 3, 'rotate' => 90], ['page' => 1], ['page' => 1, 'rotate' => 360], ['page' => 2, 'rotate' => -180],
         ]));
         $this->assertNull(PDFPageHelper::sequenceToString([]));
-        $this->assertNull(PDFPageHelper::sequenceToString([['page' => 0]]));
+        $this->assertNull(PDFPageHelper::sequenceToString([['page' => -2]]));
         $this->assertNull(PDFPageHelper::sequenceToString([['page' => 1, 'rotate' => 10]]));
     }
 }

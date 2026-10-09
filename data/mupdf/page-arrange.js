@@ -9,7 +9,8 @@
 // hinzukommt: "3:90,1,1,2:180" ergibt vier Seiten: Seite 3 um 90 Grad gedreht,
 // Seite 1 zweimal, Seite 2 um 180 Grad gedreht. Nicht genannte Seiten fallen
 // weg. Anmerkungen (Formularfelder, Kommentare) bleiben an ihrer Seite; eine
-// verdoppelte Seite teilt sie sich mit ihrer Kopie.
+// verdoppelte Seite teilt sie sich mit ihrer Kopie. Eine 0 fuegt eine leere
+// Seite ein, so gross und so gedreht wie die Seite davor (am Anfang: Seite 1).
 //
 // Nichts wird gerendert: Jede Zielseite nutzt den Inhaltsstrom der Quellseite.
 
@@ -26,14 +27,29 @@ var doc = openPdf(input);
 var count = doc.countPages();
 
 var pages = [];
+var reference = 1;
+var referenceAngle = null;
 for (var i = 0; i < sequence.length; i++) {
     var item = sequence[i].trim();
     if (item === "") continue;
     var parts = item.split(":");
     var number = parseInt(parts[0], 10);
     var delta = parts.length > 1 ? parseInt(parts[1], 10) : 0;
-    if (isNaN(number) || number < 1 || number > count) fail("Seite " + parts[0] + " gibt es nicht (" + count + " Seiten)");
+    if (isNaN(number) || number < 0 || number > count) fail("Seite " + parts[0] + " gibt es nicht (" + count + " Seiten)");
     if (isNaN(delta) || delta % 90 !== 0) fail("Drehung " + parts[1] + " ist kein Vielfaches von 90");
+
+    if (number === 0) {
+        // Leere Seite wie die Seite davor: gleicher Rahmen, gleiche Drehung
+        var model = doc.findPage(reference - 1);
+        var blank = doc.newDictionary();
+        blank.put("Type", doc.newName("Page"));
+        blank.put("MediaBox", visibleBox(model));
+        var modelAngle = normalizeAngle((referenceAngle === null ? rotation(model) : referenceAngle) + delta);
+        if (modelAngle !== 0) blank.put("Rotate", modelAngle);
+        blank.put("Resources", doc.newDictionary());
+        pages.push(blank);
+        continue;
+    }
 
     var source = doc.findPage(number - 1);
     var copy = copyPage(doc, source, true);
@@ -41,6 +57,8 @@ for (var i = 0; i < sequence.length; i++) {
     if (angle === 0) copy.delete("Rotate");
     else copy.put("Rotate", angle);
     pages.push(copy);
+    reference = number;
+    referenceAngle = angle;
 }
 
 if (pages.length === 0) fail("die Folge ist leer");

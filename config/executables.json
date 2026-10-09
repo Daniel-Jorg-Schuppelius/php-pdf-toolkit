@@ -143,6 +143,22 @@
                 "[OUTPUT-PREFIX]"
             ]
         },
+        "pdfimages-extract": {
+            "path": "pdfimages",
+            "required": false,
+            "description": "Eingebettete Bilder eines Seitenbereichs als PNG herausziehen, Dateiname mit Seitennummer",
+            "package": "poppler-utils",
+            "arguments": [
+                "-p",
+                "-png",
+                "-f",
+                "[FIRST]",
+                "-l",
+                "[LAST]",
+                "[PDF-FILE]",
+                "[OUTPUT-PREFIX]"
+            ]
+        },
         "pdfdetach-list": {
             "path": "pdfdetach",
             "required": false,
@@ -430,7 +446,7 @@
         "mutool-page-nup": {
             "path": "mutool",
             "required": false,
-            "description": "MuPDF: mehrere Seiten je Blatt (data/mupdf/page-nup.js)",
+            "description": "MuPDF: mehrere Seiten je Blatt, 1 = Seitengroesse aendern (data/mupdf/page-nup.js); [FRAME] 1 zeichnet Rahmen",
             "package": "mupdf-tools",
             "arguments": [
                 "run",
@@ -441,7 +457,8 @@
                 "[PER-SHEET]",
                 "[SHEET]",
                 "[GAP-MM]",
-                "[ORIENTATION]"
+                "[ORIENTATION]",
+                "[FRAME]"
             ]
         },
         "mutool-pdf-protect": {
@@ -475,6 +492,69 @@
                 "[MARGIN-MM]",
                 "[ORIENTATION]",
                 "[IMAGES]"
+            ]
+        },
+        "mutool-page-stamp": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF: Seitenzahlen oder Text-Wasserzeichen stempeln (data/mupdf/page-stamp.js); Text aus Datei",
+            "package": "mupdf-tools",
+            "arguments": [
+                "run",
+                "[SCRIPT]",
+                "[LIB]",
+                "[INPUT]",
+                "[OUTPUT]",
+                "[MODE]",
+                "[TEXT-FILE]",
+                "[POSITION]",
+                "[SIZE]",
+                "[MARGIN-MM]",
+                "[ANGLE]",
+                "[OPACITY]",
+                "[COLOR]",
+                "[FIRST-PAGE]",
+                "[START]"
+            ]
+        },
+        "mutool-pdf-metadata": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF: Metadaten setzen oder entfernen (data/mupdf/pdf-metadata.js); Werte aus Datei",
+            "package": "mupdf-tools",
+            "arguments": [
+                "run",
+                "[SCRIPT]",
+                "[LIB]",
+                "[INPUT]",
+                "[OUTPUT]",
+                "[MODE]",
+                "[DATA-FILE]"
+            ]
+        },
+        "mutool-clean-web": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF: PDF neu schreiben, unbenutzte Objekte entfernen und linearisieren (Web-optimiert)",
+            "package": "mupdf-tools",
+            "arguments": [
+                "clean",
+                "-g",
+                "-l",
+                "[INPUT]",
+                "[OUTPUT]"
+            ]
+        },
+        "mutool-clean-repair": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF: PDF reparieren und neu schreiben (Querverweise neu aufbauen, Objekte zusammenfassen)",
+            "package": "mupdf-tools",
+            "arguments": [
+                "clean",
+                "-gggg",
+                "[INPUT]",
+                "[OUTPUT]"
             ]
         },
         "gs-resize": {
@@ -513,6 +593,40 @@
                 "-dAutoRotatePages=/None",
                 "-sOutputFile=[OUTPUT]",
                 "-f",
+                "[INPUT]"
+            ]
+        },
+        "gs-compress-custom": {
+            "path": "gs",
+            "required": false,
+            "description": "Ghostscript: Bilder auf eine waehlbare Aufloesung abtasten; JPEG-Qualitaet ueber [PARAMS-FILE] (setdistillerparams), Stufe 'custom' von PDFOptimizeHelper",
+            "package": "ghostscript",
+            "arguments": [
+                "-sDEVICE=pdfwrite",
+                "-dNOPAUSE",
+                "-dBATCH",
+                "-dQUIET",
+                "-dCompatibilityLevel=1.5",
+                "-dAutoRotatePages=/None",
+                "-dAutoFilterColorImages=false",
+                "-dAutoFilterGrayImages=false",
+                "-dColorImageFilter=/DCTEncode",
+                "-dGrayImageFilter=/DCTEncode",
+                "-dDownsampleColorImages=true",
+                "-dDownsampleGrayImages=true",
+                "-dDownsampleMonoImages=true",
+                "-dColorImageDownsampleType=/Bicubic",
+                "-dGrayImageDownsampleType=/Bicubic",
+                "-dMonoImageDownsampleType=/Subsample",
+                "-dColorImageResolution=[DPI]",
+                "-dGrayImageResolution=[DPI]",
+                "-dMonoImageResolution=[MONO-DPI]",
+                "-dColorImageDownsampleThreshold=1.0",
+                "-dGrayImageDownsampleThreshold=1.0",
+                "-dMonoImageDownsampleThreshold=1.0",
+                "-sOutputFile=[OUTPUT]",
+                "-f",
+                "[PARAMS-FILE]",
                 "[INPUT]"
             ]
         },
