@@ -12,7 +12,7 @@ declare(strict_types=1);
 
 namespace PDFToolkit\Helper;
 
-use CommonToolkit\Helper\FileSystem\File;
+use CommonToolkit\Helper\FileSystem\{File, Folder};
 use CommonToolkit\Helper\Shell;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
@@ -515,6 +515,191 @@ final class PDFCropHelper {
         ]);
 
         return true;
+    }
+
+    /**
+     * Zerlegt die Seiten einer PDF in ein Raster aus gleich großen Teilen,
+     * z.B. zwei Belege auf einer A4-Seite oder einen Bogen Visitenkarten.
+     * Kein Teil wird verworfen.
+     *
+     * Jeder Teil wird eine eigene Seite, die den Inhalt der Originalseite
+     * mitbenutzt und nur einen anderen Seitenrahmen bekommt: nichts wird neu
+     * gerendert, Text bleibt Text, die Datei wächst kaum. Reihenfolge: Seite
+     * für Seite, je Seite zeilenweise von oben nach unten und von links nach
+     * rechts - so, wie die Seite angezeigt wird (/Rotate ist berücksichtigt).
+     * Seiten außerhalb von $firstPage..$lastPage bleiben unverändert an ihrer
+     * Stelle.
+     *
+     * @param string $inputPath Pfad zur Quell-PDF
+     * @param string $outputPath Pfad zur Ziel-PDF
+     * @param int $rows Zeilen je Seite
+     * @param int $columns Spalten je Seite
+     * @param int $firstPage Erste zu zerlegende Seite (1-basiert)
+     * @param int $lastPage Letzte zu zerlegende Seite (0 = bis zur letzten)
+     * @param array<float> $margins CSS-Shorthand-Margins in Punkten (1–4 Werte: top, right, bottom, left), in Anzeigeausrichtung
+     * @return int|null Seitenzahl des Ergebnisses, null bei Fehler
+     */
+    public static function cropToGrid(
+        string $inputPath,
+        string $outputPath,
+        int $rows,
+        int $columns,
+        int $firstPage = 1,
+        int $lastPage = 0,
+        array $margins = []
+    ): ?int {
+        $pages = self::runGridSplit($inputPath, $outputPath, $rows, $columns, $firstPage, $lastPage, $margins, false);
+        if ($pages === null) {
+            return null;
+        }
+
+        if (!File::exists($outputPath)) {
+            self::logError('Zerlegte PDF wurde nicht erstellt', ['path' => $outputPath]);
+            return null;
+        }
+
+        return $pages;
+    }
+
+    /**
+     * Wie {@see cropToGrid()}, aber jede Seite des Ergebnisses wird eine
+     * eigene Datei - auch die unverändert übernommenen Seiten außerhalb des
+     * Seitenbereichs.
+     *
+     * @param string $inputPath Pfad zur Quell-PDF
+     * @param string $outputDir Verzeichnis für die Teile (wird angelegt)
+     * @param int $rows Zeilen je Seite
+     * @param int $columns Spalten je Seite
+     * @param int $firstPage Erste zu zerlegende Seite (1-basiert)
+     * @param int $lastPage Letzte zu zerlegende Seite (0 = bis zur letzten)
+     * @param array<float> $margins CSS-Shorthand-Margins in Punkten (1–4 Werte: top, right, bottom, left), in Anzeigeausrichtung
+     * @return list<string> Pfade der Teile in Ergebnisreihenfolge, leer bei Fehler
+     */
+    public static function cropToGridFiles(
+        string $inputPath,
+        string $outputDir,
+        int $rows,
+        int $columns,
+        int $firstPage = 1,
+        int $lastPage = 0,
+        array $margins = []
+    ): array {
+        Folder::create($outputDir);
+
+        $pages = self::runGridSplit($inputPath, $outputDir, $rows, $columns, $firstPage, $lastPage, $margins, true);
+        if ($pages === null) {
+            return [];
+        }
+
+        // Das Skript nummeriert sechsstellig mit führenden Nullen - die
+        // Sortierung nach Namen ist die Ergebnisreihenfolge
+        $files = glob($outputDir . '/[0-9][0-9][0-9][0-9][0-9][0-9].pdf') ?: [];
+        sort($files, SORT_STRING);
+
+        if (count($files) !== $pages) {
+            self::logError('Zerlegung hat nicht alle Teile geschrieben', [
+                'expected' => $pages,
+                'written' => count($files),
+            ]);
+            return [];
+        }
+
+        return $files;
+    }
+
+    /**
+     * Ruft das MuPDF-Skript data/mupdf/grid-split.js auf.
+     *
+     * @param array<float> $margins
+     * @return int|null Seitenzahl des Ergebnisses laut Skript, null bei Fehler
+     */
+    private static function runGridSplit(
+        string $inputPath,
+        string $output,
+        int $rows,
+        int $columns,
+        int $firstPage,
+        int $lastPage,
+        array $margins,
+        bool $separate
+    ): ?int {
+        if ($rows < 1 || $columns < 1 || $rows * $columns < 2) {
+            self::logError('Raster braucht mindestens zwei Teile', ['rows' => $rows, 'columns' => $columns]);
+            return null;
+        }
+
+        if (!PDFHelper::isValidPdf($inputPath)) {
+            self::logError('Ungültige PDF-Datei', ['path' => $inputPath]);
+            return null;
+        }
+
+        $config = Config::getInstance();
+        if (!$config->isExecutableAvailable('mutool-grid-split')) {
+            self::logError('mutool (mutool-grid-split) ist nicht konfiguriert oder nicht verfügbar');
+            return null;
+        }
+
+        [$mTop, $mRight, $mBottom, $mLeft] = !empty($margins)
+            ? self::normalizeMargins($margins)
+            : [0.0, 0.0, 0.0, 0.0];
+
+        $command = $config->buildCommand('mutool-grid-split', [
+            '[SCRIPT]' => self::gridSplitScript(),
+            '[INPUT]' => $inputPath,
+            '[OUTPUT]' => $output,
+            '[ROWS]' => (string) $rows,
+            '[COLUMNS]' => (string) $columns,
+            '[FIRST-PAGE]' => (string) max(1, $firstPage),
+            '[LAST-PAGE]' => (string) max(0, $lastPage),
+            '[MARGIN-TOP]' => number_format(max(0.0, (float) $mTop), 2, '.', ''),
+            '[MARGIN-RIGHT]' => number_format(max(0.0, (float) $mRight), 2, '.', ''),
+            '[MARGIN-BOTTOM]' => number_format(max(0.0, (float) $mBottom), 2, '.', ''),
+            '[MARGIN-LEFT]' => number_format(max(0.0, (float) $mLeft), 2, '.', ''),
+            '[LAYOUT]' => $separate ? 'separate' : 'single',
+        ]);
+
+        if ($command === null) {
+            self::logError('Konnte mutool-grid-split Befehl nicht erstellen');
+            return null;
+        }
+
+        $output = [];
+        $returnCode = 0;
+        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0) {
+            self::logError('PDF-Zerlegung fehlgeschlagen', [
+                'returnCode' => $returnCode,
+                'output' => implode("\n", $output),
+            ]);
+            return null;
+        }
+
+        // Letzte Ausgabezeile des Skripts: Seitenzahl des Ergebnisses
+        $pages = (int) trim((string) end($output));
+        if ($pages < 1) {
+            self::logError('PDF-Zerlegung ohne Ergebnis', ['output' => implode("\n", $output)]);
+            return null;
+        }
+
+        self::logInfo('PDF in Raster zerlegt', [
+            'input' => $inputPath,
+            'grid' => "{$rows}x{$columns}",
+            'pages' => $pages,
+            'separate' => $separate,
+        ]);
+
+        return $pages;
+    }
+
+    /** Pfad des MuPDF-Skripts, das die Seiten zerlegt. */
+    private static function gridSplitScript(): string {
+        return dirname(__DIR__, 2) . '/data/mupdf/grid-split.js';
+    }
+
+    /**
+     * Prüft ob das Zerlegen in ein Raster verfügbar ist (mutool).
+     */
+    public static function isGridAvailable(): bool {
+        return Config::getInstance()->isExecutableAvailable('mutool-grid-split');
     }
 
     /**

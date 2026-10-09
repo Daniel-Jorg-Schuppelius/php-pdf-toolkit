@@ -325,6 +325,27 @@
                 "[INPUT]"
             ]
         },
+        "mutool-grid-split": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF: Seiten in ein Raster aus Teilen zerlegen (data/mupdf/grid-split.js)",
+            "package": "mupdf-tools",
+            "arguments": [
+                "run",
+                "[SCRIPT]",
+                "[INPUT]",
+                "[OUTPUT]",
+                "[ROWS]",
+                "[COLUMNS]",
+                "[FIRST-PAGE]",
+                "[LAST-PAGE]",
+                "[MARGIN-TOP]",
+                "[MARGIN-RIGHT]",
+                "[MARGIN-BOTTOM]",
+                "[MARGIN-LEFT]",
+                "[LAYOUT]"
+            ]
+        },
         "gs-resize": {
             "path": "gs",
             "required": false,
