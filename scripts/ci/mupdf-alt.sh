@@ -8,7 +8,11 @@
 #
 # Die Pakete kommen aus dem Debian-Pool (mutool ist dort gegen libmupdf
 # statisch gelinkt), werden gegen feste Pruefsummen geprueft und nur
-# entpackt, nicht installiert. Je Version entsteht ein Wrapper
+# entpackt, nicht installiert. Mitgeliefert werden die Bibliotheken, die der
+# Ubuntu-Runner nicht hat: libmujs, libgumbo und libjpeg62-turbo (Ubuntu
+# fuehrt libjpeg8; ohne libjpeg.so.62 startet mutool gar nicht). Die uebrigen
+# Abhaengigkeiten (freetype, harfbuzz, jbig2dec, openjp2, openssl, zlib)
+# bringt das aktuelle mupdf-tools aus apt mit. Je Version entsteht ein Wrapper
 #   <ziel>/bin-<version>/mutool
 # der mutool mit passendem LD_LIBRARY_PATH startet; davor in den PATH
 # gestellt, sieht die Toolkit-Konfiguration ("path": "mutool") die alte
@@ -25,9 +29,11 @@ POOL="https://deb.debian.org/debian/pool/main"
 PACKAGES=(
   "mupdf-tools_1.17.0+ds1-2_amd64.deb|$POOL/m/mupdf/mupdf-tools_1.17.0+ds1-2_amd64.deb|8a676269b3696be9a511c4f7e6a595f2ee7e8d5b93e908d6d3b18f35b2ed32ce|1.17.0"
   "libmujs1_1.1.0-1+deb11u3_amd64.deb|$POOL/m/mujs/libmujs1_1.1.0-1+deb11u3_amd64.deb|463508fbc89a3c518918733c27a9441e3e45c681be4a2b0ee1d330455c21c7c3|1.17.0"
+  "libjpeg62-turbo_2.0.6-4_amd64.deb|$POOL/libj/libjpeg-turbo/libjpeg62-turbo_2.0.6-4_amd64.deb|28de780a1605cf501c3a4ebf3e588f5110e814b208548748ab064100c32202ea|1.17.0"
   "mupdf-tools_1.21.1+ds2-1+deb12u1_amd64.deb|$POOL/m/mupdf/mupdf-tools_1.21.1+ds2-1+deb12u1_amd64.deb|b8ae49989425efa41502adb16ad7dba00371234c6ea538c98cb8c0066455f9c2|1.21.1"
   "libmujs2_1.3.2-1_amd64.deb|$POOL/m/mujs/libmujs2_1.3.2-1_amd64.deb|c7d881e18a6390224424a87ca73767cc239336f8e4b3763db06842fc84d4337c|1.21.1"
   "libgumbo1_0.10.1+dfsg-5_amd64.deb|$POOL/g/gumbo-parser/libgumbo1_0.10.1+dfsg-5_amd64.deb|8c0dca6206f6cfe7a36399e89924cc5a71853f72b312271a10d4a5a13e5da8d8|1.21.1"
+  "libjpeg62-turbo_2.1.5-2_amd64.deb|$POOL/libj/libjpeg-turbo/libjpeg62-turbo_2.1.5-2_amd64.deb|95ec30140789a342add8f8371ed018924de51b539056522b66f207b25cba9cad|1.21.1"
 )
 
 mkdir -p "$TARGET/deb"
