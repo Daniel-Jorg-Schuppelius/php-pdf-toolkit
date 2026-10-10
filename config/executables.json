@@ -653,6 +653,56 @@
                 "output",
                 "[OUTPUT]"
             ]
+        },
+        "verapdf": {
+            "path": "verapdf",
+            "required": false,
+            "description": "veraPDF: PDF/A-Konformitaet pruefen, Bericht als JSON (Referenzpruefer; kommt ueber installers.verapdf nach /opt/verapdf)",
+            "arguments": [
+                "--flavour",
+                "[FLAVOUR]",
+                "--format",
+                "json",
+                "--maxfailuresdisplayed",
+                "[MAX-FAILURES]",
+                "[INPUT]"
+            ],
+            "install": {
+                "type": "izpack",
+                "url": "https://software.verapdf.org/releases/1.30/verapdf-greenfield-1.30.3-installer.zip",
+                "sha256": "b512bf24945503a33fc10738ecffc1f2dccaaf8593a448e94ee9ac86a9559a59",
+                "installPath": "/opt/verapdf",
+                "links": {
+                    "/usr/local/bin/verapdf": "/opt/verapdf/verapdf"
+                },
+                "version": "1.30.3",
+                "versionCommand": "verapdf --version",
+                "description": "veraPDF greenfield 1.30.3 (GPLv3+ oder MPLv2+), braucht Java 8+; Pruefsumme der Installer-ZIP vom 07.10.2026"
+            }
+        },
+        "pdfcraft-run": {
+            "path": "pdfcraft-cli",
+            "required": false,
+            "description": "PdfCraft CLI: JSON-Werkzeugskript ausfuehren, Dateizugriff auf [ROOT] begrenzt (Rueckfall fuer die PDF/A-Pruefung ohne Java; kommt ueber installers.pdfcraft-cli)",
+            "arguments": [
+                "run",
+                "--script",
+                "[SCRIPT]",
+                "--root",
+                "[ROOT]"
+            ],
+            "install": {
+                "type": "tarball",
+                "url": "https://github.com/storytold/pdfcraft/releases/tag/v0.5.0",
+                "assetPattern": "pdfcraft-cli-*-linux-x86_64.tar.gz",
+                "sha256": "9fe5d1ef82924667184d68dc6aea2f23c98bdcd4d3802327c8cf17cc5d9da72b",
+                "arch": "x86_64",
+                "member": "pdfcraft-cli-0.5.0-linux-x86_64/pdfcraft-cli",
+                "target": "/usr/local/bin/pdfcraft-cli",
+                "version": "0.5.0",
+                "versionCommand": "pdfcraft-cli --version",
+                "description": "PdfCraft CLI 0.5.0 (MIT oder Apache-2.0), statisch bis auf glibc >= 2.35; Pruefsumme aus SHA256SUMS.txt des Release"
+            }
         }
     },
     "javaExecutables": {

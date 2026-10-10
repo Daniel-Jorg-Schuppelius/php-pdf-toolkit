@@ -36,6 +36,7 @@ A PHP 8.2+ library for extracting text from PDF documents and creating PDFs with
 - **Pages** - `PDFPageHelper` arranges pages (order, rotation per page, drop, duplicate, blank pages), rotates, puts several pages on one sheet (`nup`, 1-16, optional frame; 1 per sheet resizes), stamps page numbers and text watermarks (`stamp`), renders thumbnails and page images, extracts embedded images (`extractImages`, pdfimages); `PDFCropHelper::cropToGrid()` splits every page into a grid of parts. All page operations keep the content streams - nothing is rasterised, text stays text. Needs `mutool`; the scripts under `data/mupdf/` run with MuPDF 1.17, 1.21 and 1.25
 - **Security** - `PDFSecurityHelper` probes, sets (AES-256 with permissions) and removes password protection. Passwords never travel on the command line. Needs `mutool`
 - **Optimize** - `PDFOptimizeHelper` shrinks PDFs (`strong` via Ghostscript, `lossless` via OCRmyPDF's optimizer, `custom` with resolution and JPEG quality), repairs them (`clean`, rewrite without object streams) and converts to PDF/A-2b
+- **PDF/A compliance** - `PDFAComplianceHelper::verify()` checks a file against ISO 19005 (the level declared in its XMP, else 2b) and returns the verdict with the violated clauses. veraPDF is the reference checker; PdfCraft CLI is the fallback without Java (2b/3b only, fewer rules), and the result always names the engine. Both are optional and self-installing via `installscript/install-dependencies.sh` (the `install` objects in `config/executables.json`)
 - **Metadata** - `PDFMetadataHelper` sets or clears the Info dictionary (and drops stale XMP); reading stays in `PDFHelper::getMetadata()`
 - **OCR languages** - `TesseractDataHelper::SUPPORTED_LANGUAGES` is the allow-list for language codes that reach Tesseract and the tessdata download
 
@@ -51,6 +52,7 @@ A PHP 8.2+ library for extracting text from PDF documents and creating PDFs with
 - `mutool` (`apt install mupdf-tools`) - optional, needed for `glyphNameText()` on PDFs with broken ToUnicode tables and for all page and security helpers
 - `gs` (`apt install ghostscript`) - optional, cropping and strong compression
 - Java + PDFBox JAR (optional)
+- `verapdf` (optional, PDF/A compliance; veraPDF 1.30 from software.verapdf.org, needs Java 8+) or `pdfcraft-cli` (optional fallback, glibc 2.35+) - both installed by `installscript/install-dependencies.sh`
 
 ### For PDF Creation (at least one)
 

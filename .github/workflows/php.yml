@@ -82,6 +82,9 @@ jobs:
           [[ -f "$policy" ]] && sudo sed -i -E 's/rights="none" (pattern="PDF")/rights="read|write" \1/' "$policy"
         done
         echo "mutool: $(mutool -v 2>&1 | head -1)"; echo "convert: $(convert -version | head -1)"
+        # PDF/A-Pruefer kommen ueber install-dependencies.sh (install-Objekte); ohne sie
+        # ueberspraenge PDFAComplianceHelperTest den Lauf gegen echte Dateien.
+        echo "verapdf: $(verapdf --version 2>&1 | head -1)"; echo "pdfcraft-cli: $(pdfcraft-cli --version 2>&1 | head -1)"
 
     - name: Run test suite
       run: composer run-script test
