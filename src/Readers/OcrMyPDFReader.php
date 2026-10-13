@@ -18,7 +18,7 @@ use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
-use PDFToolkit\Helper\{PDFHelper, TesseractDataHelper, TextQualityAnalyzer};
+use PDFToolkit\Helper\{PDFHelper, TesseractDataHelper, TextQualityAnalyzer, ToolTimeout};
 
 /**
  * PDF-Reader basierend auf OCRmyPDF.
@@ -201,9 +201,10 @@ final class OcrMyPDFReader implements PDFReaderInterface {
 
             $output = [];
             $returnCode = 0;
-            Shell::executeShellCommand($command, $output, $returnCode);
+            Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forOcr($pdfPath));
 
-            // Return-Codes: 0 = OK, 6 = bereits Text vorhanden (--skip-text)
+            // Return-Codes: 0 = OK, 6 = bereits Text vorhanden (--skip-text);
+            // Shell::EXIT_TIMEOUT (Zeitgrenze) ist wie jeder andere ein Fehler
             if ($returnCode !== 0 && $returnCode !== 6) {
                 $this->logDebug("ocrmypdf ($configKey, PSM=$psm) failed with code $returnCode for: $pdfPath");
                 return null;
@@ -237,7 +238,7 @@ final class OcrMyPDFReader implements PDFReaderInterface {
 
             $output = [];
             $returnCode = 0;
-            Shell::executeShellCommand($command, $output, $returnCode);
+            Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($pdfToExtract));
 
             if ($returnCode !== 0 || !File::exists($tempTxt)) {
                 $this->logDebug("pdftotext failed after ocrmypdf for: $pdfPath");

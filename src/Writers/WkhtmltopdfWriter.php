@@ -19,6 +19,7 @@ use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFWriterInterface;
 use PDFToolkit\Entities\PDFContent;
 use PDFToolkit\Enums\PDFWriterType;
+use PDFToolkit\Helper\ToolTimeout;
 
 /**
  * PDF-Writer basierend auf wkhtmltopdf.
@@ -81,7 +82,7 @@ final class WkhtmltopdfWriter implements PDFWriterInterface {
 
             $output = [];
             $resultCode = 0;
-            $success = Shell::executeShellCommand($command, $output, $resultCode);
+            $success = Shell::executeShellCommand($command, $output, $resultCode, timeout: ToolTimeout::forSize($tempHtml));
 
             // Temporäre Datei löschen
             File::delete($tempHtml);

@@ -76,7 +76,7 @@ final class PDFSplitHelper {
 
         $output = [];
         $returnCode = 0;
-        if (!Shell::executeShellCommand($command, $output, $returnCode) || $returnCode !== 0) {
+        if (!Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($inputPath)) || $returnCode !== 0) {
             self::logError('PDF-Seitenextraktion fehlgeschlagen', [
                 'returnCode' => $returnCode,
                 'output' => implode("\n", $output),
@@ -205,7 +205,7 @@ final class PDFSplitHelper {
             . escapeshellarg($inputPath) . ' ' . escapeshellarg($tempDir . '/p-%d.pdf');
         $output = [];
         $returnCode = 0;
-        if (!Shell::executeShellCommand($command, $output, $returnCode) || $returnCode !== 0) {
+        if (!Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($inputPath)) || $returnCode !== 0) {
             self::logError('PDF-Seite konnte nicht vereinzelt werden (pdfseparate)', [
                 'page' => $page,
                 'returnCode' => $returnCode,
@@ -277,7 +277,7 @@ final class PDFSplitHelper {
 
         $output = [];
         $returnCode = 0;
-        if (!Shell::executeShellCommand(implode(' ', $parts), $output, $returnCode) || $returnCode !== 0) {
+        if (!Shell::executeShellCommand(implode(' ', $parts), $output, $returnCode, timeout: ToolTimeout::forSize($inputPath)) || $returnCode !== 0) {
             self::logError('PDF-Seitenauswahl (pdftk) fehlgeschlagen', [
                 'returnCode' => $returnCode,
                 'output' => implode("\n", $output),
@@ -330,7 +330,7 @@ final class PDFSplitHelper {
 
             $output = [];
             $returnCode = 0;
-            if (!Shell::executeShellCommand(implode(' ', $parts), $output, $returnCode) || $returnCode !== 0) {
+            if (!Shell::executeShellCommand(implode(' ', $parts), $output, $returnCode, timeout: ToolTimeout::forSize(...$singles)) || $returnCode !== 0) {
                 self::logError('PDF-Seiten konnten nicht zusammengefügt werden (pdfunite)', [
                     'returnCode' => $returnCode,
                     'output' => implode("\n", $output),

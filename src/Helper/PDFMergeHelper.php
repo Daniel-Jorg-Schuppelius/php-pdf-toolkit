@@ -71,7 +71,7 @@ final class PDFMergeHelper {
 
         $output = [];
         $returnCode = 0;
-        if (!Shell::executeShellCommand($command, $output, $returnCode) || $returnCode !== 0) {
+        if (!Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize(...array_values($inputPaths))) || $returnCode !== 0) {
             self::logError('PDF-Zusammenführung fehlgeschlagen', [
                 'returnCode' => $returnCode,
                 'output' => implode("\n", $output),

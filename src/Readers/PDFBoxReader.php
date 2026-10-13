@@ -18,6 +18,7 @@ use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
+use PDFToolkit\Helper\ToolTimeout;
 
 /**
  * PDF-Reader basierend auf Apache PDFBox (Java).
@@ -87,7 +88,7 @@ final class PDFBoxReader implements PDFReaderInterface {
 
         $output = [];
         $returnCode = 0;
-        Shell::executeShellCommand($command, $output, $returnCode);
+        Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($pdfPath));
 
         if ($returnCode !== 0) {
             $this->logDebug("PDFBox failed with code $returnCode for: $pdfPath");

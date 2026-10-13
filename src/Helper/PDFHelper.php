@@ -98,7 +98,7 @@ final class PDFHelper {
 
         $output = [];
         $returnCode = 0;
-        Shell::executeShellCommand($command, $output, $returnCode);
+        Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::PROBE);
 
         if ($returnCode !== 0) {
             return [];
@@ -237,7 +237,8 @@ final class PDFHelper {
 
         $output = [];
         $returnCode = 0;
-        Shell::executeShellCommand($command, $output, $returnCode);
+        $timeout = $firstPageOnly ? ToolTimeout::PAGE : ToolTimeout::forSize($filePath);
+        Shell::executeShellCommand($command, $output, $returnCode, timeout: $timeout);
 
         if ($returnCode !== 0 || !File::exists($tempFile)) {
             File::delete($tempFile);
@@ -277,7 +278,7 @@ final class PDFHelper {
 
         $output = [];
         $returnCode = 0;
-        Shell::executeShellCommand($command, $output, $returnCode);
+        Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($filePath));
 
         if ($returnCode !== 0 || !File::exists($tempFile)) {
             File::delete($tempFile);
@@ -437,7 +438,7 @@ final class PDFHelper {
 
         $output = [];
         $returnCode = 0;
-        Shell::executeShellCommand($command, $output, $returnCode);
+        Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::PROBE);
 
         if ($returnCode !== 0) {
             return [];
@@ -649,11 +650,13 @@ final class PDFHelper {
 
         $output = [];
         $returnCode = 0;
-        if (!Shell::executeShellCommand($command, $output, $returnCode) || $returnCode !== 0) {
+        if (!Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::PAGE) || $returnCode !== 0) {
             self::logError('pdftoppm fehlgeschlagen', [
                 'returnCode' => $returnCode,
                 'output' => implode("\n", $output),
             ]);
+            // Nach einem Abbruch kein halbes Bild liegen lassen
+            File::delete($outputPrefix . '.png');
             return null;
         }
 

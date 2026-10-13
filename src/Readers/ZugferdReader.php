@@ -16,6 +16,7 @@ use CommonToolkit\Helper\FileSystem\{File, Folder};
 use CommonToolkit\Helper\Shell;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
+use PDFToolkit\Helper\ToolTimeout;
 
 /**
  * Reader für ZUGFeRD/Factur-X PDFs.
@@ -208,7 +209,7 @@ final class ZugferdReader {
 
         $output = [];
         $returnCode = 0;
-        Shell::executeShellCommand($command, $output, $returnCode);
+        Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::PROBE);
 
         if ($returnCode !== 0) {
             return [];
@@ -238,7 +239,8 @@ final class ZugferdReader {
 
         $output = [];
         $returnCode = 0;
-        Shell::executeShellCommand($command, $output, $returnCode);
+        // pdftk (Java) liest fuer dump_data das ganze Dokument
+        Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($pdfPath));
 
         if ($returnCode !== 0) {
             return [];
@@ -277,7 +279,8 @@ final class ZugferdReader {
 
         $output = [];
         $returnCode = 0;
-        Shell::executeShellCommand($command, $output, $returnCode);
+        $timeout = ToolTimeout::forSize($pdfPath);
+        Shell::executeShellCommand($command, $output, $returnCode, timeout: $timeout);
 
         if ($returnCode !== 0 || !File::exists($outputPath)) {
             // Versuche mit saveall
@@ -286,10 +289,11 @@ final class ZugferdReader {
                 '[PDF-FILE]' => $pdfPath,
             ]);
             if ($command !== null) {
-                Shell::executeShellCommand($command, $output, $returnCode);
+                Shell::executeShellCommand($command, $output, $returnCode, timeout: $timeout);
             }
 
-            if (!File::exists($outputPath)) {
+            // Nach einem Abbruch ist die Datei womöglich nur halb geschrieben
+            if ($returnCode === Shell::EXIT_TIMEOUT || !File::exists($outputPath)) {
                 return null;
             }
         }
@@ -311,10 +315,11 @@ final class ZugferdReader {
 
         $output = [];
         $returnCode = 0;
-        Shell::executeShellCommand($command, $output, $returnCode);
+        Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($pdfPath));
 
+        // Nach einem Abbruch ist die Datei womöglich nur halb geschrieben
         $outputPath = $tempDir . '/' . $filename;
-        if (!File::exists($outputPath)) {
+        if ($returnCode === Shell::EXIT_TIMEOUT || !File::exists($outputPath)) {
             return null;
         }
 

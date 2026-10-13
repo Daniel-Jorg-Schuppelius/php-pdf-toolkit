@@ -84,7 +84,7 @@ final class PDFBboxLayoutHelper {
 
         $output = [];
         $returnCode = 0;
-        Shell::executeShellCommand($command, $output, $returnCode);
+        Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($pdfPath));
 
         if ($returnCode !== 0 || !File::exists($tempFile)) {
             File::delete($tempFile);
@@ -181,7 +181,11 @@ final class PDFBboxLayoutHelper {
             }
             $out = [];
             $rc = 0;
-            Shell::executeShellCommand($renderCmd, $out, $rc);
+            Shell::executeShellCommand($renderCmd, $out, $rc, timeout: ToolTimeout::forRendering($pdfPath));
+            if ($rc === Shell::EXIT_TIMEOUT) {
+                // Abgebrochen: die gerenderten Seiten sind unvollstaendig - kein Teilergebnis
+                return self::logWarningAndReturn('', "pdftoppm abgebrochen (Zeitgrenze) für OCR-Reassembly: {$pdfPath}");
+            }
 
             $pages = glob("$tempDir/page-*.png") ?: [];
             if ($pages === []) {
@@ -192,8 +196,8 @@ final class PDFBboxLayoutHelper {
             // Gleiche Vorverarbeitung und Erkennungsparameter wie der Textpfad
             // (TesseractReader): Deskew und Wörterbuch aus – der Zeilenpfad lief
             // zuvor ohne beides und lieferte auf Scans messbar weniger Buchungen.
-            if ($settings['preprocess']) {
-                TesseractReader::deskewPageImages($config, $pages, $settings['denoise']);
+            if ($settings['preprocess'] && !TesseractReader::deskewPageImages($config, $pages, $settings['denoise'])) {
+                return self::logWarningAndReturn('', "Deskew abgebrochen (Zeitgrenze) für OCR-Reassembly: {$pdfPath}");
             }
             $recognitionArgs = TesseractReader::recognitionArgs($settings['noDict'], $settings['whitelist']);
 
@@ -222,7 +226,11 @@ final class PDFBboxLayoutHelper {
                 $commands[$png] = TesseractReader::OMP_SINGLE_THREAD . ' ' . $tessCmd . ' 2>/dev/null';
             }
 
-            ParallelShell::run($commands);
+            $exitCodes = ParallelShell::run($commands, null, ToolTimeout::PAGE);
+            if (in_array(Shell::EXIT_TIMEOUT, $exitCodes, true)) {
+                // Eine abgebrochene Seite fehlte sonst still im Text
+                return self::logWarningAndReturn('', "Tesseract abgebrochen (Zeitgrenze) für OCR-Reassembly: {$pdfPath}");
+            }
 
             // Einlesen in Seitenreihenfolge – die Prozesse enden in beliebiger Folge.
             $pageTexts = [];

@@ -144,7 +144,8 @@ final class GlyphNameLayer {
 
         $output = [];
         $returnCode = 0;
-        Shell::executeShellCommand($command, $output, $returnCode);
+        // mutool draw -F trace laeuft wie ein Rendern ueber alle Seiten
+        Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forRendering($pdfPath));
 
         if ($returnCode !== 0 || !File::exists($traceFile)) {
             self::logDebug("mutool-trace fehlgeschlagen (Code $returnCode) fuer: $pdfPath");

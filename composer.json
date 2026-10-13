@@ -20,7 +20,7 @@
         "php": ">=8.2 <8.6",
         "ext-gd": "*",
         "dompdf/dompdf": "^3.1",
-        "dschuppelius/php-common-toolkit": "^1.22 || ^2.0",
+        "dschuppelius/php-common-toolkit": "^2.9",
         "setasign/fpdi": "^2.3",
         "setasign/fpdf": "^1.8",
         "tecnickcom/tcpdf": "^6.6 || ^7.0"

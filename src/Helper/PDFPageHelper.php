@@ -284,7 +284,8 @@ final class PDFPageHelper {
 
         $output = [];
         $returnCode = 0;
-        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0) {
+        $timeout = ToolTimeout::forRendering($inputPath, $lastPage - $firstPage + 1);
+        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode, timeout: $timeout) || $returnCode !== 0) {
             self::logError('pdfimages fehlgeschlagen', ['returnCode' => $returnCode, 'output' => implode("\n", $output)]);
             return [];
         }
@@ -332,7 +333,7 @@ final class PDFPageHelper {
             '[ORIENTATION]' => $orientation,
             // Mehrere Pfade als eine bereits escapte Folge (CommandBuilder übernimmt sie unverändert)
             '[IMAGES]' => implode(' ', array_map('escapeshellarg', $imagePaths)),
-        ]);
+        ], ToolTimeout::forSize(...$imagePaths));
         if ($pages === null || !File::exists($outputPath)) {
             return null;
         }
@@ -414,7 +415,8 @@ final class PDFPageHelper {
 
         $output = [];
         $returnCode = 0;
-        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0) {
+        $timeout = ToolTimeout::forRendering($inputPath, $lastPage - $firstPage + 1);
+        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode, timeout: $timeout) || $returnCode !== 0) {
             self::logError('pdftoppm fehlgeschlagen', ['returnCode' => $returnCode, 'output' => implode("\n", $output)]);
             return [];
         }
@@ -476,8 +478,9 @@ final class PDFPageHelper {
      * Pakets, nicht für Aufrufer von außen.
      *
      * @param array<string, string> $replacements
+     * @param float|null $timeout Zeitgrenze in Sekunden; null = nach Größe von [INPUT] ({@see ToolTimeout::forSize()})
      */
-    public static function runScript(string $executable, string $script, array $replacements): ?int {
+    public static function runScript(string $executable, string $script, array $replacements, ?float $timeout = null): ?int {
         $config = Config::getInstance();
         if (!$config->isExecutableAvailable($executable)) {
             self::logError('mutool ist nicht konfiguriert oder nicht verfügbar', ['executable' => $executable]);
@@ -495,7 +498,8 @@ final class PDFPageHelper {
 
         $output = [];
         $returnCode = 0;
-        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0) {
+        $timeout ??= ToolTimeout::forSize($replacements['[INPUT]'] ?? '');
+        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode, timeout: $timeout) || $returnCode !== 0) {
             self::logError('MuPDF-Skript fehlgeschlagen', [
                 'script' => $script,
                 'returnCode' => $returnCode,

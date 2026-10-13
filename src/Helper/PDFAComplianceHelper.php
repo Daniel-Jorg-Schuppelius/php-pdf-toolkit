@@ -53,8 +53,8 @@ final class PDFAComplianceHelper {
     private const EXECUTABLE_VERAPDF = 'verapdf';
     private const EXECUTABLE_PDFCRAFT = 'pdfcraft-run';
     private const MAX_FAILURES_DISPLAYED = 50;
-    private const TIMEOUT_VERAPDF = 300.0;
-    private const TIMEOUT_PDFCRAFT = 120.0;
+    private const TIMEOUT_VERAPDF = ToolTimeout::VERAPDF;
+    private const TIMEOUT_PDFCRAFT = ToolTimeout::PDFCRAFT;
     /** Blockgröße beim Suchen der XMP-Kennung; große Dateien werden nicht am Stück geladen. */
     private const SCAN_CHUNK = 4 * 1024 * 1024;
     private const SCAN_OVERLAP = 512;
@@ -457,7 +457,7 @@ final class PDFAComplianceHelper {
         $path = $config['path'] ?? null;
         $version = '';
         if (is_string($path) && $path !== '') {
-            $result = Shell::run([$path, '--version'], 15.0);
+            $result = Shell::run([$path, '--version'], ToolTimeout::PROBE);
             $firstLine = strtok($result->output, "\r\n");
             $version = is_string($firstLine) ? trim($firstLine) : '';
         }

@@ -270,9 +270,13 @@ final class PDFSecurityHelper {
         // executeShellCommand meldet jeden Rückgabewert ungleich 0 als
         // Fehlschlag; ein erwarteter Wert (2 = falsches Passwort) zählt hier
         // als Antwort
+        // probe liest nur den Kopf; encrypt/decrypt schreiben die ganze Datei neu
+        $input = $replacements['[INPUT]'] ?? '';
+        $timeout = $mode === 'probe' ? ToolTimeout::PROBE : ToolTimeout::forSize($input);
+
         $output = [];
         $returnCode = 0;
-        Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode);
+        Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode, timeout: $timeout);
         if ($returnCode !== 0 && !in_array($returnCode, $acceptedCodes, true)) {
             self::logError('pdf-protect.js fehlgeschlagen', [
                 'mode' => $mode,

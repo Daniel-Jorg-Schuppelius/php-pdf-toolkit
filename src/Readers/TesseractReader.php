@@ -18,7 +18,7 @@ use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
-use PDFToolkit\Helper\{OcrCache, PDFHelper, ParallelShell, TesseractDataHelper, TextQualityAnalyzer};
+use PDFToolkit\Helper\{OcrCache, PDFHelper, ParallelShell, TesseractDataHelper, TextQualityAnalyzer, ToolTimeout};
 
 /**
  * PDF-Reader basierend auf Tesseract OCR.
@@ -408,8 +408,8 @@ final class TesseractReader implements PDFReaderInterface {
      *
      * @param string[] $pages Pfade der PNG-Seiten.
      */
-    private function deskewPages(array $pages): void {
-        self::deskewPageImages($this->config, $pages, $this->denoise);
+    private function deskewPages(array $pages): bool {
+        return self::deskewPageImages($this->config, $pages, $this->denoise);
     }
 
     /**
@@ -417,25 +417,35 @@ final class TesseractReader implements PDFReaderInterface {
      * den Text- und den zeilenausgerichteten OCR-Pfad.
      *
      * @param string[] $pages
+     * @return bool false, wenn ein mogrify-Lauf die Zeitgrenze überschritt: das
+     *              Bild wurde dann womöglich nur halb geschrieben und taugt nicht
+     *              mehr für die OCR. Fehlt mogrify oder scheitert es sonst, bleibt
+     *              das Original und das Ergebnis ist true.
      */
-    public static function deskewPageImages(Config $config, array $pages, bool $denoise = false): void {
+    public static function deskewPageImages(Config $config, array $pages, bool $denoise = false): bool {
         $configKey = $denoise ? 'mogrify-deskew-denoise' : 'mogrify-deskew';
 
         $commands = [];
         foreach ($pages as $page) {
             $command = $config->buildCommand($configKey, ['[IMAGE]' => $page]);
             if ($command === null) {
-                return; // mogrify nicht verfügbar -> Vorverarbeitung überspringen
+                return true; // mogrify nicht verfügbar -> Vorverarbeitung überspringen
             }
             $commands[$page] = $command . ' 2>/dev/null';
         }
 
         // Seiten sind unabhängig voneinander – nebenläufig verarbeiten.
-        foreach (ParallelShell::run($commands) as $page => $returnCode) {
-            if ($returnCode !== 0) {
+        $usable = true;
+        foreach (ParallelShell::run($commands, null, ToolTimeout::PAGE) as $page => $returnCode) {
+            if ($returnCode === Shell::EXIT_TIMEOUT) {
+                self::logWarning("$configKey abgebrochen (Zeitgrenze) für: $page");
+                $usable = false;
+            } elseif ($returnCode !== 0) {
                 self::logDebug("$configKey fehlgeschlagen (Code $returnCode) für: $page");
             }
         }
+
+        return $usable;
     }
 
     /**
@@ -481,7 +491,7 @@ final class TesseractReader implements PDFReaderInterface {
 
                 $output = [];
                 $returnCode = 0;
-                Shell::executeShellCommand($command, $output, $returnCode);
+                Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forRendering($pdfPath));
 
                 if ($returnCode !== 0) {
                     $this->logDebug("pdftoppm failed with code $returnCode for: $pdfPath");
@@ -512,8 +522,9 @@ final class TesseractReader implements PDFReaderInterface {
             // Bildvorverarbeitung: Deskew (Schräglagen-Korrektur) vor der OCR – deutlich
             // robustere Erkennung bei schief eingescannten Kontoauszügen. Fehlertolerant
             // (fehlt mogrify/ImageMagick, wird mit dem Originalbild weitergemacht).
-            if ($this->preprocessImages) {
-                $this->deskewPages($pages);
+            if ($this->preprocessImages && !$this->deskewPages($pages)) {
+                $this->logWarning("Deskew abgebrochen (Zeitgrenze), keine OCR mit halb geschriebenen Seiten: $pdfPath");
+                return null;
             }
 
             // Wörterbuch-Deaktivierung (dawg off): verhindert, dass das LSTM-Sprachmodell
@@ -545,7 +556,12 @@ final class TesseractReader implements PDFReaderInterface {
                 $commands[$pagePath] = self::OMP_SINGLE_THREAD . ' ' . $command . ' 2>/dev/null';
             }
 
-            $exitCodes = ParallelShell::run($commands);
+            $exitCodes = ParallelShell::run($commands, null, ToolTimeout::PAGE);
+            if (in_array(Shell::EXIT_TIMEOUT, $exitCodes, true)) {
+                // Eine abgebrochene Seite fehlte sonst still im Text - kein Teilergebnis
+                $this->logWarning("Tesseract abgebrochen (Zeitgrenze) für: $pdfPath");
+                return null;
+            }
 
             // Einlesen in Seitenreihenfolge – die Prozesse enden in beliebiger Folge.
             $allText = [];

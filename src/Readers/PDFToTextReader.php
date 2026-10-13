@@ -18,7 +18,7 @@ use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
-use PDFToolkit\Helper\{PDFHelper, TextQualityAnalyzer};
+use PDFToolkit\Helper\{PDFHelper, TextQualityAnalyzer, ToolTimeout};
 
 /**
  * PDF-Reader basierend auf pdftotext (poppler-utils).
@@ -141,7 +141,7 @@ final class PDFToTextReader implements PDFReaderInterface {
 
         $output = [];
         $returnCode = 0;
-        Shell::executeShellCommand($command, $output, $returnCode);
+        Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($pdfPath));
 
         if ($returnCode !== 0) {
             $this->logDebug("pdftotext ($configKey) failed with code $returnCode for: $pdfPath");

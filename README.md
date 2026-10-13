@@ -198,6 +198,22 @@ Tool paths can be configured in `config/executables.json`:
 }
 ```
 
+### Time Limits
+
+Every external tool runs through `CommonToolkit\Helper\Shell` with a time limit (php-common-toolkit ≥ 2.9). The limits live in one place, `PDFToolkit\Helper\ToolTimeout`:
+
+| Class | Limit | Used for |
+| ----- | ----- | -------- |
+| `PROBE` | 30 s | `pdfinfo`, `pdfdetach -list`, password probe, `--version` |
+| `PAGE` | 120 s | one page: `pdftoppm` of a single page, first-page text probe, `tesseract`/`mogrify` per page |
+| `forSize()` | 180 s + 10 s per MB | whole-document text and page work: `pdftotext`, pdfbox, MuPDF scripts, `pdftk`, poppler split/merge, Ghostscript |
+| `forRendering()` | 180 s + 10 s per page | `pdftoppm`/`pdfimages` over many pages, `mutool draw -F trace` |
+| `forOcr()` | 180 s + 60 s per page | OCRmyPDF (also its optimizer and PDF/A, which OCR scanned pages via `--skip-text`) |
+
+Scaled limits are capped at 4 h and never drop below `Shell::getDefaultTimeout()`, so `Shell::setDefaultTimeout(…)` in a worker raises them for long OCR runs. When a limit is hit, the whole process tree is killed and the call reports a failure — OCR never returns the text of the remaining pages as a result; the optimizer and single-page rendering also remove a half-written output file. `PDFOptimizeHelper::compress()` tells a failure (including a time-out) apart from "nothing saved" through its optional by-reference parameter `$failed`.
+
+`phpstan.neon.dist` includes the common-toolkit rule that reports direct process calls (`exec`, `proc_open`, backticks, Symfony Process …) outside `Shell`.
+
 ## Architecture
 
 ```text
@@ -221,6 +237,6 @@ AGPL-3.0-or-later - see [LICENSE](LICENSE) file.
 
 ## Versions
 
-Releases are tagged in Git; `git tag --sort=-v:refname` lists them (latest: v0.22.1). There is no separate changelog file — the tags and the commit history are the record.
+Releases are tagged in Git; `git tag --sort=-v:refname` lists them (latest: v0.24.0). There is no separate changelog file — the tags and the commit history are the record.
 
 The CI runs the MuPDF-based tests against MuPDF 1.17 and 1.21 as well (`scripts/ci/mupdf-alt.sh`, packages from the Debian pool with pinned checksums), because servers often run an older MuPDF than the development machine.

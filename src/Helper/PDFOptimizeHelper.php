@@ -50,9 +50,13 @@ final class PDFOptimizeHelper {
      * @param string $level LEVEL_STRONG, LEVEL_LOSSLESS oder LEVEL_CUSTOM
      * @param int|null $dpi Nur LEVEL_CUSTOM: Auflösung der Bilder (36-600)
      * @param int|null $quality Nur LEVEL_CUSTOM: JPEG-Qualität 1-100
+     * @param bool|null $failed Referenz: true, wenn die Eingabe ungültig war oder ein Werkzeug
+     *        fehlschlug bzw. abgebrochen wurde (Zeitgrenze) - im Unterschied zu "nichts gespart"
+     * @param-out bool $failed
      * @return int|null Größe des Ergebnisses in Bytes; null, wenn nichts gespart wurde oder ein Fehler auftrat
      */
-    public static function compress(string $inputPath, string $outputPath, string $level = self::LEVEL_STRONG, ?int $dpi = null, ?int $quality = null): ?int {
+    public static function compress(string $inputPath, string $outputPath, string $level = self::LEVEL_STRONG, ?int $dpi = null, ?int $quality = null, ?bool &$failed = null): ?int {
+        $failed = true;
         if (!in_array($level, self::LEVELS, true)) {
             self::logError('Unbekannte Stufe', ['level' => $level]);
             return null;
@@ -73,6 +77,7 @@ final class PDFOptimizeHelper {
             }
         }
 
+        $failed = false;
         $before = File::size($inputPath);
         $after = File::size($outputPath);
         if ($after >= $before) {
@@ -189,8 +194,9 @@ final class PDFOptimizeHelper {
 
             $output = [];
             $returnCode = 0;
-            if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0 || !File::exists($outputPath)) {
+            if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode, timeout: ToolTimeout::forSize($inputPath)) || $returnCode !== 0 || !File::exists($outputPath)) {
                 self::logError('Werkzeug fehlgeschlagen', ['executable' => 'gs-compress-custom', 'returnCode' => $returnCode, 'output' => implode("\n", array_slice($output, -5))]);
+                self::dropPartialOutput($inputPath, $outputPath);
                 return false;
             }
 
@@ -223,17 +229,31 @@ final class PDFOptimizeHelper {
             return false;
         }
 
+        // OCRmyPDF erkennt mit --skip-text die Scanseiten (OCR je Seite); Ghostscript
+        // und MuPDF schreiben die Datei neu
+        $timeout = str_starts_with($executable, 'ocrmypdf') ? ToolTimeout::forOcr($inputPath) : ToolTimeout::forSize($inputPath);
+
         $output = [];
         $returnCode = 0;
-        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode) || $returnCode !== 0 || !File::exists($outputPath)) {
+        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode, timeout: $timeout) || $returnCode !== 0 || !File::exists($outputPath)) {
             self::logError('Werkzeug fehlgeschlagen', [
                 'executable' => $executable,
                 'returnCode' => $returnCode,
                 'output' => implode("\n", array_slice($output, -5)),
             ]);
+            self::dropPartialOutput($inputPath, $outputPath);
             return false;
         }
 
         return true;
+    }
+
+    /**
+     * Nach Fehlschlag oder Abbruch (Zeitgrenze) keine halb geschriebene Ausgabe stehen lassen.
+     */
+    private static function dropPartialOutput(string $inputPath, string $outputPath): void {
+        if ($outputPath !== $inputPath && File::exists($outputPath)) {
+            File::delete($outputPath);
+        }
     }
 }
