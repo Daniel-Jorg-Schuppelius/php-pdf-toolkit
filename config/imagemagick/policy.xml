@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Mitgelieferte ImageMagick-Policy des php-pdf-toolkit (Scan 13.10.2026 S4-06).
+
+  TesseractReader setzt fuer jeden mogrify-Lauf (Deskew vor der OCR)
+  MAGICK_CONFIGURE_PATH auf diesen Ordner. ImageMagick liest dann diese Datei
+  UND die policy.xml des Servers; die Eintraege gelten zusammen. Diese Datei
+  enthaelt nur Sperren - sie greifen damit auch auf einem Server, dessen eigene
+  Policy nichts sperrt. Gleicher Inhalt wie die Policy des CKonverter-Core
+  (ckonverter-core/config/imagemagick/policy.xml).
+
+  Gesperrt sind die Wege, ueber die eine praeparierte Datei den Server eine
+  andere Datei lesen laesst (FILE, TEXT, LABEL, CAPTION, PANGO, EPHEMERAL und
+  die Dateiangabe per @), eine ausgehende Anfrage ausloest (URL, HTTP, HTTPS,
+  FTP), Skripte ausfuehrt (MSL, SCRIPT) oder ein Fremdprogramm startet (alle
+  Delegates). mogrify arbeitet hier nur auf PNG-Seiten, die pdftoppm selbst
+  gerastert hat; die Raster-Coder bleiben frei.
+
+  Die Ressourcengrenzen entsprechen der Debian-Standard-Policy.
+-->
+<policymap>
+  <policy domain="resource" name="memory" value="1024MiB"/>
+  <policy domain="resource" name="map" value="2048MiB"/>
+  <policy domain="resource" name="area" value="256MP"/>
+  <policy domain="resource" name="disk" value="2GiB"/>
+  <policy domain="resource" name="width" value="32KP"/>
+  <policy domain="resource" name="height" value="32KP"/>
+  <policy domain="path" rights="none" pattern="@*"/>
+  <policy domain="delegate" rights="none" pattern="*"/>
+  <policy domain="coder" rights="none" pattern="URL"/>
+  <policy domain="coder" rights="none" pattern="FILE"/>
+  <policy domain="coder" rights="none" pattern="HTTPS"/>
+  <policy domain="coder" rights="none" pattern="HTTP"/>
+  <policy domain="coder" rights="none" pattern="FTP"/>
+  <policy domain="coder" rights="none" pattern="EPHEMERAL"/>
+  <policy domain="coder" rights="none" pattern="MSL"/>
+  <policy domain="coder" rights="none" pattern="TEXT"/>
+  <policy domain="coder" rights="none" pattern="LABEL"/>
+  <policy domain="coder" rights="none" pattern="CAPTION"/>
+  <policy domain="coder" rights="none" pattern="PANGO"/>
+  <policy domain="coder" rights="none" pattern="SCRIPT"/>
+</policymap>

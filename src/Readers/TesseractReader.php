@@ -44,6 +44,9 @@ final class TesseractReader implements PDFReaderInterface {
      */
     public const OMP_SINGLE_THREAD = 'OMP_THREAD_LIMIT=1';
 
+    /** Ordner der mitgelieferten ImageMagick-Policy (config/imagemagick/policy.xml). */
+    public const IMAGEMAGICK_POLICY_DIR = __DIR__ . '/../../config/imagemagick';
+
     private ?bool $available = null;
     private Config $config;
     private string $defaultLanguage;
@@ -431,7 +434,9 @@ final class TesseractReader implements PDFReaderInterface {
             if ($command === null) {
                 return true; // mogrify nicht verfügbar -> Vorverarbeitung überspringen
             }
-            $commands[$page] = $command . ' 2>/dev/null';
+            // Unter der mitgelieferten Policy (keine Delegates, keine Datei- und
+            // Netz-Coder) wie die convert-Aufrufe des Core (Scan 13.10.2026 S4-06)
+            $commands[$page] = self::imageMagickPolicyPrefix() . $command . ' 2>/dev/null';
         }
 
         // Seiten sind unabhängig voneinander – nebenläufig verarbeiten.
@@ -595,5 +600,15 @@ final class TesseractReader implements PDFReaderInterface {
             // Aufräumen - rekursiv löschen
             Folder::delete($tempDir, true);
         }
+    }
+
+    /**
+     * MAGICK_CONFIGURE_PATH vor einem ImageMagick-Aufruf: ImageMagick liest
+     * dann die mitgelieferte Policy zusaetzlich zur Policy des Servers.
+     */
+    public static function imageMagickPolicyPrefix(): string {
+        return Folder::exists(self::IMAGEMAGICK_POLICY_DIR)
+            ? 'MAGICK_CONFIGURE_PATH=' . escapeshellarg(self::IMAGEMAGICK_POLICY_DIR) . ' '
+            : '';
     }
 }

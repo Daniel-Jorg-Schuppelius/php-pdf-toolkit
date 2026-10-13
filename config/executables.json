@@ -390,6 +390,7 @@
             "description": "Ghostscript PDF Crop (Zuschnitt)",
             "package": "ghostscript",
             "arguments": [
+                "-dSAFER",
                 "-sDEVICE=pdfwrite",
                 "-dNOPAUSE",
                 "-dBATCH",
@@ -550,6 +551,7 @@
             "description": "Ghostscript PDF Resize (Skalierung auf Zielgröße)",
             "package": "ghostscript",
             "arguments": [
+                "-dSAFER",
                 "-sDEVICE=pdfwrite",
                 "-dNOPAUSE",
                 "-dBATCH",
@@ -571,6 +573,7 @@
             "description": "Ghostscript: Bilder auf 150 dpi abtasten (/ebook), Stufe 'stark' von PDFOptimizeHelper",
             "package": "ghostscript",
             "arguments": [
+                "-dSAFER",
                 "-sDEVICE=pdfwrite",
                 "-dNOPAUSE",
                 "-dBATCH",
@@ -589,6 +592,7 @@
             "description": "Ghostscript: Bilder auf eine waehlbare Aufloesung abtasten; JPEG-Qualitaet ueber [PARAMS-FILE] (setdistillerparams), Stufe 'custom' von PDFOptimizeHelper",
             "package": "ghostscript",
             "arguments": [
+                "-dSAFER",
                 "-sDEVICE=pdfwrite",
                 "-dNOPAUSE",
                 "-dBATCH",
