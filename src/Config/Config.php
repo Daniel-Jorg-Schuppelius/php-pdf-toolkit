@@ -14,7 +14,7 @@ namespace PDFToolkit\Config;
 
 use CommonToolkit\Entities\Executables\{JavaExecutable, ShellExecutable};
 use CommonToolkit\Helper\FileSystem\Folder;
-use CommonToolkit\Helper\Shell;
+use CommonToolkit\Helper\{Platform, Shell};
 use ConfigToolkit\CommandBuilder;
 use ConfigToolkit\Contracts\Abstracts\ConfigAbstract;
 use ERRORToolkit\Enums\LogType;
@@ -151,11 +151,8 @@ final class Config extends ConfigAbstract {
 
         // Fallback: Prüfe ob Tool im PATH verfügbar ist
         if ($fallback === null) {
-            exec("which $name 2>/dev/null", $output, $returnCode);
-            if ($returnCode === 0 && !empty($output[0])) {
-                return $output[0];
-            }
-            return $name; // Nutze den Namen direkt als letzten Ausweg
+            // Nutze den Namen direkt als letzten Ausweg (die Shell sucht dann selbst)
+            return Platform::findExecutable($name) ?? $name;
         }
 
         return $fallback;

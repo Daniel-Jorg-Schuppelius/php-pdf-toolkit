@@ -1,3 +1,7 @@
+includes:
+    # Prozesse startet nur CommonToolkit\Helper\Shell (Zeitgrenze, Abbruch des Prozessbaums)
+    - vendor/dschuppelius/php-common-toolkit/phpstan-rules.neon
+
 parameters:
     level: 5
     paths:
