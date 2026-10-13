@@ -209,10 +209,19 @@ Every external tool runs through `CommonToolkit\Helper\Shell` with a time limit 
 | `forSize()` | 180 s + 10 s per MB | whole-document text and page work: `pdftotext`, pdfbox, MuPDF scripts, `pdftk`, poppler split/merge, Ghostscript |
 | `forRendering()` | 180 s + 10 s per page | `pdftoppm`/`pdfimages` over many pages, `mutool draw -F trace` |
 | `forOcr()` | 180 s + 60 s per page | OCRmyPDF (also its optimizer and PDF/A, which OCR scanned pages via `--skip-text`) |
+| `VERAPDF` | 300 s | veraPDF (PDF/A compliance) |
+| `PDFCRAFT` | 120 s | PdfCraft CLI (PDF/A fallback) |
 
-Scaled limits are capped at 4 h and never drop below `Shell::getDefaultTimeout()`, so `Shell::setDefaultTimeout(…)` in a worker raises them for long OCR runs. When a limit is hit, the whole process tree is killed and the call reports a failure — OCR never returns the text of the remaining pages as a result; the optimizer and single-page rendering also remove a half-written output file. `PDFOptimizeHelper::compress()` tells a failure (including a time-out) apart from "nothing saved" through its optional by-reference parameter `$failed`.
+Scaled limits are capped at 4 h (`ToolTimeout::MAX`) and never drop below `Shell::getDefaultTimeout()`, so `Shell::setDefaultTimeout(…)` in a worker raises them for long OCR runs. When a limit is hit, the whole process tree is killed and the call reports a failure — OCR never returns the text of the remaining pages as a result; the optimizer and single-page rendering also remove a half-written output file. `PDFOptimizeHelper::compress()` tells a failure (including a time-out) apart from "nothing saved" through its optional by-reference parameter `$failed`.
 
 `phpstan.neon.dist` includes the common-toolkit rule that reports direct process calls (`exec`, `proc_open`, backticks, Symfony Process …) outside `Shell`.
+
+### Hardening of Ghostscript and ImageMagick (since 0.24.1)
+
+The input PDFs usually come from third parties, so the two programs that can execute or load more than the page content are restricted explicitly:
+
+- **Ghostscript** - all Ghostscript commands in `config/executables.json` (`gs-crop`, `gs-resize`, `gs-compress`, `gs-compress-custom`) pass `-dSAFER` as their first argument instead of relying on the default of the installed version. If you override one of these commands in your own configuration, keep `-dSAFER`.
+- **ImageMagick** - the deskew before OCR (`mogrify-deskew`, `mogrify-deskew-denoise` in `TesseractReader`) runs with `MAGICK_CONFIGURE_PATH` pointing to `config/imagemagick/` of this package. Its `policy.xml` only adds restrictions: no delegates, no `@file` arguments, no file, network or script coders (`URL`, `FILE`, `HTTP`, `HTTPS`, `FTP`, `EPHEMERAL`, `MSL`, `TEXT`, `LABEL`, `CAPTION`, `PANGO`, `SCRIPT`), and the resource limits of the Debian default policy. ImageMagick applies it together with the server's own policy, so the restrictions hold even where the system policy allows everything. mogrify only sees PNG pages that `pdftoppm` rendered itself; the raster coders stay available. `config/imagemagick/` is part of the Composer package and must be deployed with it - without the folder, mogrify runs under the server policy alone.
 
 ## Architecture
 
@@ -237,6 +246,6 @@ AGPL-3.0-or-later - see [LICENSE](LICENSE) file.
 
 ## Versions
 
-Releases are tagged in Git; `git tag --sort=-v:refname` lists them (latest: v0.24.0). There is no separate changelog file — the tags and the commit history are the record.
+Releases are tagged in Git; `git tag --sort=-v:refname` lists them (latest: v0.24.1). There is no separate changelog file — the tags and the commit history are the record.
 
 The CI runs the MuPDF-based tests against MuPDF 1.17 and 1.21 as well (`scripts/ci/mupdf-alt.sh`, packages from the Debian pool with pinned checksums), because servers often run an older MuPDF than the development machine.
