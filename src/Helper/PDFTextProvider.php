@@ -251,21 +251,7 @@ final class PDFTextProvider {
         if ($target !== null) {
             $ocr = $this->ocrText($language);
             if ($ocr !== null) {
-                $this->cipherMap = CipherLayerSolver::learnMap($target, $ocr);
-                if ($this->cipherMap !== null) {
-                    if (CipherLayerSolver::isReliable($this->cipherMap, $target)) {
-                        $text = CipherLayerSolver::decode($target, $this->cipherMap);
-                    } else {
-                        $this->logInfo(sprintf(
-                            "Cipher-Layer-Map verfehlt das Gate (Abdeckung %.4f, Konsistenz %.4f, %d/%d Glyphen): %s",
-                            $this->cipherMap->coverageOn($target),
-                            $this->cipherMap->consistency,
-                            $this->cipherMap->glyphsMapped,
-                            $this->cipherMap->glyphsSeen,
-                            $this->pdfPath,
-                        ));
-                    }
-                }
+                $text = CipherLayerSolver::solveAndDecode($target, $ocr, $target, $this->cipherMap, $this->pdfPath);
             }
         }
 
@@ -351,6 +337,11 @@ final class PDFTextProvider {
      * Extrahiert zunächst mit Text-Readern. Wenn der Qualitäts-Score
      * unter dem Schwellwert liegt, wird OCR als Fallback versucht
      * und das bessere Ergebnis verwendet.
+     *
+     * @deprecated seit 0.25.0, ohne Aufrufer (Scan 13.10.2026 K3-03): {@see text()}
+     *             prüft bereits nach PDFSettings (`quality_check_enabled`,
+     *             `quality_threshold`). Ersatz für eine eigene Schwelle:
+     *             `document(['qualityCheck' => true, 'qualityThreshold' => $n, 'language' => $l])`.
      *
      * @param int $threshold Score-Schwelle (0-100). Standard: 60
      * @param string $language OCR-Sprache für den Fallback

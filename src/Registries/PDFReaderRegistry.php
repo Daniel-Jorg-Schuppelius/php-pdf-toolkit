@@ -738,13 +738,6 @@ final class PDFReaderRegistry {
      * @return PDFReaderType[]
      */
     public function getAvailableReaderTypes(): array {
-        $types = [];
-        foreach ($this->readerClasses as $className) {
-            $reader = $this->getReaderInstance($className);
-            if ($reader !== null) {
-                $types[] = $reader::getType();
-            }
-        }
-        return $types;
+        return array_map(static fn (PDFReaderInterface $reader): PDFReaderType => $reader::getType(), array_values($this->getAvailableReaders()));
     }
 }

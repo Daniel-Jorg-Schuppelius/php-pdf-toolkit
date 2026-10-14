@@ -28,7 +28,11 @@ final class PDFHelper {
     /** Cache für hasEmbeddedText() Ergebnisse (filePath:minChars => bool) */
     private static array $embeddedTextCache = [];
 
-    /** Cache für den bei hasEmbeddedText() extrahierten Text (filePath => string) */
+    /**
+     * Text des zuletzt per hasEmbeddedText() geprüften Dokuments (filePath => string).
+     * Nur ein Eintrag: der Cache wuchs sonst in langlebigen Prozessen (Worker,
+     * ZIP-Jobs) mit dem vollen Text jedes geprüften Dokuments.
+     */
     private static array $extractedTextCache = [];
 
     /**
@@ -44,6 +48,12 @@ final class PDFHelper {
      *
      * Der Text wurde bereits beim Check extrahiert. Statt ihn nochmal
      * zu extrahieren, kann er direkt wiederverwendet werden.
+     *
+     * @deprecated seit 0.25.0, ohne Aufrufer (Scan 13.10.2026 K3-03): Der Text
+     *             ist je nach Prüfstufe nur Seite 1, der ganze Rohtext oder die
+     *             PDFBox-Ausgabe, und es bleibt nur das zuletzt geprüfte
+     *             Dokument im Cache. Ersatz: {@see PDFTextProvider} (cacht je
+     *             Textvariante).
      *
      * @param string $filePath Pfad zur PDF-Datei
      * @return string|null Der gecachte Text oder null wenn nicht verfügbar
@@ -289,16 +299,19 @@ final class PDFHelper {
     }
 
     /**
-     * Cacht den extrahierten Text zur späteren Wiederverwendung durch die Reader.
+     * Merkt sich den beim Check extrahierten Text - nur für das zuletzt
+     * geprüfte Dokument.
      */
     private static function cacheExtractedText(string $filePath, string $text): void {
-        if (trim($text) !== '') {
-            self::$extractedTextCache[$filePath] = $text;
-        }
+        self::$extractedTextCache = trim($text) !== '' ? [$filePath => $text] : [];
     }
 
     /**
      * Schätzt ob das PDF gescannt ist (nur Bilder, kein Text).
+     *
+     * @deprecated seit 0.25.0, ohne Aufrufer (Scan 13.10.2026 K3-03): nur die
+     *             Verneinung von {@see hasEmbeddedText()}. Ersatz:
+     *             `PDFHelper::isValidPdf($f) && !PDFHelper::hasEmbeddedText($f)`.
      */
     public static function isLikelyScanned(string $filePath): bool {
         return self::isValidPdf($filePath) && !self::hasEmbeddedText($filePath);
@@ -572,6 +585,9 @@ final class PDFHelper {
 
     /**
      * Gibt eine lesbare Beschreibung des PDF-Formats zurück.
+     *
+     * @deprecated seit 0.25.0, ohne Aufrufer (Scan 13.10.2026 K3-03). Ersatz:
+     *             `PDFHelper::getPageSize($f, $page)?->description()`.
      *
      * @param string $filePath Pfad zur PDF-Datei
      * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)

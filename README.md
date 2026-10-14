@@ -31,6 +31,7 @@ A PHP 8.2+ library for extracting text from PDF documents and creating PDFs with
 ### Additional Helpers
 
 - **Image OCR** - `TesseractReader::extractTextFromImage()` runs OCR on a single image file instead of a PDF
+- **Searchable PDF** - `PDFOcrHelper::makeSearchable()` puts an invisible OCRmyPDF text layer over scanned pages (optionally with the recognised text as a sidecar file); it is the one OCRmyPDF path of the package, `OcrMyPDFReader` uses it as well (see [Searchable PDF and OCRmyPDF](#searchable-pdf-and-ocrmypdf-since-0250))
 - **Encrypted Layers** - `CipherLayerSolver` resolves encrypted content layers so that text extraction also works on protected documents
 - **Broken ToUnicode Tables** - `GlyphNameLayer` (via `PDFTextProvider::glyphNameText()`) rebuilds the text layer from the fonts' glyph names, so a PDF whose ToUnicode table maps every glyph to the wrong character still yields its exact text - no OCR, no guessing. Needs `mutool` (mupdf-tools)
 - **Pages** - `PDFPageHelper` arranges pages (order, rotation per page, drop, duplicate, blank pages), rotates, puts several pages on one sheet (`nup`, 1-16, optional frame; 1 per sheet resizes), stamps page numbers and text watermarks (`stamp`), renders thumbnails and page images, extracts embedded images (`extractImages`, pdfimages); `PDFCropHelper::cropToGrid()` splits every page into a grid of parts. All page operations keep the content streams - nothing is rasterised, text stays text. Needs `mutool`; the scripts under `data/mupdf/` run with MuPDF 1.17, 1.21 and 1.25
@@ -216,6 +217,22 @@ Scaled limits are capped at 4 h (`ToolTimeout::MAX`) and never drop below `Shell
 
 `phpstan.neon.dist` includes the common-toolkit rule that reports direct process calls (`exec`, `proc_open`, backticks, Symfony Process …) outside `Shell`.
 
+### Searchable PDF and OCRmyPDF (since 0.25.0)
+
+`PDFOcrHelper::makeSearchable()` is the one OCRmyPDF path of the package: applications use it for a searchable PDF (an invisible text layer over the page images), `OcrMyPDFReader` uses it with `--sidecar` to read the recognised text. Language data (`TESSDATA_PREFIX` with `configs/`), one Tesseract thread per call and the time limit `ToolTimeout::forOcr()` are set in this one place. All four entries in `config/executables.json` (`ocrmypdf`, `ocrmypdf-sidecar`, `ocrmypdf-force`, `ocrmypdf-force-sidecar`) carry the same switches and differ only in `--skip-text`/`--force-ocr` and the sidecar file; `PDFOcrHelperTest` keeps it that way.
+
+| Switch | Why |
+| ------ | --- |
+| `--rotate-pages --rotate-pages-threshold 5` | Turns pages that were scanned sideways or upside down before recognition. Tesseract's orientation detection names the right orientation reliably, but with low confidences: on 8 real scanned statement pages turned by 90/180/270 degrees OCRmyPDF reported 1.4 to 14.0 and, at its default threshold of 14, turned none of the 24 pages; at 5 it turns 22. Over 106 catalogue pages (first and last pages, 387 orientations) the detected orientation was right every time, and no upright page would have been turned at any threshold down to 2. |
+| `--deskew` | Straightens skewed pages, in the output as well. |
+| no `--clean` | unpaper only cleans the image handed to Tesseract. On the scans measured it found no additional amount, cost 20 to 35 % more CPU time and needs `unpaper`, which is only a recommended package of OCRmyPDF. |
+
+Measured on 14.10.2026 on the scanned bank statements of the conversion catalogue: how many booking amounts of the converted statement appear in the text layer, and the CPU time. All four variants (no switch, the former application setting `--deskew --rotate-pages`, the former reader setting `--deskew --clean`, all three) found the same amounts within one or two per document (upright pages). `--deskew --rotate-pages` cost 45 to 70 % more CPU time than no switch, `--clean` another 20 to 35 % on top. The page segmentation mode stays as in v1: `ocrmypdf_psm` (11), 12 for pages that are not A4.
+
+### Temporary Files (since 0.25.0)
+
+Rendered pages, OCR output and extracted text are document content. All work files of the tool calls go through `TempPath`: directories `0700`, files created exclusively with `0600`, names from `random_bytes` instead of `uniqid()`. A tool that writes into a pre-created file only truncates it, so the permissions stay. The cross-process OCR cache (`OcrCache`, default `<temp>/pdftoolkit_ocr`) is created with `0700` and its entries with `0600`; if the default directory belongs to another user, the cache switches itself off instead of reading or writing there. `ZugferdReader` no longer builds the output path from the attachment name inside the PDF.
+
 ### Hardening of Ghostscript and ImageMagick (since 0.24.1)
 
 The input PDFs usually come from third parties, so the two programs that can execute or load more than the page content are restricted explicitly:
@@ -246,6 +263,6 @@ AGPL-3.0-or-later - see [LICENSE](LICENSE) file.
 
 ## Versions
 
-Releases are tagged in Git; `git tag --sort=-v:refname` lists them (latest: v0.24.1). There is no separate changelog file — the tags and the commit history are the record.
+Releases are tagged in Git; `git tag --sort=-v:refname` lists them (latest: v0.25.0). There is no separate changelog file — the tags and the commit history are the record.
 
 The CI runs the MuPDF-based tests against MuPDF 1.17 and 1.21 as well (`scripts/ci/mupdf-alt.sh`, packages from the Debian pool with pinned checksums), because servers often run an older MuPDF than the development machine.

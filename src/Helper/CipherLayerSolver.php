@@ -303,19 +303,25 @@ final class CipherLayerSolver {
      * Komplettpipeline: lernen -> Gate -> dekodieren. null bei fehlenden
      * Eingaben oder verfehltem Gate — der Aufrufer bleibt dann bei seiner
      * bisherigen Textquelle.
+     *
+     * @param CipherMap|null $map Referenz: die gelernte Map (auch bei verfehltem
+     *                            Gate, für Statistiken des Aufrufers), sonst null
+     * @param-out CipherMap|null $map
+     * @param string $source Quelle für die Protokollzeile (z.B. der PDF-Pfad)
      */
-    public static function solveAndDecode(string $cipherText, string $ocrText, string $decodeTarget): ?string {
+    public static function solveAndDecode(string $cipherText, string $ocrText, string $decodeTarget, ?CipherMap &$map = null, string $source = ''): ?string {
         $map = self::learnMap($cipherText, $ocrText);
         if ($map === null) {
             return null;
         }
         if (!self::isReliable($map, $decodeTarget)) {
             self::logInfo(sprintf(
-                'Cipher-Layer-Map verfehlt das Gate (Abdeckung %.4f, Konsistenz %.4f, %d/%d Glyphen) — Dekodat verworfen',
+                'Cipher-Layer-Map verfehlt das Gate (Abdeckung %.4f, Konsistenz %.4f, %d/%d Glyphen) — Dekodat verworfen%s',
                 $map->coverageOn(self::stripBidi($decodeTarget)),
                 $map->consistency,
                 $map->glyphsMapped,
                 $map->glyphsSeen,
+                $source !== '' ? ': ' . $source : '',
             ));
 
             return null;

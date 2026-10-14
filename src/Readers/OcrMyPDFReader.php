@@ -18,13 +18,15 @@ use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
-use PDFToolkit\Helper\{PDFHelper, TesseractDataHelper, TextQualityAnalyzer, ToolTimeout};
+use PDFToolkit\Helper\{PDFHelper, PDFOcrHelper, TempPath, TesseractDataHelper, TextQualityAnalyzer, ToolTimeout};
+use Throwable;
 
 /**
  * PDF-Reader basierend auf OCRmyPDF.
  *
- * Erstellt ein durchsuchbares PDF aus gescannten Dokumenten.
- * Kombiniert mehrere Tools (Tesseract, unpaper, etc.) für beste Ergebnisse.
+ * Erstellt über {@see PDFOcrHelper} ein durchsuchbares PDF aus gescannten
+ * Dokumenten und liest dessen Text (--sidecar). Dieselben ocrmypdf-Schalter
+ * wie für Anwendungen, die die durchsuchbare PDF selbst brauchen.
  */
 final class OcrMyPDFReader implements PDFReaderInterface {
     use ErrorLog;
@@ -32,7 +34,6 @@ final class OcrMyPDFReader implements PDFReaderInterface {
     private ?bool $available = null;
     private Config $config;
     private string $defaultLanguage;
-    private string $tessDataPath;
     private int $defaultPsm;
 
     public function __construct() {
@@ -41,22 +42,9 @@ final class OcrMyPDFReader implements PDFReaderInterface {
 
     private function loadConfig(): void {
         $this->config = Config::getInstance();
-        $this->defaultLanguage = $this->config->getConfig('PDFSettings', 'tesseract_lang') ?? 'deu+eng';
-        $this->tessDataPath = $this->config->getConfig('PDFSettings', 'tesseract_data_path') ?? '';
-        $this->defaultPsm = (int) ($this->config->getConfig('PDFSettings', 'ocrmypdf_psm') ?? 11);
-
-        // Fallback auf lokales data-Verzeichnis mit automatischem Download
-        if (empty($this->tessDataPath)) {
-            $usablePath = TesseractDataHelper::getUsableDataPath($this->defaultLanguage);
-            if ($usablePath !== null) {
-                $this->tessDataPath = $usablePath;
-            }
-        } elseif (Folder::exists($this->tessDataPath)) {
-            // Konfiguriertes Verzeichnis (tesseract_data_path) wird TESSDATA_PREFIX:
-            // ocrmypdf ruft Tesseract mit "pdf txt"/"hocr txt" auf, die Dateien
-            // muessen unter configs/ dieses Verzeichnisses liegen
-            TesseractDataHelper::ensureConfigs($this->tessDataPath);
-        }
+        $this->defaultLanguage = $this->config->getConfig('PDFSettings', 'tesseract_lang') ?? PDFOcrHelper::DEFAULT_LANGUAGE;
+        // Sprachdaten (TESSDATA_PREFIX samt configs/) richtet PDFOcrHelper je Aufruf ein
+        $this->defaultPsm = (int) ($this->config->getConfig('PDFSettings', 'ocrmypdf_psm') ?? PDFOcrHelper::DEFAULT_PSM);
     }
 
     public static function getType(): PDFReaderType {
@@ -155,58 +143,25 @@ final class OcrMyPDFReader implements PDFReaderInterface {
      *                        false -> --skip-text-Variante (vorhandenen Textlayer behalten)
      */
     private function extractWithSettings(string $pdfPath, string $language, int $psm, bool $forceOcr = false): ?string {
-        $tempPdf = sys_get_temp_dir() . '/ocrmypdf_' . uniqid() . '.pdf';
-        $tempTxt = sys_get_temp_dir() . '/ocrmypdf_' . uniqid() . '.txt';
+        if (!TesseractDataHelper::isSupportedLanguage($language)) {
+            $this->logDebug("ocrmypdf: Sprache nicht unterstützt ($language) für: $pdfPath");
+            return null;
+        }
+
+        // Privates Arbeitsverzeichnis: OCR-PDF und Text sind Dokumentinhalt
+        try {
+            $tempDir = TempPath::directory('ocrmypdf');
+        } catch (Throwable $e) {
+            $this->logDebug('ocrmypdf: Temp-Verzeichnis nicht anlegbar: ' . $e->getMessage());
+            return null;
+        }
+        $tempPdf = $tempDir . '/ocr.pdf';
+        $tempTxt = $tempDir . '/ocr.txt';
 
         try {
             // Sidecar-Modus bevorzugen (direkter Text ohne erneutes pdftotext).
-            // Bei forceOcr die --force-ocr-Kommandos verwenden (rastert den Textlayer neu).
-            if ($forceOcr) {
-                $useSidecar = $this->config->isExecutableAvailable('ocrmypdf-force-sidecar');
-                $configKey = $useSidecar ? 'ocrmypdf-force-sidecar' : 'ocrmypdf-force';
-            } else {
-                $useSidecar = $this->config->isExecutableAvailable('ocrmypdf-sidecar');
-                $configKey = $useSidecar ? 'ocrmypdf-sidecar' : 'ocrmypdf';
-            }
-
-            $replacements = [
-                '[PSM]' => (string) $psm,
-                '[LANG]' => $language,
-                '[INPUT]' => $pdfPath,
-                '[OUTPUT]' => $tempPdf,
-            ];
-
-            if ($useSidecar) {
-                $replacements['[SIDECAR]'] = $tempTxt;
-            }
-
-            $command = $this->config->buildCommand($configKey, $replacements);
-            if ($command === null) {
-                $this->logDebug("ocrmypdf ($configKey) nicht verfügbar für: $pdfPath");
-                return null;
-            }
-
-            // TESSDATA_PREFIX setzen falls eigene Trainingsdaten vorhanden
-            if (!empty($this->tessDataPath) && Folder::exists($this->tessDataPath)) {
-                $command = "TESSDATA_PREFIX=" . escapeshellarg($this->tessDataPath) . " " . $command;
-            }
-
-            // Ein Thread je Tesseract-Aufruf: ocrmypdf verteilt die Seiten bereits
-            // selbst, und Tesseracts OpenMP bremst die Einzelseite aus
-            // (siehe TesseractReader::OMP_SINGLE_THREAD).
-            $command = TesseractReader::OMP_SINGLE_THREAD . ' ' . $command;
-
-            // stderr unterdrücken (OSD "Weak margin" Warnungen sind harmlos)
-            $command .= ' 2>/dev/null';
-
-            $output = [];
-            $returnCode = 0;
-            Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forOcr($pdfPath));
-
-            // Return-Codes: 0 = OK, 6 = bereits Text vorhanden (--skip-text);
-            // Shell::EXIT_TIMEOUT (Zeitgrenze) ist wie jeder andere ein Fehler
-            if ($returnCode !== 0 && $returnCode !== 6) {
-                $this->logDebug("ocrmypdf ($configKey, PSM=$psm) failed with code $returnCode for: $pdfPath");
+            $useSidecar = $this->config->isExecutableAvailable($forceOcr ? 'ocrmypdf-force-sidecar' : 'ocrmypdf-sidecar');
+            if (!PDFOcrHelper::makeSearchable($pdfPath, $tempPdf, $forceOcr, $language, $psm, $useSidecar ? $tempTxt : null)) {
                 return null;
             }
 
@@ -225,10 +180,8 @@ final class OcrMyPDFReader implements PDFReaderInterface {
             }
 
             // Fallback: Text aus dem OCR-verarbeiteten PDF extrahieren
-            $pdfToExtract = File::exists($tempPdf) ? $tempPdf : $pdfPath;
-
             $command = $this->config->buildCommand('pdftotext', [
-                '[PDF-FILE]' => $pdfToExtract,
+                '[PDF-FILE]' => $tempPdf,
                 '[TEXT-FILE]' => $tempTxt,
             ]);
             if ($command === null) {
@@ -238,7 +191,7 @@ final class OcrMyPDFReader implements PDFReaderInterface {
 
             $output = [];
             $returnCode = 0;
-            Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($pdfToExtract));
+            Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($tempPdf));
 
             if ($returnCode !== 0 || !File::exists($tempTxt)) {
                 $this->logDebug("pdftotext failed after ocrmypdf for: $pdfPath");
@@ -249,8 +202,7 @@ final class OcrMyPDFReader implements PDFReaderInterface {
             return $this->validateExtractedText($text, $pdfPath, "pdftotext PSM=$psm");
         } finally {
             // Aufräumen
-            File::delete($tempPdf);
-            File::delete($tempTxt);
+            Folder::delete($tempDir, true);
         }
     }
 
