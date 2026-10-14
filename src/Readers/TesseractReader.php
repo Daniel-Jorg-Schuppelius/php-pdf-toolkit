@@ -45,6 +45,17 @@ final class TesseractReader implements PDFReaderInterface {
      */
     public const OMP_SINGLE_THREAD = 'OMP_THREAD_LIMIT=1';
 
+    /**
+     * Bilder (JPG/PNG/TIFF) erst ab dieser Schräglage in Grad gerade richten.
+     * Das Drehen eines schon geraden Bildes tastet es neu ab und verwischt
+     * dünne Zeichen: an drei flach gescannten JPEG-Abrechnungen (Schräglage 0
+     * bis 0,03 Grad) blieben so 113 statt 124 Beträge lesbar (Kommas fehlten),
+     * künstlich um 1,5 Grad gedrehte Handyfotos gewinnen dagegen (157 statt
+     * 126 von 192 Beträgen; Messung 14.10.2026). PDF-Seiten bleiben beim
+     * bisherigen Deskew ohne Schwelle.
+     */
+    public const IMAGE_DESKEW_MIN_ANGLE = 0.5;
+
     /** Ordner der mitgelieferten ImageMagick-Policy (config/imagemagick/policy.xml). */
     public const IMAGEMAGICK_POLICY_DIR = __DIR__ . '/../../config/imagemagick';
 
@@ -461,6 +472,7 @@ final class TesseractReader implements PDFReaderInterface {
         // Prozessübergreifender Cache: OCR ist der teuerste Schritt, und die
         // Qualitäts-Kaskade ruft diese Methode mehrfach mit unterschiedlichen
         // Einstellungen auf — jede Kombination wird einzeln zwischengespeichert.
+        $isPdf = $this->isPdfFile($pdfPath);
         $cacheParameters = [
             'language' => $language,
             'psm' => $psm,
@@ -470,6 +482,9 @@ final class TesseractReader implements PDFReaderInterface {
             'deskew' => $this->preprocessImages,
             'denoise' => $this->denoise,
         ];
+        if (!$isPdf) {
+            $cacheParameters['deskewMinAngle'] = self::IMAGE_DESKEW_MIN_ANGLE;
+        }
         $cached = OcrCache::get($pdfPath, 'tesseract', $cacheParameters);
         if ($cached !== null) {
             return $cached;
@@ -484,7 +499,8 @@ final class TesseractReader implements PDFReaderInterface {
         }
 
         try {
-            if ($this->isPdfFile($pdfPath)) {
+            $deskew = $this->preprocessImages;
+            if ($isPdf) {
                 // 1. PDF zu PNG konvertieren
                 $command = $this->config->buildCommand('pdftoppm', [
                     '[DPI]' => (string) $dpi,
@@ -524,12 +540,14 @@ final class TesseractReader implements PDFReaderInterface {
                     return null;
                 }
                 $pages = [$target];
+                // Gerade Bilder nicht neu abtasten (IMAGE_DESKEW_MIN_ANGLE)
+                $deskew = $deskew && self::needsDeskew($this->config, $target);
             }
 
             // Bildvorverarbeitung: Deskew (Schräglagen-Korrektur) vor der OCR – deutlich
             // robustere Erkennung bei schief eingescannten Kontoauszügen. Fehlertolerant
             // (fehlt mogrify/ImageMagick, wird mit dem Originalbild weitergemacht).
-            if ($this->preprocessImages && !$this->deskewPages($pages)) {
+            if ($deskew && !$this->deskewPages($pages)) {
                 $this->logWarning("Deskew abgebrochen (Zeitgrenze), keine OCR mit halb geschriebenen Seiten: $pdfPath");
                 return null;
             }
@@ -602,6 +620,31 @@ final class TesseractReader implements PDFReaderInterface {
             // Aufräumen - rekursiv löschen
             Folder::delete($tempDir, true);
         }
+    }
+
+    /**
+     * Ob ein Bild schief genug liegt, um es vor der OCR gerade zu richten
+     * ({@see IMAGE_DESKEW_MIN_ANGLE}). Lässt sich die Schräglage nicht messen
+     * (ImageMagick fehlt, Zeitgrenze), bleibt es beim bisherigen Deskew.
+     */
+    public static function needsDeskew(Config $config, string $image): bool {
+        $command = $config->buildCommand('imagemagick-deskew-angle', [
+            '[IMAGE]' => $image,
+            '[FORMAT]' => '%[deskew:angle]',
+        ]);
+        if ($command === null) {
+            return true;
+        }
+
+        $output = [];
+        $returnCode = 0;
+        Shell::executeShellCommand(self::imageMagickPolicyPrefix() . $command . ' 2>/dev/null', $output, $returnCode, captureStderr: false, timeout: ToolTimeout::PAGE);
+        $angle = trim(implode('', $output));
+        if ($returnCode !== 0 || !is_numeric($angle)) {
+            return true;
+        }
+
+        return abs((float) $angle) >= self::IMAGE_DESKEW_MIN_ANGLE;
     }
 
     /**

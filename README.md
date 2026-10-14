@@ -30,7 +30,7 @@ A PHP 8.2+ library for extracting text from PDF documents and creating PDFs with
 
 ### Additional Helpers
 
-- **Image OCR** - `TesseractReader::extractTextFromImage()` runs OCR on a single image file instead of a PDF
+- **Image OCR** - `TesseractReader::extractTextFromImage()` runs OCR on a single image file instead of a PDF; the image is only deskewed when it is skewed by at least `TesseractReader::IMAGE_DESKEW_MIN_ANGLE` (0.5 degrees), because resampling a straight scan blurs thin characters such as the commas in amounts (needs `convert` for the measurement, otherwise every image is deskewed as before)
 - **Searchable PDF** - `PDFOcrHelper::makeSearchable()` puts an invisible OCRmyPDF text layer over scanned pages (optionally with the recognised text as a sidecar file); it is the one OCRmyPDF path of the package, `OcrMyPDFReader` uses it as well (see [Searchable PDF and OCRmyPDF](#searchable-pdf-and-ocrmypdf-since-0250))
 - **Encrypted Layers** - `CipherLayerSolver` resolves encrypted content layers so that text extraction also works on protected documents
 - **Broken ToUnicode Tables** - `GlyphNameLayer` (via `PDFTextProvider::glyphNameText()`) rebuilds the text layer from the fonts' glyph names, so a PDF whose ToUnicode table maps every glyph to the wrong character still yields its exact text - no OCR, no guessing. Needs `mutool` (mupdf-tools)

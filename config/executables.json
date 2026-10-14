@@ -241,6 +241,20 @@
                 "[IMAGE]"
             ]
         },
+        "imagemagick-deskew-angle": {
+            "path": "convert",
+            "required": false,
+            "description": "ImageMagick: Schräglage eines Bildes messen (Grad), ohne es zu ändern - Bild-OCR richtet erst ab TesseractReader::IMAGE_DESKEW_MIN_ANGLE gerade",
+            "package": "imagemagick",
+            "arguments": [
+                "[IMAGE]",
+                "-deskew",
+                "40%",
+                "-format",
+                "[FORMAT]",
+                "info:"
+            ]
+        },
         "mogrify-deskew-denoise": {
             "path": "mogrify",
             "required": false,
