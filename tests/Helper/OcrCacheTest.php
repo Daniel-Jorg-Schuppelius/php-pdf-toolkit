@@ -50,6 +50,43 @@ class OcrCacheTest extends BaseTestCase {
         $this->assertSame(0, fileperms(dirname($entry)) & 0077, 'Cache-Verzeichnis ohne Rechte fuer Gruppe und andere');
     }
 
+    /** Kundentext bleibt standardmaessig nicht laenger als die Jobdateien (Entscheidung 14.10.2026). */
+    public function test_vorgabe_ist_24_stunden(): void {
+        OcrCache::reset();
+
+        $this->assertSame(86400, (new ReflectionMethod(OcrCache::class, 'ttl'))->invoke(null));
+    }
+
+    /** Abgelaufene Eintraege verschwinden beim Schreiben, nicht erst beim erneuten Lesen derselben Datei. */
+    public function test_schreiben_raeumt_abgelaufene_eintraege_weg(): void {
+        $dir = $this->paths[] = sys_get_temp_dir() . '/pdftk-ocrcache-' . bin2hex(random_bytes(8));
+        OcrCache::configure(enabled: true, ttl: 60, directory: $dir);
+
+        $old = $this->paths[] = $dir . '/' . str_repeat('a', 40) . '.txt';
+        $fresh = $this->paths[] = $dir . '/' . str_repeat('b', 40) . '.txt';
+        (new ReflectionMethod(OcrCache::class, 'directory'))->invoke(null);
+        file_put_contents($old, 'alter Kontoauszug');
+        file_put_contents($fresh, 'neuer Kontoauszug');
+        touch($old, time() - 3600);
+
+        $source = $this->paths[] = sys_get_temp_dir() . '/pdftk-ocrcache-' . bin2hex(random_bytes(8)) . '.pdf';
+        file_put_contents($source, '%PDF-1.4 ' . bin2hex(random_bytes(16)));
+        OcrCache::put($source, 'test', 'Text', ['test' => 'prune']);
+        $entry = (new ReflectionMethod(OcrCache::class, 'path'))->invoke(null, $source, 'test', ['test' => 'prune']);
+        if (is_string($entry)) {
+            array_splice($this->paths, 1, 0, [$entry]);
+        }
+
+        $this->assertFileDoesNotExist($old);
+        $this->assertFileExists($fresh);
+        $this->assertSame(0, OcrCache::prune(), 'nichts mehr abgelaufen');
+    }
+
+    public function test_negative_lebensdauer_wird_abgelehnt(): void {
+        $this->expectException(\InvalidArgumentException::class);
+        OcrCache::configure(ttl: -1);
+    }
+
     public function test_zu_offenes_eigenes_verzeichnis_wird_geschlossen(): void {
         $dir = $this->paths[] = sys_get_temp_dir() . '/pdftk-ocrcache-' . bin2hex(random_bytes(8));
         mkdir($dir, 0700);

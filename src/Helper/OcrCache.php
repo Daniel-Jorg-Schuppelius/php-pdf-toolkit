@@ -33,12 +33,22 @@ use Throwable;
  * Konfiguration (Abschnitt `PDFSettings`):
  * - `ocr_cache`      bool   Cache aktiv (Standard: true)
  * - `ocr_cache_dir`  string Verzeichnis (Standard: <temp>/pdftoolkit_ocr)
- * - `ocr_cache_ttl`  int    Lebensdauer in Sekunden (Standard: 30 Tage, 0 = unbegrenzt)
+ * - `ocr_cache_ttl`  int    Lebensdauer in Sekunden (Standard: 24 Stunden, 0 = unbegrenzt)
+ *
+ * Der Cache haelt Text aus Kundendokumenten. Deshalb ist die Vorgabe 24 Stunden
+ * (so lange leben auch die Jobdateien des Dienstes), und abgelaufene Eintraege
+ * werden beim Schreiben weggeraeumt - nicht erst, wenn dieselbe Datei noch
+ * einmal gelesen wird; ein einmal konvertiertes Dokument bliebe sonst fuer
+ * immer liegen (Entscheidung 14.10.2026). Werkzeuge, die laenger cachen sollen
+ * (Katalog-Gate), stellen das mit {@see configure()} fuer sich ein.
  */
 final class OcrCache {
     use ErrorLog;
 
-    private const DEFAULT_TTL = 2592000; // 30 Tage
+    private const DEFAULT_TTL = 86400; // 24 Stunden
+
+    /** Hoechstens so oft (Sekunden) raeumt ein Prozess beim Schreiben auf. */
+    private const PRUNE_INTERVAL = 3600;
 
     /** Name des Standardverzeichnisses im Temp-Ordner */
     private const DEFAULT_DIRECTORY = 'pdftoolkit_ocr';
@@ -46,6 +56,34 @@ final class OcrCache {
     private static ?bool $enabled = null;
     private static ?string $directory = null;
     private static ?int $ttl = null;
+    private static ?int $lastPrune = null;
+    /** @var string|null Verzeichnis aus configure(), vorrangig vor der Konfiguration */
+    private static ?string $configuredDirectory = null;
+
+    /**
+     * Setzt Einstellungen fuer diesen Prozess, vorrangig vor der Konfiguration;
+     * null laesst den jeweiligen Wert unberuehrt.
+     *
+     * @param int|null $ttl Lebensdauer in Sekunden, 0 = unbegrenzt
+     * @param string|null $directory eigenes Verzeichnis (wird mit 0700 angelegt)
+     * @throws \InvalidArgumentException bei negativer Lebensdauer
+     */
+    public static function configure(?bool $enabled = null, ?int $ttl = null, ?string $directory = null): void {
+        if ($ttl !== null && $ttl < 0) {
+            throw new \InvalidArgumentException('Die Lebensdauer des OCR-Caches darf nicht negativ sein.');
+        }
+        if ($enabled !== null) {
+            self::$enabled = $enabled;
+        }
+        if ($ttl !== null) {
+            self::$ttl = $ttl;
+        }
+        if ($directory !== null) {
+            self::$directory = null;
+            self::$configuredDirectory = rtrim($directory, '/');
+        }
+        self::$lastPrune = null;
+    }
 
     /**
      * Liefert den gecachten Text oder null (kein Treffer/deaktiviert).
@@ -100,6 +138,35 @@ final class OcrCache {
         } catch (Throwable) {
             self::logDebug("OCR-Cache nicht schreibbar: {$file}");
         }
+
+        if (self::$lastPrune === null || time() - self::$lastPrune >= self::PRUNE_INTERVAL) {
+            self::$lastPrune = time();
+            self::prune();
+        }
+    }
+
+    /**
+     * Loescht alle Eintraege, die aelter als die Lebensdauer sind.
+     *
+     * @return int Anzahl geloeschter Eintraege
+     */
+    public static function prune(): int {
+        $ttl = self::ttl();
+        $dir = self::directory();
+        if ($ttl === 0 || $dir === null || !is_dir($dir)) {
+            return 0;
+        }
+
+        $removed = 0;
+        $limit = time() - $ttl;
+        foreach (glob($dir . '/*.txt') ?: [] as $file) {
+            $mtime = @filemtime($file);
+            if ($mtime !== false && $mtime < $limit && @unlink($file)) {
+                $removed++;
+            }
+        }
+
+        return $removed;
     }
 
     /**
@@ -128,6 +195,8 @@ final class OcrCache {
         self::$enabled = null;
         self::$directory = null;
         self::$ttl = null;
+        self::$lastPrune = null;
+        self::$configuredDirectory = null;
     }
 
     /**
@@ -177,7 +246,7 @@ final class OcrCache {
             return self::$directory === '' ? null : self::$directory;
         }
 
-        $configured = (string) (Config::getInstance()->getConfig('PDFSettings', 'ocr_cache_dir') ?? '');
+        $configured = self::$configuredDirectory ?? (string) (Config::getInstance()->getConfig('PDFSettings', 'ocr_cache_dir') ?? '');
         $dir = $configured !== '' ? rtrim($configured, '/') : sys_get_temp_dir() . '/' . self::DEFAULT_DIRECTORY;
 
         try {

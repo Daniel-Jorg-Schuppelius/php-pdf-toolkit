@@ -231,7 +231,7 @@ Measured on 14.10.2026 on the scanned bank statements of the conversion catalogu
 
 ### Temporary Files (since 0.25.0)
 
-Rendered pages, OCR output and extracted text are document content. All work files of the tool calls go through `TempPath`: directories `0700`, files created exclusively with `0600`, names from `random_bytes` instead of `uniqid()`. A tool that writes into a pre-created file only truncates it, so the permissions stay. The cross-process OCR cache (`OcrCache`, default `<temp>/pdftoolkit_ocr`) is created with `0700` and its entries with `0600`; if the default directory belongs to another user, the cache switches itself off instead of reading or writing there. `ZugferdReader` no longer builds the output path from the attachment name inside the PDF.
+Rendered pages, OCR output and extracted text are document content. All work files of the tool calls go through `TempPath`: directories `0700`, files created exclusively with `0600`, names from `random_bytes` instead of `uniqid()`. A tool that writes into a pre-created file only truncates it, so the permissions stay. The cross-process OCR cache (`OcrCache`, default `<temp>/pdftoolkit_ocr`) is created with `0700` and its entries with `0600`; if the default directory belongs to another user, the cache switches itself off instead of reading or writing there. Since 0.25.3 entries live 24 hours by default (`PDFSettings.ocr_cache_ttl`, seconds) and expired entries are removed while writing (at most once per hour per process) or with `OcrCache::prune()` - before, an entry was only deleted when the same file was read again, so a document converted once stayed on disk. Tools that want a longer cache (e.g. a catalog test run) call `OcrCache::configure(ttl: ..., directory: ...)` for their own process and directory. `ZugferdReader` no longer builds the output path from the attachment name inside the PDF.
 
 ### Hardening of Ghostscript and ImageMagick (since 0.24.1)
 
@@ -263,6 +263,6 @@ AGPL-3.0-or-later - see [LICENSE](LICENSE) file.
 
 ## Versions
 
-Releases are tagged in Git; `git tag --sort=-v:refname` lists them (latest: v0.25.2). There is no separate changelog file — the tags and the commit history are the record.
+Releases are tagged in Git; `git tag --sort=-v:refname` lists them (latest: v0.25.3). There is no separate changelog file — the tags and the commit history are the record.
 
 The CI runs the MuPDF-based tests against MuPDF 1.17 and 1.21 as well (`scripts/ci/mupdf-alt.sh`, packages from the Debian pool with pinned checksums), because servers often run an older MuPDF than the development machine.
