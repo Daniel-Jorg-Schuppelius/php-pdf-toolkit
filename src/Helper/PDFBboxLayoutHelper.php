@@ -18,6 +18,7 @@ use CommonToolkit\Helper\Shell;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Readers\TesseractReader;
+use Throwable;
 
 /**
  * Koordinaten-basierte Zeilen-Reassembly für gescannte/columnar PDFs.
@@ -73,12 +74,14 @@ final class PDFBboxLayoutHelper {
             return self::logWarningAndReturn('', "pdftotext-bbox nicht verfügbar – bbox-Reassembly übersprungen: {$pdfPath}");
         }
 
-        $tempFile = sys_get_temp_dir() . '/pdfbbox_' . uniqid() . '.xml';
+        // Vorab exklusiv angelegt (0600): die bbox-Ausgabe enthaelt den Dokumenttext
+        $tempFile = TempPath::file('pdfbbox', 'xml');
         $command = $config->buildCommand('pdftotext-bbox', [
             '[PDF-FILE]' => $pdfPath,
             '[TEXT-FILE]' => $tempFile,
         ]);
         if ($command === null) {
+            File::delete($tempFile);
             return self::logWarningAndReturn('', "Kein pdftotext-bbox-Kommando erzeugbar für: {$pdfPath}");
         }
 
@@ -165,9 +168,11 @@ final class PDFBboxLayoutHelper {
             return $cached;
         }
 
-        $tempDir = sys_get_temp_dir() . '/pdfocrrow_' . uniqid();
-        if (!mkdir($tempDir, 0755, true)) {
-            return self::logWarningAndReturn('', "Temp-Verzeichnis nicht erstellbar für OCR-Reassembly: {$tempDir}");
+        // Privates Arbeitsverzeichnis: Seitenbilder und OCR-Ausgaben sind Dokumentinhalt
+        try {
+            $tempDir = TempPath::directory('pdfocrrow');
+        } catch (Throwable $e) {
+            return self::logWarningAndReturn('', 'Temp-Verzeichnis nicht erstellbar für OCR-Reassembly: ' . $e->getMessage());
         }
 
         try {

@@ -304,8 +304,7 @@ final class PDFSplitHelper {
         $pdfseparate = $config->getExecutablePathWithFallback('pdfseparate');
         $pdfunite = $config->getExecutablePathWithFallback('pdfunite');
 
-        $tempDir = sys_get_temp_dir() . '/pdf-split-poppler-' . bin2hex(random_bytes(6));
-        Folder::create($tempDir);
+        $tempDir = TempPath::directory('pdf-split-poppler');
 
         try {
             $singles = [];

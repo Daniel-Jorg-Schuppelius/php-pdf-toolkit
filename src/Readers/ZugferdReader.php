@@ -16,7 +16,7 @@ use CommonToolkit\Helper\FileSystem\{File, Folder};
 use CommonToolkit\Helper\Shell;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
-use PDFToolkit\Helper\ToolTimeout;
+use PDFToolkit\Helper\{TempPath, ToolTimeout};
 
 /**
  * Reader für ZUGFeRD/Factur-X PDFs.
@@ -50,6 +50,9 @@ final class ZugferdReader {
         'ZUGFeRD-invoice.xml',
         'xrechnung.xml',
     ];
+
+    /** Ausgabename des per -savefile geholten Anhangs im Arbeitsverzeichnis */
+    private const OUTPUT_NAME = 'attachment.xml';
 
     private Config $config;
     private ?bool $available = null;
@@ -174,13 +177,12 @@ final class ZugferdReader {
             return null;
         }
 
-        $tempDir = sys_get_temp_dir() . '/zugferd_' . uniqid();
-        Folder::create($tempDir, 0755, true);
-        $outputPath = $tempDir . '/' . $filename;
+        // Privates Arbeitsverzeichnis: der Anhang ist Dokumentinhalt
+        $tempDir = TempPath::directory('zugferd');
 
         try {
             // Versuche pdfdetach
-            if ($this->config->buildCommand('pdfdetach-savefile', ['[FILENAME]' => $filename, '[OUTPUT-FILE]' => $outputPath, '[PDF-FILE]' => $pdfPath]) !== null) {
+            if ($this->config->buildCommand('pdfdetach-savefile', ['[FILENAME]' => $filename, '[OUTPUT-FILE]' => $tempDir . '/' . self::OUTPUT_NAME, '[PDF-FILE]' => $pdfPath]) !== null) {
                 return $this->extractWithPdfdetach($pdfPath, $filename, $tempDir);
             }
 
@@ -266,7 +268,9 @@ final class ZugferdReader {
      * Extrahiert Attachment mit pdfdetach.
      */
     private function extractWithPdfdetach(string $pdfPath, string $filename, string $tempDir): ?string {
-        $outputPath = $tempDir . '/' . $filename;
+        // Fester Ausgabename: der Anhangname stammt aus dem Dokument und darf
+        // keinen Pfad bestimmen ("../x.xml" schrieb sonst neben das Temp-Verzeichnis)
+        $outputPath = $tempDir . '/' . self::OUTPUT_NAME;
 
         $command = $this->config->buildCommand('pdfdetach-savefile', [
             '[FILENAME]' => $filename,
@@ -283,7 +287,12 @@ final class ZugferdReader {
         Shell::executeShellCommand($command, $output, $returnCode, timeout: $timeout);
 
         if ($returnCode !== 0 || !File::exists($outputPath)) {
-            // Versuche mit saveall
+            // Versuche mit saveall - es schreibt unter den Anhangnamen, gelesen
+            // wird deshalb nur ein Name ohne Pfadanteil
+            if (!self::isPlainName($filename)) {
+                return null;
+            }
+            $outputPath = $tempDir . '/' . $filename;
             $command = $this->config->buildCommand('pdfdetach-saveall', [
                 '[OUTPUT-DIR]' => $tempDir,
                 '[PDF-FILE]' => $pdfPath,
@@ -305,6 +314,11 @@ final class ZugferdReader {
      * Extrahiert Attachment mit pdftk.
      */
     private function extractWithPdftk(string $pdfPath, string $filename, string $tempDir): ?string {
+        // pdftk schreibt unter den Anhangnamen: nur Namen ohne Pfadanteil lesen
+        if (!self::isPlainName($filename)) {
+            return null;
+        }
+
         $command = $this->config->buildCommand('pdftk-unpack', [
             '[PDF-FILE]' => $pdfPath,
             '[OUTPUT-DIR]' => $tempDir,
@@ -324,6 +338,15 @@ final class ZugferdReader {
         }
 
         return File::read($outputPath);
+    }
+
+    /**
+     * Anhangname ohne Pfadanteil: kein Trenner, kein "." oder "..", kein
+     * Nullbyte - nur dann darf er Teil eines Pfads im Arbeitsverzeichnis sein.
+     */
+    private static function isPlainName(string $filename): bool {
+        return $filename !== '' && $filename !== '.' && $filename !== '..'
+            && strpbrk($filename, "/\\\0") === false;
     }
 
     /**

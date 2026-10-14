@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace PDFToolkit\Writers;
 
 use ERRORToolkit\Traits\ErrorLog;
+use PDFToolkit\Helper\TempPath;
 use setasign\Fpdi\Fpdi;
 use Throwable;
 
@@ -201,17 +202,15 @@ final class StationeryOverlayWriter {
      * @param list<string> $temps
      */
     private function toTempFile(string $bytes, array &$temps): ?string {
-        $base = tempnam(sys_get_temp_dir(), 'stationery_');
-        if ($base === false) {
-            $this->logError('Could not create a temporary file for the stationery overlay.');
+        // Exklusiv angelegt (0600, nicht vorhersagbar). FPDI erwartet die
+        // .pdf-Endung nicht zwingend, TCPDF-Fehlermeldungen werden mit ihr aber lesbar.
+        try {
+            $path = TempPath::file('stationery', 'pdf');
+        } catch (Throwable $e) {
+            $this->logError('Could not create a temporary file for the stationery overlay: ' . $e->getMessage());
 
             return null;
         }
-
-        // FPDI erwartet die .pdf-Endung nicht zwingend, TCPDF-Fehlermeldungen
-        // werden mit ihr aber lesbar.
-        $path = $base . '.pdf';
-        $temps[] = $base;
         $temps[] = $path;
         file_put_contents($path, $bytes);
 

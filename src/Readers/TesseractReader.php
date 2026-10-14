@@ -18,7 +18,8 @@ use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
-use PDFToolkit\Helper\{OcrCache, PDFHelper, ParallelShell, TesseractDataHelper, TextQualityAnalyzer, ToolTimeout};
+use PDFToolkit\Helper\{OcrCache, PDFHelper, ParallelShell, TempPath, TesseractDataHelper, TextQualityAnalyzer, ToolTimeout};
+use Throwable;
 
 /**
  * PDF-Reader basierend auf Tesseract OCR.
@@ -474,10 +475,11 @@ final class TesseractReader implements PDFReaderInterface {
             return $cached;
         }
 
-        $tempDir = sys_get_temp_dir() . '/tesseract_' . uniqid();
-
-        if (!mkdir($tempDir, 0755, true)) {
-            $this->logError("Failed to create temp directory: $tempDir");
+        // Privates Arbeitsverzeichnis: Seitenbilder und OCR-Text sind Dokumentinhalt
+        try {
+            $tempDir = TempPath::directory('tesseract');
+        } catch (Throwable $e) {
+            $this->logError('Temp-Verzeichnis fuer die OCR nicht anlegbar: ' . $e->getMessage());
             return null;
         }
 

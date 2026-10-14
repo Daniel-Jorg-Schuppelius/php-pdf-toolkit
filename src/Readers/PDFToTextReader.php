@@ -18,7 +18,7 @@ use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
-use PDFToolkit\Helper\{PDFHelper, TextQualityAnalyzer, ToolTimeout};
+use PDFToolkit\Helper\{PDFHelper, TempPath, TextQualityAnalyzer, ToolTimeout};
 
 /**
  * PDF-Reader basierend auf pdftotext (poppler-utils).
@@ -124,8 +124,6 @@ final class PDFToTextReader implements PDFReaderInterface {
      * Extrahiert Text in einem bestimmten Modus (Layout oder Raw).
      */
     private function extractWithMode(string $pdfPath, bool $useLayout): ?string {
-        $tempFile = sys_get_temp_dir() . '/pdftotext_' . uniqid() . '.txt';
-
         $configKey = $useLayout ? 'pdftotext' : 'pdftotext-raw';
 
         // Fallback auf pdftotext falls pdftotext-raw nicht konfiguriert
@@ -134,28 +132,31 @@ final class PDFToTextReader implements PDFReaderInterface {
             $this->logDebug('pdftotext-raw not available, using pdftotext with layout');
         }
 
-        $command = $this->config->buildCommand($configKey, [
-            '[PDF-FILE]' => $pdfPath,
-            '[TEXT-FILE]' => $tempFile,
-        ]);
+        // Vorab exklusiv angelegt (0600): pdftotext schreibt den Dokumenttext hinein
+        $tempFile = TempPath::file('pdftotext', 'txt');
+        try {
+            $command = $this->config->buildCommand($configKey, [
+                '[PDF-FILE]' => $pdfPath,
+                '[TEXT-FILE]' => $tempFile,
+            ]);
+            if ($command === null) {
+                $this->logDebug("pdftotext ($configKey) nicht verfügbar für: $pdfPath");
+                return null;
+            }
 
-        $output = [];
-        $returnCode = 0;
-        Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($pdfPath));
+            $output = [];
+            $returnCode = 0;
+            Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($pdfPath));
 
-        if ($returnCode !== 0) {
-            $this->logDebug("pdftotext ($configKey) failed with code $returnCode for: $pdfPath");
+            if ($returnCode !== 0) {
+                $this->logDebug("pdftotext ($configKey) failed with code $returnCode for: $pdfPath");
+                return null;
+            }
+
+            $text = File::read($tempFile);
+        } finally {
             File::delete($tempFile);
-            return null;
         }
-
-        if (!File::exists($tempFile)) {
-            $this->logDebug("pdftotext ($configKey) produced no output for: $pdfPath");
-            return null;
-        }
-
-        $text = File::read($tempFile);
-        File::delete($tempFile);
 
         // Prüfen ob relevanter Text extrahiert wurde
         $trimmed = preg_replace('/\s+/', '', $text);

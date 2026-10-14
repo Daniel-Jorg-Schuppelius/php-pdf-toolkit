@@ -12,8 +12,10 @@ declare(strict_types=1);
 
 namespace PDFToolkit\Helper;
 
+use CommonToolkit\Helper\FileSystem\{File, Folder};
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
+use Throwable;
 
 /**
  * Prozessübergreifender Cache für OCR-Ergebnisse.
@@ -37,6 +39,9 @@ final class OcrCache {
     use ErrorLog;
 
     private const DEFAULT_TTL = 2592000; // 30 Tage
+
+    /** Name des Standardverzeichnisses im Temp-Ordner */
+    private const DEFAULT_DIRECTORY = 'pdftoolkit_ocr';
 
     private static ?bool $enabled = null;
     private static ?string $directory = null;
@@ -89,9 +94,10 @@ final class OcrCache {
         }
 
         // Atomar schreiben: parallele Prozesse dürfen sich nicht halbe Dateien lesen.
-        $tmp = $file . '.' . getmypid() . '.tmp';
-        if (@file_put_contents($tmp, $text) === false || !@rename($tmp, $file)) {
-            @unlink($tmp);
+        // 0600 vor dem ersten Byte - der Text ist Dokumentinhalt.
+        try {
+            File::write($file, $text, 0600, atomic: true);
+        } catch (Throwable) {
             self::logDebug("OCR-Cache nicht schreibbar: {$file}");
         }
     }
@@ -172,15 +178,52 @@ final class OcrCache {
         }
 
         $configured = (string) (Config::getInstance()->getConfig('PDFSettings', 'ocr_cache_dir') ?? '');
-        $dir = $configured !== '' ? rtrim($configured, '/') : sys_get_temp_dir() . '/pdftoolkit_ocr';
+        $dir = $configured !== '' ? rtrim($configured, '/') : sys_get_temp_dir() . '/' . self::DEFAULT_DIRECTORY;
 
-        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+        try {
+            if (!Folder::exists($dir)) {
+                // Nur für den eigenen Benutzer: der Cache hält Dokumenttext
+                Folder::create($dir, 0700, true);
+            }
+        } catch (Throwable) {
+            // Paralleler Prozess war schneller oder Ort nicht beschreibbar - unten geprüft
+        }
+        if (!Folder::exists($dir)) {
             self::logWarning("OCR-Cache-Verzeichnis nicht anlegbar, Cache deaktiviert: {$dir}");
+            self::$directory = '';
+            return null;
+        }
+
+        // Der Standardort liegt im gemeinsamen Temp-Ordner und hat einen festen
+        // Namen: legt ihn ein anderer Benutzer an, könnte er mitlesen oder
+        // Ergebnisse unterschieben, die ungeprüft als OCR-Text zurückkommen
+        // (Scan 13.10.2026 S4-03). Ein konfigurierter Ort ist Sache des Betriebs.
+        if ($configured === '' && !self::isPrivateDirectory($dir)) {
+            self::logWarning("OCR-Cache-Verzeichnis gehört nicht allein diesem Benutzer, Cache deaktiviert: {$dir}");
             self::$directory = '';
             return null;
         }
 
         self::$directory = $dir;
         return $dir;
+    }
+
+    /**
+     * Eigenes Verzeichnis ohne Rechte für Gruppe und andere; ein eigenes, zu
+     * offenes (ältere Fassungen legten 0775 an) wird auf 0700 gesetzt.
+     */
+    private static function isPrivateDirectory(string $dir): bool {
+        if (function_exists('posix_geteuid') && Folder::owner($dir, false) !== posix_geteuid()) {
+            return false;
+        }
+        if ((Folder::permissions($dir, false) & 0077) === 0) {
+            return true;
+        }
+        if (!@chmod($dir, 0700)) {
+            return false;
+        }
+        clearstatcache(true, $dir);
+
+        return (Folder::permissions($dir, false) & 0077) === 0;
     }
 }

@@ -20,7 +20,7 @@ use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Entities\PDFDocument;
 use PDFToolkit\Enums\PDFReaderType;
-use PDFToolkit\Helper\{PDFHelper, PDFSplitHelper, TextQualityAnalyzer};
+use PDFToolkit\Helper\{PDFHelper, PDFSplitHelper, TempPath, TextQualityAnalyzer};
 
 /**
  * Registry für PDF-Reader (Singleton).
@@ -485,11 +485,10 @@ final class PDFReaderRegistry {
         // Text in Seiten aufteilen
         $textPages = explode("\f", $textResult->text);
         $ocrUsed = false;
-        $tempDir = sys_get_temp_dir() . '/selective_ocr_' . uniqid();
+        // Privates Arbeitsverzeichnis: die Einzelseiten sind Dokumentinhalt
+        $tempDir = TempPath::directory('selective_ocr');
 
         try {
-            Folder::create($tempDir);
-
             foreach ($lowQualityPages as $pageNum) {
                 $pageIndex = $pageNum - 1; // 0-basiert
 

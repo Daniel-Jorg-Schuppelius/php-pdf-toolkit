@@ -18,7 +18,7 @@ use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
-use PDFToolkit\Helper\ToolTimeout;
+use PDFToolkit\Helper\{TempPath, ToolTimeout};
 
 /**
  * PDF-Reader basierend auf Apache PDFBox (Java).
@@ -73,36 +73,33 @@ final class PDFBoxReader implements PDFReaderInterface {
             return null;
         }
 
-        $tempFile = sys_get_temp_dir() . '/pdfbox_' . uniqid() . '.txt';
+        // Vorab exklusiv angelegt (0600): PDFBox schreibt den Dokumenttext hinein
+        $tempFile = TempPath::file('pdfbox', 'txt');
+        try {
+            // PDFBox Befehl aus Config bauen
+            $command = $this->config->buildJavaCommand('pdfbox', [
+                '[INPUT]' => $pdfPath,
+                '[OUTPUT]' => $tempFile,
+            ]);
 
-        // PDFBox Befehl aus Config bauen
-        $command = $this->config->buildJavaCommand('pdfbox', [
-            '[INPUT]' => $pdfPath,
-            '[OUTPUT]' => $tempFile,
-        ]);
+            if ($command === null) {
+                $this->logDebug("PDFBox command could not be built");
+                return null;
+            }
 
-        if ($command === null) {
-            $this->logDebug("PDFBox command could not be built");
-            return null;
-        }
+            $output = [];
+            $returnCode = 0;
+            Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($pdfPath));
 
-        $output = [];
-        $returnCode = 0;
-        Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($pdfPath));
+            if ($returnCode !== 0) {
+                $this->logDebug("PDFBox failed with code $returnCode for: $pdfPath");
+                return null;
+            }
 
-        if ($returnCode !== 0) {
-            $this->logDebug("PDFBox failed with code $returnCode for: $pdfPath");
+            $text = File::read($tempFile);
+        } finally {
             File::delete($tempFile);
-            return null;
         }
-
-        if (!File::exists($tempFile)) {
-            $this->logDebug("PDFBox produced no output for: $pdfPath");
-            return null;
-        }
-
-        $text = File::read($tempFile);
-        File::delete($tempFile);
 
         // Prüfen ob relevanter Text extrahiert wurde
         $trimmed = preg_replace('/\s+/', '', $text);

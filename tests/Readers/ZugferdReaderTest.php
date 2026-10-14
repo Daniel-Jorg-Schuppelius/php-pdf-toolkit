@@ -82,6 +82,63 @@ class ZugferdReaderTest extends BaseTestCase {
     }
 
     /**
+     * Der Anhangname stammt aus dem Dokument: "../name.xml" darf nicht neben
+     * das Arbeitsverzeichnis schreiben (Pfad aus dem Namen gebaut), der Inhalt
+     * kommt trotzdem an.
+     */
+    public function test_anhangname_mit_pfad_schreibt_nicht_ausserhalb(): void {
+        if (!$this->reader->isAvailable()) {
+            $this->markTestSkipped('pdfdetach or pdftk not available');
+        }
+        $name = 'pdftk-trav-' . bin2hex(random_bytes(6)) . '.xml';
+        $outside = sys_get_temp_dir() . '/' . $name;
+        $content = '<rsm:CrossIndustryInvoice xmlns:rsm="urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100"/>';
+        $pdf = $this->createPdfWithAttachment('../' . $name, $content);
+
+        try {
+            $this->assertSame(['../' . $name], $this->reader->listAttachments($pdf));
+            $this->assertSame($content, trim((string) $this->reader->extractAttachment($pdf, '../' . $name)));
+            $this->assertFileDoesNotExist($outside, 'Anhang neben das Temp-Verzeichnis geschrieben');
+            $this->assertSame($content, trim((string) $this->reader->extractInvoiceXml($pdf)));
+            $this->assertFileDoesNotExist($outside);
+        } finally {
+            @unlink($pdf);
+            @unlink($outside);
+        }
+    }
+
+    /**
+     * Minimales PDF mit einer eingebetteten Datei (EmbeddedFiles-Namensbaum).
+     */
+    private function createPdfWithAttachment(string $name, string $content): string {
+        $escaped = str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $name);
+        $objects = [
+            "<</Type/Catalog/Pages 2 0 R/Names<</EmbeddedFiles<</Names[({$escaped}) 4 0 R]>>>>>>",
+            '<</Type/Pages/Count 1/Kids[3 0 R]>>',
+            '<</Type/Page/MediaBox[0 0 200 200]/Parent 2 0 R>>',
+            "<</Type/Filespec/F({$escaped})/UF({$escaped})/EF<</F 5 0 R>>>>",
+            '<</Type/EmbeddedFile/Subtype/text#2Fxml/Length ' . strlen($content) . ">>stream\n{$content}\nendstream",
+        ];
+        $pdf = "%PDF-1.7\n";
+        $offsets = [];
+        foreach ($objects as $index => $object) {
+            $offsets[] = strlen($pdf);
+            $pdf .= ($index + 1) . " 0 obj\n{$object}\nendobj\n";
+        }
+        $xref = strlen($pdf);
+        $pdf .= 'xref' . "\n0 " . (count($objects) + 1) . "\n0000000000 65535 f \n";
+        foreach ($offsets as $offset) {
+            $pdf .= sprintf("%010d 00000 n \n", $offset);
+        }
+        $pdf .= 'trailer<</Size ' . (count($objects) + 1) . "/Root 1 0 R>>\nstartxref\n{$xref}\n%%EOF";
+
+        $file = sys_get_temp_dir() . '/test_' . bin2hex(random_bytes(8)) . '.pdf';
+        file_put_contents($file, $pdf);
+
+        return $file;
+    }
+
+    /**
      * Creates a minimal PDF for testing.
      */
     private function createTempPdf(): string {

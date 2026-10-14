@@ -207,47 +207,48 @@ final class PDFHelper {
      */
     private static function runTextProbe(string $filePath, bool $firstPageOnly): ?string {
         $config = Config::getInstance();
-        $tempFile = sys_get_temp_dir() . '/pdf_check_' . uniqid() . '.txt';
 
         // Seite-1-Probe bevorzugt pdftotext-check; Ganzdokument bevorzugt den layout-losen
         // pdftotext-raw und fällt sonst auf pdftotext (mit Layout) zurück.
+        $replacements = ['[PDF-FILE]' => $filePath];
         if ($firstPageOnly && $config->isExecutableAvailable('pdftotext-check')) {
-            $command = $config->buildCommand('pdftotext-check', [
-                '[LAST-PAGE]' => '1',
-                '[PDF-FILE]' => $filePath,
-                '[TEXT-FILE]' => $tempFile,
-            ]);
+            $configKey = 'pdftotext-check';
+            $replacements['[LAST-PAGE]'] = '1';
         } elseif ($config->isExecutableAvailable('pdftotext-raw')) {
-            $command = $config->buildCommand('pdftotext-raw', [
-                '[PDF-FILE]' => $filePath,
-                '[TEXT-FILE]' => $tempFile,
-            ]);
+            $configKey = 'pdftotext-raw';
         } elseif ($config->isExecutableAvailable('pdftotext')) {
-            $command = $config->buildCommand('pdftotext', [
-                '[PDF-FILE]' => $filePath,
-                '[TEXT-FILE]' => $tempFile,
-            ]);
+            $configKey = 'pdftotext';
         } else {
             return null;
         }
 
+        // Vorab exklusiv angelegt (0600): pdftotext schreibt den Dokumenttext hinein
+        $tempFile = TempPath::file('pdf_check', 'txt');
+        $command = $config->buildCommand($configKey, $replacements + ['[TEXT-FILE]' => $tempFile]);
         if ($command === null) {
-            return null;
-        }
-
-        $output = [];
-        $returnCode = 0;
-        $timeout = $firstPageOnly ? ToolTimeout::PAGE : ToolTimeout::forSize($filePath);
-        Shell::executeShellCommand($command, $output, $returnCode, timeout: $timeout);
-
-        if ($returnCode !== 0 || !File::exists($tempFile)) {
             File::delete($tempFile);
             return null;
         }
 
-        $text = File::read($tempFile);
-        File::delete($tempFile);
-        return $text;
+        return self::runIntoTempFile($command, $tempFile, $firstPageOnly ? ToolTimeout::PAGE : ToolTimeout::forSize($filePath));
+    }
+
+    /**
+     * Fuehrt ein Kommando aus, das in die vorab angelegte Temp-Datei schreibt,
+     * liest sie und loescht sie - auch bei Fehlschlag.
+     *
+     * @return string|null Inhalt der Datei oder null bei Fehler
+     */
+    private static function runIntoTempFile(string $command, string $tempFile, float $timeout): ?string {
+        try {
+            $output = [];
+            $returnCode = 0;
+            Shell::executeShellCommand($command, $output, $returnCode, timeout: $timeout);
+
+            return $returnCode === 0 ? File::read($tempFile) : null;
+        } finally {
+            File::delete($tempFile);
+        }
     }
 
     /**
@@ -266,28 +267,18 @@ final class PDFHelper {
             return null;
         }
 
-        $tempFile = sys_get_temp_dir() . '/pdf_check_box_' . uniqid() . '.txt';
+        $tempFile = TempPath::file('pdf_check_box', 'txt');
         $command = $config->buildJavaCommand('pdfbox', [
             '[INPUT]' => $filePath,
             '[OUTPUT]' => $tempFile,
         ]);
 
         if ($command === null) {
-            return null;
-        }
-
-        $output = [];
-        $returnCode = 0;
-        Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($filePath));
-
-        if ($returnCode !== 0 || !File::exists($tempFile)) {
             File::delete($tempFile);
             return null;
         }
 
-        $text = File::read($tempFile);
-        File::delete($tempFile);
-        return $text;
+        return self::runIntoTempFile($command, $tempFile, ToolTimeout::forSize($filePath));
     }
 
     /**
@@ -632,8 +623,9 @@ final class PDFHelper {
             return null;
         }
 
-        // Ausgabepfad generieren
-        $outputPrefix = $outputPath ?? sys_get_temp_dir() . '/pdf_preview_' . uniqid();
+        // Ausgabepfad generieren: ohne Vorgabe eine vorab exklusiv angelegte
+        // Datei (0600), in die pdftoppm -singlefile das Seitenbild schreibt
+        $outputPrefix = $outputPath ?? substr(TempPath::file('pdf_preview', 'png'), 0, -4);
 
         // Versuche zuerst pdftoppm-page (Einzelseiten-Modus)
         $command = $config->buildCommand('pdftoppm-page', [
@@ -645,6 +637,9 @@ final class PDFHelper {
 
         if ($command === null) {
             self::logError('Konnte pdftoppm-page Befehl nicht erstellen');
+            if ($outputPath === null) {
+                File::delete($outputPrefix . '.png');
+            }
             return null;
         }
 

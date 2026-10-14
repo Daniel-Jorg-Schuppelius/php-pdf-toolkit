@@ -133,12 +133,15 @@ final class GlyphNameLayer {
             return null;
         }
 
-        $traceFile = sys_get_temp_dir() . '/glyphtrace_' . uniqid() . '.xml';
+        // Vorab exklusiv angelegt (0600): der Trace enthaelt den Dokumenttext
+        $traceFile = TempPath::file('glyphtrace', 'xml');
         $command = $config->buildCommand('mutool-trace', [
             '[PDF-FILE]' => $pdfPath,
             '[TRACE-FILE]' => $traceFile,
         ]);
         if ($command === null) {
+            File::delete($traceFile);
+
             return null;
         }
 

@@ -19,7 +19,7 @@ use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFWriterInterface;
 use PDFToolkit\Entities\PDFContent;
 use PDFToolkit\Enums\PDFWriterType;
-use PDFToolkit\Helper\ToolTimeout;
+use PDFToolkit\Helper\{TempPath, ToolTimeout};
 
 /**
  * PDF-Writer basierend auf wkhtmltopdf.
@@ -69,11 +69,12 @@ final class WkhtmltopdfWriter implements PDFWriterInterface {
             return false;
         }
 
+        $tempHtml = null;
         try {
             $html = $content->getAsHtml();
 
-            // Temporäre HTML-Datei erstellen
-            $tempHtml = tempnam(sys_get_temp_dir(), 'pdf_') . '.html';
+            // Temporäre HTML-Datei exklusiv anlegen (0600, nicht vorhersagbar)
+            $tempHtml = TempPath::file('pdf', 'html');
             File::write($tempHtml, $html);
 
             $command = $this->buildCommand($tempHtml, $outputPath, $content, $options);
@@ -83,9 +84,6 @@ final class WkhtmltopdfWriter implements PDFWriterInterface {
             $output = [];
             $resultCode = 0;
             $success = Shell::executeShellCommand($command, $output, $resultCode, timeout: ToolTimeout::forSize($tempHtml));
-
-            // Temporäre Datei löschen
-            File::delete($tempHtml);
 
             if (!$success) {
                 $this->logError('wkhtmltopdf failed', [
@@ -102,12 +100,16 @@ final class WkhtmltopdfWriter implements PDFWriterInterface {
                 'exception' => get_class($e),
             ]);
             return false;
+        } finally {
+            if ($tempHtml !== null) {
+                File::delete($tempHtml);
+            }
         }
     }
 
     public function createPdfString(PDFContent $content, array $options = []): ?string {
-        // Temporäre Ausgabedatei
-        $tempOutput = tempnam(sys_get_temp_dir(), 'pdf_') . '.pdf';
+        // Temporäre Ausgabedatei, exklusiv angelegt (0600); wkhtmltopdf überschreibt sie
+        $tempOutput = TempPath::file('pdf', 'pdf');
 
         if (!$this->createPdf($content, $tempOutput, $options)) {
             @unlink($tempOutput);
