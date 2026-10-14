@@ -170,7 +170,7 @@ final class GlyphNameLayer {
      */
     public static function fromTraceFile(string $traceFile, string $pdfPath = ''): ?GlyphLayerResult {
         $reader = new XMLReader;
-        if (@$reader->open($traceFile, 'UTF-8', LIBXML_NOERROR | LIBXML_NOWARNING) === false) {
+        if (@$reader->open($traceFile, 'UTF-8', LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING) === false) {
             return null;
         }
 
