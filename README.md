@@ -263,6 +263,6 @@ AGPL-3.0-or-later - see [LICENSE](LICENSE) file.
 
 ## Versions
 
-Releases are tagged in Git; `git tag --sort=-v:refname` lists them (latest: v0.25.0). There is no separate changelog file — the tags and the commit history are the record.
+Releases are tagged in Git; `git tag --sort=-v:refname` lists them (latest: v0.25.1). There is no separate changelog file — the tags and the commit history are the record.
 
 The CI runs the MuPDF-based tests against MuPDF 1.17 and 1.21 as well (`scripts/ci/mupdf-alt.sh`, packages from the Debian pool with pinned checksums), because servers often run an older MuPDF than the development machine.
