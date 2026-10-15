@@ -669,8 +669,8 @@
         },
         "pdftk-cat": {
             "path": "pdftk",
-            "required": false,
-            "description": "PDF Toolkit - Seitenbereich extrahieren",
+            "required": true,
+            "description": "PDF Toolkit - Seitenbereich extrahieren (Pflicht: das Deploy installiert nur Pflichteintraege; ohne pdftk bleibt nur poppler, das Word-PDFs beim Herausloesen aufblaeht)",
             "package": "pdftk-java",
             "arguments": [
                 "[INPUT]",
@@ -678,6 +678,19 @@
                 "[PAGE-RANGE]",
                 "output",
                 "[OUTPUT]"
+            ]
+        },
+        "mutool-merge": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF: Seiten in eine neue PDF uebernehmen, nur mit den Objekten dieser Seiten (Seitenliste wie 1-3,5,2)",
+            "package": "mupdf-tools",
+            "arguments": [
+                "merge",
+                "-o",
+                "[OUTPUT]",
+                "[INPUT]",
+                "[PAGES]"
             ]
         },
         "verapdf": {

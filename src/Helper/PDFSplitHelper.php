@@ -20,7 +20,11 @@ use PDFToolkit\Config\Config;
 /**
  * Helper-Klasse für das Aufteilen von PDF-Dateien.
  *
- * Nutzt pdftk (cat) um PDF-Seiten zu extrahieren.
+ * Seiten werden zuerst mit `mutool merge` herausgelöst: Es baut eine neue PDF
+ * nur aus den Objekten der gewählten Seiten. Danach pdftk (cat), zuletzt
+ * poppler (pdfseparate + pdfunite) - poppler zieht bei Word-PDFs mit
+ * seitenübergreifenden Verweisen das ganze Dokument mit (16 Seiten aus einer
+ * 13,5-MB-Datei: 44,5 MB statt 434 KB mit mutool).
  */
 final class PDFSplitHelper {
     use ErrorLog;
@@ -48,6 +52,10 @@ final class PDFSplitHelper {
         if (!PDFHelper::isValidPdf($inputPath)) {
             self::logError('Ungültige PDF-Datei', ['path' => $inputPath]);
             return false;
+        }
+
+        if (self::extractWithMutool($inputPath, $outputPath, "{$firstPage}-{$lastPage}", $lastPage - $firstPage + 1)) {
+            return true;
         }
 
         if (!self::isAvailable()) {
@@ -251,6 +259,9 @@ final class PDFSplitHelper {
             self::logError('Ungültige PDF-Datei', ['path' => $inputPath]);
             return false;
         }
+        if (self::extractWithMutool($inputPath, $outputPath, implode(',', $pages), count($pages))) {
+            return true;
+        }
         if (self::isAvailable()) {
             return self::extractPageSetWithPdftk($inputPath, $outputPath, $pages);
         }
@@ -259,6 +270,49 @@ final class PDFSplitHelper {
         }
         self::logError('Weder pdftk noch poppler (pdfseparate + pdfunite) verfügbar');
         return false;
+    }
+
+    /**
+     * MuPDF-Weg: `mutool merge -o OUT IN 1-3,5` übernimmt nur die Objekte der
+     * gewählten Seiten in eine frische Datei. Scheitert mutool (fehlt, alte
+     * Version, beschädigte oder verschlüsselte Datei) oder stimmt die
+     * Seitenzahl des Ergebnisses nicht, übernehmen pdftk bzw. poppler.
+     *
+     * @param string $pages Seitenliste für mutool, z. B. "2-5" oder "1,3,3"
+     * @param int $expectedPages Seitenzahl, die das Ergebnis haben muss
+     */
+    private static function extractWithMutool(string $inputPath, string $outputPath, string $pages, int $expectedPages): bool {
+        if (!self::isMutoolMergeAvailable()) {
+            return false;
+        }
+
+        $command = Config::getInstance()->buildCommand('mutool-merge', [
+            '[INPUT]' => $inputPath,
+            '[OUTPUT]' => $outputPath,
+            '[PAGES]' => $pages,
+        ]);
+        if ($command === null) {
+            return false;
+        }
+
+        $output = [];
+        $returnCode = 0;
+        $ok = Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($inputPath))
+            && $returnCode === 0
+            && File::exists($outputPath)
+            && self::getPageCount($outputPath) === $expectedPages;
+        if (!$ok) {
+            self::logWarning('mutool merge fehlgeschlagen, Rückfall auf pdftk/poppler', [
+                'returnCode' => $returnCode,
+                'output' => implode("\n", $output),
+                'pages' => $pages,
+            ]);
+            if (File::exists($outputPath)) {
+                File::delete($outputPath);
+            }
+        }
+
+        return $ok;
     }
 
     /**
@@ -352,9 +406,16 @@ final class PDFSplitHelper {
     }
 
     /**
+     * Prüft ob mutool (MuPDF) zum Herauslösen von Seiten verfügbar ist.
+     */
+    public static function isMutoolMergeAvailable(): bool {
+        return Config::getInstance()->isExecutableAvailable('mutool-merge');
+    }
+
+    /**
      * Prüft ob Seiten extrahiert werden können, egal mit welchem Werkzeug.
      */
     public static function isPageExtractionAvailable(): bool {
-        return self::isAvailable() || self::isPopplerAvailable();
+        return self::isMutoolMergeAvailable() || self::isAvailable() || self::isPopplerAvailable();
     }
 }

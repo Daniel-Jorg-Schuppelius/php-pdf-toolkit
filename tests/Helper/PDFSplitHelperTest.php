@@ -106,6 +106,17 @@ final class PDFSplitHelperTest extends BaseTestCase {
         $this->assertEqualsWithDelta(200.0, $size->displayWidthPt(), 0.5);
     }
 
+    public function test_page_set_may_repeat_pages(): void {
+        $out = $this->workDir . '/repeat.pdf';
+
+        $this->assertTrue(PDFSplitHelper::extractPageSet($this->samplePdf, $out, [2, 2, 1]));
+        $this->assertSame(3, PDFSplitHelper::getPageCount($out));
+        $sizes = PDFHelper::getAllPageSizes($out);
+        $this->assertTrue($sizes[1]->isPortrait());
+        $this->assertTrue($sizes[2]->isPortrait());
+        $this->assertTrue($sizes[3]->isLandscape());
+    }
+
     public function test_empty_page_set_is_rejected(): void {
         $this->assertFalse(PDFSplitHelper::extractPageSet($this->samplePdf, $this->workDir . '/none.pdf', [0, -1]));
         $this->assertFileDoesNotExist($this->workDir . '/none.pdf');
