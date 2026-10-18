@@ -19,6 +19,17 @@ use PHPUnit\Framework\TestCase;
  * beschriftete Seiten aus Ghostscript, Text und Masse über poppler.
  */
 final class PdfProbe {
+    /** gs, pdftotext und pdfinfo vorhanden? Ohne sie entstehen keine Probe-PDFs. */
+    public static function toolsAvailable(): bool {
+        foreach (['gs', 'pdftotext', 'pdfinfo'] as $tool) {
+            if (trim((string) shell_exec('command -v ' . $tool)) === '') {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /**
      * A4-PDF mit $pages Seiten, jede in 5 Zeilen x 2 Spalten beschriftet
      * ("P2-R3C1" = Seite 2, Zeile 3, Spalte 1).
@@ -66,6 +77,63 @@ final class PdfProbe {
         $test->assertSame(0, $code, 'Bild-PDF konnte nicht erzeugt werden: ' . implode("\n", $output));
 
         return $pdf;
+    }
+
+    /**
+     * Einseitige PDF mit Kommentar (Text-Anmerkung), Verknüpfung, Formularfeld
+     * (Widget samt AcroForm) und OpenAction-JavaScript - über Ghostscript-pdfmarks.
+     */
+    public static function annotated(TestCase $test, string $dir): string {
+        $ps = $dir . '/annotated.ps';
+        file_put_contents($ps, <<<'PS'
+            [ /Rect [50 700 200 750] /Subtype /Text /Contents (Kommentar) /ANN pdfmark
+            [ /Rect [50 600 200 650] /Subtype /Link /Action << /Subtype /URI /URI (https://example.org) >> /ANN pdfmark
+            [ /_objdef {fld} /Rect [50 500 300 530] /Subtype /Widget /FT /Tx /T (feld) /V (Wert) /DA (/Helv 12 Tf 0 g) /F 4 /ANN pdfmark
+            [ {Catalog} << /AcroForm << /Fields [ {fld} ] /DA (/Helv 0 Tf 0 g) /NeedAppearances true >> >> /PUT pdfmark
+            [ {Catalog} << /OpenAction << /S /JavaScript /JS (app.alert\(1\)) >> >> /PUT pdfmark
+            /Helvetica findfont 20 scalefont setfont 40 800 moveto (Seite eins) show showpage
+            PS);
+
+        $pdf = $dir . '/annotated.pdf';
+        exec(sprintf(
+            'gs -q -sDEVICE=pdfwrite -dDEVICEWIDTHPOINTS=595 -dDEVICEHEIGHTPOINTS=842 -dFIXEDMEDIA -o %s %s 2>&1',
+            escapeshellarg($pdf),
+            escapeshellarg($ps)
+        ), $output, $code);
+        $test->assertSame(0, $code, 'Annotierte Probe-PDF konnte nicht erzeugt werden: ' . implode("\n", $output));
+
+        return $pdf;
+    }
+
+    /** Objekt einer PDF als Text (mutool show), z. B. "pages/1" oder "trailer/Root" */
+    public static function object(string $pdf, string $path): string {
+        return (string) shell_exec(sprintf('mutool show %s %s 2>/dev/null', escapeshellarg($pdf), escapeshellarg($path)));
+    }
+
+    /**
+     * Lesezeichen einer PDF als Text (mutool show outline): je Zeile Titel und
+     * Seite ("#page=1", aeltere Versionen "#1" oder "#1,0,842"). MuPDF 1.17
+     * schreibt Nicht-ASCII-Bytes als \xNN; die werden zurueckgewandelt.
+     */
+    public static function outline(string $pdf): string {
+        $text = (string) shell_exec(sprintf('mutool show %s outline 2>/dev/null', escapeshellarg($pdf)));
+
+        return (string) preg_replace_callback('/\\\\x([0-9A-Fa-f]{2})/', static fn (array $m): string => chr((int) hexdec($m[1])), $text);
+    }
+
+    /** Mittlere Helligkeit 0-255 eines Bildausschnitts (GD) */
+    public static function meanBrightness(\GdImage $image, int $x0, int $y0, int $x1, int $y1): float {
+        $sum = 0;
+        $count = 0;
+        for ($y = $y0; $y <= $y1; $y += 2) {
+            for ($x = $x0; $x <= $x1; $x += 2) {
+                $rgb = imagecolorat($image, $x, $y);
+                $sum += ((($rgb >> 16) & 255) + (($rgb >> 8) & 255) + ($rgb & 255)) / 3;
+                $count++;
+            }
+        }
+
+        return $count === 0 ? 0.0 : $sum / $count;
     }
 
     public static function pageText(string $pdf, int $page, ?string $password = null): string {
