@@ -26,13 +26,18 @@ final class PDFRedactHelperTest extends BaseTestCase {
 
     protected function setUp(): void {
         parent::setUp();
-        if (!PDFRedactHelper::isAvailable() || !PDFPageHelper::isAvailable() || !PdfProbe::toolsAvailable()) {
+        PDFRedactHelper::resetVersionCache();
+        PDFRedactHelper::resetEngineCache();
+        if (!PDFRedactHelper::toolsAvailable() || !PDFPageHelper::isAvailable() || !PdfProbe::toolsAvailable()) {
             $this->markTestSkipped('mutool (mutool-pdf-redact), pdftotext oder poppler nicht verfügbar');
+        }
+        if (!PDFRedactHelper::engineWorks()) {
+            // MuPDF 1.23 (Ubuntu 24.04) laesst das zweite Wort eines TJ-Arrays stehen; die Sonde meldet das
+            $this->markTestSkipped('MuPDF ' . (PDFRedactHelper::mutoolVersion() ?? '?') . ' besteht die Schwärzungs-Sonde nicht - Schwärzen ist damit nicht verfügbar');
         }
         $this->workDir = sys_get_temp_dir() . '/pdf-redact-test-' . bin2hex(random_bytes(6));
         mkdir($this->workDir, 0755, true);
         $this->source = PdfProbe::labelled($this, $this->workDir, 2);
-        PDFRedactHelper::resetVersionCache();
     }
 
     protected function tearDown(): void {
@@ -150,6 +155,18 @@ final class PDFRedactHelperTest extends BaseTestCase {
         $this->assertNull(PDFRedactHelper::redact($this->source, $output, [1 => [['x0' => 10, 'y0' => 10, 'x1' => 10, 'y1' => 20]]]));
         $this->assertNull(PDFRedactHelper::redact($this->source, $output, []));
         $this->assertFileDoesNotExist($output);
+    }
+
+    public function test_probe_pdf_has_two_words_in_one_tj_array_and_the_engine_clears_both(): void {
+        $this->assertFileExists(PDFRedactHelper::probePath());
+        $this->assertSame('LINKS RECHTS', PdfProbe::pageText(PDFRedactHelper::probePath(), 1));
+        $this->assertTrue(PDFRedactHelper::engineWorks());
+        $this->assertTrue(PDFRedactHelper::isAvailable());
+
+        $output = $this->workDir . '/sonde.pdf';
+        $this->assertSame(1, PDFRedactHelper::redact(PDFRedactHelper::probePath(), $output, [1 => [['x0' => 0, 'y0' => 0, 'x1' => 595, 'y1' => 842]]]));
+        $this->assertSame('', PdfProbe::pageText($output, 1));
+        $this->assertSame('', trim((string) PDFRedactHelper::plainText($output)));
     }
 
     public function test_parse_layout_reads_pages_lines_and_words(): void {

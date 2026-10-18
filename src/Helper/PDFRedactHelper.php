@@ -48,6 +48,8 @@ final class PDFRedactHelper {
 
     private static ?string $mutoolVersion = null;
 
+    private static ?bool $engineWorks = null;
+
     /**
      * Fundstellen der Suchbegriffe je Seite. Verglichen wird ohne Rücksicht
      * auf Groß-/Kleinschreibung und mit einfachen Leerzeichen; ein Begriff
@@ -125,7 +127,25 @@ final class PDFRedactHelper {
             self::logError('Diese MuPDF-Version entfernt keine Bildpixel unter einer Schwärzung; ab ' . self::MIN_IMAGE_VERSION . ' nötig', ['version' => self::mutoolVersion()]);
             return null;
         }
+        if (!self::engineWorks()) {
+            self::logError('Schwärzen nicht verfügbar: diese MuPDF-Version lässt Text stehen', ['version' => self::mutoolVersion()]);
+            return null;
+        }
 
+        $count = self::runRedaction($inputPath, $outputPath, $lines);
+        if ($count === null) {
+            return null;
+        }
+
+        self::logInfo('PDF geschwärzt', ['input' => $inputPath, 'rects' => $count, 'pages' => count($rects)]);
+
+        return $count;
+    }
+
+    /**
+     * @param list<string> $lines Zeilen "Seite<TAB>x0<TAB>y0<TAB>x1<TAB>y1"
+     */
+    private static function runRedaction(string $inputPath, string $outputPath, array $lines): ?int {
         $dir = Platform::getTempDirectory() . '/pdfredact_' . bin2hex(random_bytes(8));
         Folder::create($dir, 0700);
         $dataFile = $dir . '/rects.txt';
@@ -141,19 +161,88 @@ final class PDFRedactHelper {
         } finally {
             Folder::delete($dir, true);
         }
-        if ($count === null || !File::exists($outputPath)) {
-            return null;
-        }
 
-        self::logInfo('PDF geschwärzt', ['input' => $inputPath, 'rects' => $count, 'pages' => count($rects)]);
-
-        return $count;
+        return $count === null || !File::exists($outputPath) ? null : $count;
     }
 
+    /**
+     * Werkzeuge vorhanden UND die Sonde besteht ({@see engineWorks()}): eine
+     * Schwärzung, die Text stehen lässt, darf nie als verfügbar gelten.
+     */
     public static function isAvailable(): bool {
+        return self::toolsAvailable() && self::engineWorks();
+    }
+
+    /** mutool und pdftotext konfiguriert? (ohne Sonde) */
+    public static function toolsAvailable(): bool {
         $config = Config::getInstance();
 
-        return $config->isExecutableAvailable('mutool-pdf-redact') && $config->isExecutableAvailable('pdftotext-bbox-layout');
+        return $config->isExecutableAvailable('mutool-pdf-redact') && $config->isExecutableAvailable('pdftotext-bbox-layout') && $config->isExecutableAvailable('pdftotext');
+    }
+
+    /**
+     * Sonde: data/redact-probe.pdf trägt zwei Wörter in einem TJ-Array mit
+     * großem Kerning-Sprung, wie Ghostscript und viele Bankauszüge Spalten
+     * setzen. MuPDF 1.23 lässt das zweite Wort stehen (gemessen 18.10.2026,
+     * Ubuntu 24.04); 1.17, 1.19, 1.21 und 1.25 entfernen beide. Einmal je
+     * Prozess gemessen; scheitert die Sonde, ist Schwärzen nicht verfügbar.
+     */
+    public static function engineWorks(): bool {
+        if (self::$engineWorks !== null) {
+            return self::$engineWorks;
+        }
+        if (!self::toolsAvailable()) {
+            return self::$engineWorks = false;
+        }
+        $probe = self::probePath();
+        $dir = Platform::getTempDirectory() . '/pdfredact_probe_' . bin2hex(random_bytes(8));
+        Folder::create($dir, 0700);
+        try {
+            $output = $dir . '/probe.pdf';
+            $count = self::runRedaction($probe, $output, ['1' . "\t" . '0' . "\t" . '0' . "\t" . '595' . "\t" . '842']);
+            $remaining = $count === null ? null : self::plainText($output);
+            $works = $remaining !== null && preg_match('/\p{L}/u', $remaining) !== 1;
+        } finally {
+            Folder::delete($dir, true);
+        }
+        if (!$works) {
+            self::logWarning('Schwärzen nicht verfügbar: die Sonde lässt Text stehen (MuPDF ' . (self::mutoolVersion() ?? 'unbekannt') . ')', ['remaining' => $remaining]);
+        }
+
+        return self::$engineWorks = $works;
+    }
+
+    /** Pfad der Sonden-PDF */
+    public static function probePath(): string {
+        return dirname(__DIR__, 2) . '/data/redact-probe.pdf';
+    }
+
+    /** Für Tests: gemerkte Sonde vergessen */
+    public static function resetEngineCache(): void {
+        self::$engineWorks = null;
+    }
+
+    /** Text einer PDF (pdftotext); null bei Fehler */
+    public static function plainText(string $pdfPath): ?string {
+        $config = Config::getInstance();
+        $textFile = TempPath::file('pdfredact_text', 'txt');
+        try {
+            $command = $config->buildCommand('pdftotext', ['[PDF-FILE]' => $pdfPath, '[TEXT-FILE]' => $textFile]);
+            if ($command === null) {
+                return null;
+            }
+            $output = [];
+            $returnCode = 0;
+            if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode, timeout: ToolTimeout::forSize($pdfPath)) || $returnCode !== 0 || !File::exists($textFile)) {
+                return null;
+            }
+
+            return File::read($textFile);
+        } finally {
+            if (File::exists($textFile)) {
+                File::delete($textFile);
+            }
+        }
     }
 
     /** Entfernt die installierte MuPDF-Version Bildpixel unter einer Schwärzung? */
