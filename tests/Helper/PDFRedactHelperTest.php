@@ -165,8 +165,9 @@ final class PDFRedactHelperTest extends BaseTestCase {
 
         $output = $this->workDir . '/sonde.pdf';
         $this->assertSame(1, PDFRedactHelper::redact(PDFRedactHelper::probePath(), $output, [1 => [['x0' => 0, 'y0' => 0, 'x1' => 595, 'y1' => 842]]]));
-        $this->assertSame('', PdfProbe::pageText($output, 1));
-        $this->assertSame('', trim((string) PDFRedactHelper::plainText($output)));
+        // pdftotext laesst Steuerzeichen (Seitenvorschub) zurueck: es darf kein Buchstabe bleiben
+        $this->assertDoesNotMatchRegularExpression('/\p{L}/u', PdfProbe::pageText($output, 1));
+        $this->assertDoesNotMatchRegularExpression('/\p{L}/u', (string) PDFRedactHelper::plainText($output));
     }
 
     public function test_parse_layout_reads_pages_lines_and_words(): void {
