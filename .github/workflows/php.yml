@@ -75,13 +75,14 @@ jobs:
         missing=()
         command -v mutool >/dev/null || missing+=(mupdf-tools)
         command -v convert >/dev/null || missing+=(imagemagick)
+        command -v zbarimg >/dev/null || missing+=(zbar-tools)
         if ((${#missing[@]})); then
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "${missing[@]}"
         fi
         for policy in /etc/ImageMagick-6/policy.xml /etc/ImageMagick-7/policy.xml; do
           [[ -f "$policy" ]] && sudo sed -i -E 's/rights="none" (pattern="PDF")/rights="read|write" \1/' "$policy"
         done
-        echo "mutool: $(mutool -v 2>&1 | head -1)"; echo "convert: $(convert -version | head -1)"
+        echo "mutool: $(mutool -v 2>&1 | head -1)"; echo "convert: $(convert -version | head -1)"; echo "zbarimg: $(zbarimg --version 2>&1 | head -1)"
         # PDF/A-Pruefer kommen ueber install-dependencies.sh (install-Objekte); ohne sie
         # ueberspraenge PDFAComplianceHelperTest den Lauf gegen echte Dateien.
         echo "verapdf: $(verapdf --version 2>&1 | head -1)"; echo "pdfcraft-cli: $(pdfcraft-cli --version 2>&1 | head -1)"
@@ -111,5 +112,9 @@ jobs:
             tests/Helper/PDFPageHelperTest.php \
             tests/Helper/PDFSecurityHelperTest.php \
             tests/Helper/PDFMetadataHelperTest.php \
-            tests/Helper/PDFOptimizeHelperTest.php
+            tests/Helper/PDFOptimizeHelperTest.php \
+            tests/Helper/PDFOutlineHelperTest.php \
+            tests/Helper/PDFAttachmentHelperTest.php \
+            tests/Helper/PDFSanitizeHelperTest.php \
+            tests/Helper/PDFRedactHelperTest.php
         done

@@ -719,6 +719,132 @@
                 "description": "veraPDF greenfield 1.30.3 (GPLv3+ oder MPLv2+), braucht Java 8+; Pruefsumme der Installer-ZIP vom 07.10.2026"
             }
         },
+        "mutool-version": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF: Versionszeile (mutool -v); PDFRedactHelper prueft daran, ob Bildpixel unter einer Schwaerzung entfernt werden (ab 1.19)",
+            "package": "mupdf-tools",
+            "arguments": [
+                "-v"
+            ]
+        },
+        "mutool-pdf-outline": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF: Lesezeichen setzen (data/mupdf/pdf-outline.js); Seite und Titel je Zeile aus Datei",
+            "package": "mupdf-tools",
+            "arguments": [
+                "run",
+                "[SCRIPT]",
+                "[LIB]",
+                "[INPUT]",
+                "[OUTPUT]",
+                "[DATA-FILE]"
+            ]
+        },
+        "mutool-pdf-attach": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF: Dateien einbetten (data/mupdf/pdf-attach.js); Pfad, Name, MIME-Typ und Beschreibung je Zeile aus Datei",
+            "package": "mupdf-tools",
+            "arguments": [
+                "run",
+                "[SCRIPT]",
+                "[LIB]",
+                "[INPUT]",
+                "[OUTPUT]",
+                "[DATA-FILE]"
+            ]
+        },
+        "mutool-pdf-sanitize": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF: Anmerkungen, Verknuepfungen, Formulare, JavaScript, eingebettete Dateien entfernen (data/mupdf/pdf-sanitize.js); [WHAT] = Liste durch Komma",
+            "package": "mupdf-tools",
+            "arguments": [
+                "run",
+                "[SCRIPT]",
+                "[LIB]",
+                "[INPUT]",
+                "[OUTPUT]",
+                "[WHAT]"
+            ]
+        },
+        "mutool-pdf-redact": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF: Rechtecke schwaerzen, Text und Bildpixel darunter entfernen (data/mupdf/pdf-redact.js); Seite und Rechteck je Zeile aus Datei",
+            "package": "mupdf-tools",
+            "arguments": [
+                "run",
+                "[SCRIPT]",
+                "[LIB]",
+                "[INPUT]",
+                "[OUTPUT]",
+                "[DATA-FILE]"
+            ]
+        },
+        "gs-flatten": {
+            "path": "gs",
+            "required": false,
+            "description": "Ghostscript: Formularfelder und Anmerkungen in den Seiteninhalt einbrennen (PreserveAnnots=false), PDFSanitizeHelper::flatten()",
+            "package": "ghostscript",
+            "arguments": [
+                "-dSAFER",
+                "-sDEVICE=pdfwrite",
+                "-dNOPAUSE",
+                "-dBATCH",
+                "-dQUIET",
+                "-dPreserveAnnots=false",
+                "-dAutoRotatePages=/None",
+                "-sOutputFile=[OUTPUT]",
+                "-f",
+                "[INPUT]"
+            ]
+        },
+        "pdftotext-bbox-layout": {
+            "path": "pdftotext",
+            "required": false,
+            "description": "PDF zu XHTML mit Bloecken, Zeilen und Wortrechtecken eines Seitenbereichs (PDFRedactHelper::findText)",
+            "package": "poppler-utils",
+            "arguments": [
+                "-bbox-layout",
+                "-enc",
+                "UTF-8",
+                "-f",
+                "[FIRST]",
+                "-l",
+                "[LAST]",
+                "[PDF-FILE]",
+                "[TEXT-FILE]"
+            ]
+        },
+        "pdfimages-list-range": {
+            "path": "pdfimages",
+            "required": false,
+            "description": "Eingebettete Bilder eines Seitenbereichs auflisten (Seite, Typ, Masse)",
+            "package": "poppler-utils",
+            "arguments": [
+                "-list",
+                "-f",
+                "[FIRST]",
+                "-l",
+                "[LAST]",
+                "[PDF-FILE]"
+            ]
+        },
+        "zbarimg": {
+            "path": "zbarimg",
+            "required": false,
+            "description": "zbar: Strichcodes und QR-Codes eines Bildes lesen, Ausgabe als XML (BarcodeHelper); Trennblaetter im Scan-Stapel",
+            "package": "zbar-tools",
+            "arguments": [
+                "--nodbus",
+                "--xml",
+                "-q",
+                "[IMAGE]"
+            ]
+        },
         "pdfcraft-run": {
             "path": "pdfcraft-cli",
             "required": false,
