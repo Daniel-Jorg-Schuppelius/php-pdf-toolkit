@@ -152,7 +152,9 @@ final class GlyphNameLayer {
 
         if ($returnCode !== 0 || !File::exists($traceFile)) {
             self::logDebug("mutool-trace fehlgeschlagen (Code $returnCode) fuer: $pdfPath");
-            File::delete($traceFile);
+            if (File::exists($traceFile)) {
+                File::delete($traceFile);
+            }
 
             return null;
         }

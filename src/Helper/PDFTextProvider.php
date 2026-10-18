@@ -160,7 +160,8 @@ final class PDFTextProvider {
      * werden pro Seite zu EINER Zeile zusammengefügt (nach x sortiert).
      *
      * Kein Registry-Reader, kein OCR-Fallback – nutzt {@see PDFBboxLayoutHelper}
-     * direkt und cacht das Ergebnis wie die übrigen Varianten.
+     * direkt und cacht das Ergebnis wie die übrigen Varianten. Ein leeres
+     * Ergebnis ist bei Bild-PDFs ohne Textlayer der Regelfall (Info, keine Warnung).
      */
     public function rowAlignedText(): ?string {
         $key = PDFTextVariant::RowAligned->value;
@@ -173,7 +174,7 @@ final class PDFTextProvider {
         $this->textCache[$key] = trim($text) !== '' ? $text : null;
 
         if ($this->textCache[$key] === null) {
-            $this->logWarning("Row-aligned-Extraktion lieferte keinen Text: {$this->pdfPath}");
+            $this->logInfo("Row-aligned-Extraktion lieferte keinen Text: {$this->pdfPath}");
         }
 
         return $this->textCache[$key];
@@ -205,7 +206,7 @@ final class PDFTextProvider {
         $this->textCache[$key] = trim($text) !== '' ? $text : null;
 
         if ($this->textCache[$key] === null) {
-            $this->logWarning("OCR-Row-aligned-Extraktion lieferte keinen Text: {$this->pdfPath}");
+            $this->logInfo("OCR-Row-aligned-Extraktion lieferte keinen Text: {$this->pdfPath}");
         }
 
         return $this->textCache[$key];

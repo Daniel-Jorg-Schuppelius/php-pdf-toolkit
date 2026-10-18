@@ -12,18 +12,53 @@ declare(strict_types=1);
 
 namespace Tests\Helper;
 
+use ERRORToolkit\Factories\ConsoleLoggerFactory;
+use ERRORToolkit\LoggerRegistry;
 use InvalidArgumentException;
+use PDFToolkit\Config\Config;
 use PDFToolkit\Entities\PDFDocument;
 use PDFToolkit\Enums\{PDFReaderType, PDFTextVariant};
 use PDFToolkit\Helper\PDFTextProvider;
+use Psr\Log\AbstractLogger;
+use Stringable;
 use Tests\Contracts\BaseTestCase;
 
 final class PDFTextProviderTest extends BaseTestCase {
     private const SAMPLE_PDF = __DIR__ . '/../../.samples/PDF/test-text.pdf';
 
+    private const SCANNED_PDF = __DIR__ . '/../../.samples/PDF/test-scanned.pdf';
+
     // ========================================================================
     // Konstruktor & Initialisierung
     // ========================================================================
+
+    /** Bild-PDF ohne Textlayer: kein bbox-Text ist der Regelfall - Info, keine Warnung. */
+    public function test_row_aligned_text_without_text_layer_is_null_and_logs_info_only(): void {
+        if (Config::getInstance()->getShellExecutable('pdftotext-bbox') === null) {
+            $this->markTestSkipped('pdftotext-bbox nicht verfügbar.');
+        }
+
+        $logger = new class extends AbstractLogger {
+            /** @var list<array{0: string, 1: string}> */
+            public array $records = [];
+
+            public function log($level, string|Stringable $message, array $context = []): void {
+                $this->records[] = [(string) $level, (string) $message];
+            }
+        };
+        LoggerRegistry::setLogger($logger);
+        try {
+            $provider = new PDFTextProvider(self::SCANNED_PDF);
+            $this->assertNull($provider->rowAlignedText());
+            $this->assertNull($provider->rowAlignedText(), 'zweiter Aufruf kommt aus dem Cache');
+        } finally {
+            LoggerRegistry::setLogger(ConsoleLoggerFactory::getLogger());
+        }
+
+        $levels = array_column(array_values(array_filter($logger->records, static fn (array $r): bool => str_contains($r[1], 'Row-aligned-Extraktion lieferte keinen Text'))), 0);
+        $this->assertSame(['info'], $levels, print_r($logger->records, true));
+        $this->assertSame([], array_values(array_filter($logger->records, static fn (array $r): bool => in_array($r[0], ['warning', 'error'], true))));
+    }
 
     public function test_initial_text_is_cached_as_default(): void {
         $provider = new PDFTextProvider(self::SAMPLE_PDF, 'Initialer Text');

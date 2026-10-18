@@ -90,7 +90,9 @@ final class PDFBboxLayoutHelper {
         Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($pdfPath));
 
         if ($returnCode !== 0 || !File::exists($tempFile)) {
-            File::delete($tempFile);
+            if (File::exists($tempFile)) {
+                File::delete($tempFile);
+            }
             return self::logWarningAndReturn('', "pdftotext-bbox lieferte keine Ausgabe (Code {$returnCode}) für: {$pdfPath}");
         }
 

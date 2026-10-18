@@ -666,8 +666,11 @@ final class PDFHelper {
                 'returnCode' => $returnCode,
                 'output' => implode("\n", $output),
             ]);
-            // Nach einem Abbruch kein halbes Bild liegen lassen
-            File::delete($outputPrefix . '.png');
+            // Nach einem Abbruch kein halbes Bild liegen lassen (bei eigenem
+            // Ausgabepfad entsteht es unter Umständen gar nicht erst)
+            if (File::exists($outputPrefix . '.png')) {
+                File::delete($outputPrefix . '.png');
+            }
             return null;
         }
 
