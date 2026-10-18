@@ -51,8 +51,9 @@ final class BarcodeHelper {
 
         $output = [];
         $returnCode = 0;
-        // Rueckgabe 4 = kein Code gefunden, kein Fehler
-        if (!Shell::executeShellCommand($command . ' 2>/dev/null', $output, $returnCode, timeout: ToolTimeout::PAGE) || !in_array($returnCode, [0, 4], true)) {
+        // zbarimg endet mit 4, wenn es keinen Code findet (zbar 0.23, Ubuntu wie Debian) -
+        // das ist kein Fehler: die Shell macht daraus 0, jeder andere Code bleibt ein Fehler
+        if (!Shell::executeShellCommand($command . ' 2>/dev/null || [ $? -eq 4 ]', $output, $returnCode, timeout: ToolTimeout::PAGE)) {
             self::logError('zbarimg fehlgeschlagen', ['returnCode' => $returnCode, 'output' => implode("\n", $output)]);
             return [];
         }
