@@ -13,12 +13,11 @@ declare(strict_types=1);
 namespace PDFToolkit\Helper;
 
 use CommonToolkit\Helper\Data\StringHelper;
-use CommonToolkit\Helper\FileSystem\{File, Folder};
+use CommonToolkit\Helper\FileSystem\{File};
 use CommonToolkit\Helper\Shell;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Readers\TesseractReader;
-use Throwable;
 
 /**
  * Koordinaten-basierte Zeilen-Reassembly für gescannte/columnar PDFs.
@@ -149,12 +148,6 @@ final class PDFBboxLayoutHelper {
         if (!File::exists($pdfPath) || !PDFHelper::isValidPdf($pdfPath)) {
             return self::logWarningAndReturn('', "Keine gültige PDF-Datei für OCR-Reassembly: {$pdfPath}");
         }
-
-        $config = Config::getInstance();
-        if ($config->getShellExecutable('tesseract') === null || $config->getShellExecutable('pdftoppm') === null) {
-            return self::logWarningAndReturn('', "tesseract/pdftoppm nicht verfügbar – OCR-Reassembly übersprungen: {$pdfPath}");
-        }
-
         $cacheParameters = [
             'language' => $language,
             'dpi' => $dpi,
@@ -169,96 +162,22 @@ final class PDFBboxLayoutHelper {
         if ($cached !== null) {
             return $cached;
         }
-
-        // Privates Arbeitsverzeichnis: Seitenbilder und OCR-Ausgaben sind Dokumentinhalt
-        try {
-            $tempDir = TempPath::directory('pdfocrrow');
-        } catch (Throwable $e) {
-            return self::logWarningAndReturn('', 'Temp-Verzeichnis nicht erstellbar für OCR-Reassembly: ' . $e->getMessage());
+        // Rendern, Deskew und Tesseract-TSV je Seite teilt sich dieser Weg mit den Wortboxen (0.27.0).
+        $ocr = TesseractPageOcr::tsvPerPage($pdfPath, $language, $dpi, $psm);
+        if ($ocr['error'] !== null) {
+            return self::logWarningAndReturn('', $ocr['error'] . ' – OCR-Reassembly übersprungen');
         }
-
-        try {
-            $renderCmd = $config->buildCommand('pdftoppm', [
-                '[DPI]' => (string) $dpi,
-                '[PDF-FILE]' => $pdfPath,
-                '[OUTPUT-PREFIX]' => $tempDir . '/page',
-            ]);
-            if ($renderCmd === null) {
-                return self::logWarningAndReturn('', "Kein pdftoppm-Kommando erzeugbar für: {$pdfPath}");
+        $pageTexts = [];
+        foreach ($ocr['pages'] as $tsv) {
+            $items = self::parseTsvItems($tsv);
+            if ($items !== []) {
+                $pageTexts[] = self::reassembleItems($items, self::OCR_Y_TOLERANCE);
             }
-            $out = [];
-            $rc = 0;
-            Shell::executeShellCommand($renderCmd, $out, $rc, timeout: ToolTimeout::forRendering($pdfPath));
-            if ($rc === Shell::EXIT_TIMEOUT) {
-                // Abgebrochen: die gerenderten Seiten sind unvollstaendig - kein Teilergebnis
-                return self::logWarningAndReturn('', "pdftoppm abgebrochen (Zeitgrenze) für OCR-Reassembly: {$pdfPath}");
-            }
-
-            $pages = glob("$tempDir/page-*.png") ?: [];
-            if ($pages === []) {
-                return self::logWarningAndReturn('', "Keine Seiten gerendert für OCR-Reassembly: {$pdfPath}");
-            }
-            natsort($pages);
-
-            // Gleiche Vorverarbeitung und Erkennungsparameter wie der Textpfad
-            // (TesseractReader): Deskew und Wörterbuch aus – der Zeilenpfad lief
-            // zuvor ohne beides und lieferte auf Scans messbar weniger Buchungen.
-            if ($settings['preprocess'] && !TesseractReader::deskewPageImages($config, $pages, $settings['denoise'])) {
-                return self::logWarningAndReturn('', "Deskew abgebrochen (Zeitgrenze) für OCR-Reassembly: {$pdfPath}");
-            }
-            $recognitionArgs = TesseractReader::recognitionArgs($settings['noDict'], $settings['whitelist']);
-
-            $tessData = TesseractDataHelper::getUsableDataPath($language);
-
-            // Ein Tesseract-Prozess je Seite, mehrere gleichzeitig: die Seiten
-            // sind voneinander unabhängig, und jeder Prozess läuft einthreadig
-            // (siehe TesseractReader::OMP_SINGLE_THREAD).
-            $commands = [];
-            foreach ($pages as $png) {
-                // TSV-Ausgabe per Parameter erzwingen (NICHT per "tsv"-Configfile:
-                // das liegt im System-tessdata/configs und fehlt, sobald
-                // TESSDATA_PREFIX auf das Toolkit-Datenverzeichnis zeigt).
-                $tessCmd = $config->buildCommand('tesseract', [
-                    '[INPUT]' => $png,
-                    '[OUTPUT]' => $png . '_ocr',
-                    '[LANG]' => $language,
-                    '[PSM]' => (string) $psm,
-                ], [...$recognitionArgs, '-c', 'tessedit_create_tsv=1']);
-                if ($tessCmd === null) {
-                    continue;
-                }
-                if (!empty($tessData) && Folder::exists($tessData)) {
-                    $tessCmd = 'TESSDATA_PREFIX=' . escapeshellarg($tessData) . ' ' . $tessCmd;
-                }
-                $commands[$png] = TesseractReader::OMP_SINGLE_THREAD . ' ' . $tessCmd . ' 2>/dev/null';
-            }
-
-            $exitCodes = ParallelShell::run($commands, null, ToolTimeout::PAGE);
-            if (in_array(Shell::EXIT_TIMEOUT, $exitCodes, true)) {
-                // Eine abgebrochene Seite fehlte sonst still im Text
-                return self::logWarningAndReturn('', "Tesseract abgebrochen (Zeitgrenze) für OCR-Reassembly: {$pdfPath}");
-            }
-
-            // Einlesen in Seitenreihenfolge – die Prozesse enden in beliebiger Folge.
-            $pageTexts = [];
-            foreach ($pages as $png) {
-                $tsvFile = $png . '_ocr.tsv';
-                if (!isset($commands[$png]) || !File::exists($tsvFile)) {
-                    continue;
-                }
-                $items = self::parseTsvItems(File::read($tsvFile));
-                if ($items !== []) {
-                    $pageTexts[] = self::reassembleItems($items, self::OCR_Y_TOLERANCE);
-                }
-            }
-
-            $text = implode("\n", $pageTexts);
-            OcrCache::put($pdfPath, 'bbox-row-aligned', $text, $cacheParameters);
-
-            return $text;
-        } finally {
-            Folder::delete($tempDir, true);
         }
+        $text = implode("\n", $pageTexts);
+        OcrCache::put($pdfPath, 'bbox-row-aligned', $text, $cacheParameters);
+
+        return $text;
     }
 
     /**

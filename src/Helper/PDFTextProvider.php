@@ -12,10 +12,11 @@ declare(strict_types=1);
 
 namespace PDFToolkit\Helper;
 
+use CommonToolkit\Helper\Data\JsonHelper;
 use CommonToolkit\Helper\FileSystem\File;
 use ERRORToolkit\Traits\ErrorLog;
 use InvalidArgumentException;
-use PDFToolkit\Entities\{CipherMap, GlyphLayerResult, PDFDocument};
+use PDFToolkit\Entities\{CipherMap, GlyphLayerResult, PDFDocument, WordBox};
 use PDFToolkit\Enums\{PDFReaderType, PDFTextVariant};
 use PDFToolkit\Readers\TesseractReader;
 use PDFToolkit\Registries\PDFReaderRegistry;
@@ -53,6 +54,9 @@ final class PDFTextProvider {
 
     /** @var GlyphLayerResult|null Zuletzt gebaute Glyphennamen-Ebene (für die Statistik). */
     private ?GlyphLayerResult $glyphLayer = null;
+
+    /** @var list<WordBox>|null Wortboxen (seit 0.27.0), einmal je Provider ermittelt */
+    private ?array $wordBoxCache = null;
 
     /**
      * @param string $pdfPath Pfad zur PDF-Datei
@@ -210,6 +214,46 @@ final class PDFTextProvider {
         }
 
         return $this->textCache[$key];
+    }
+
+    /**
+     * Wortboxen (seit 0.27.0): aus dem Textlayer (pdftotext -bbox-layout), bei
+     * gescannten PDFs oder leerem Textlayer per OCR. Koordinaten relativ zur
+     * Seitengröße (0–1). Im Prozess gecacht; der OCR-Weg zusätzlich im OcrCache.
+     *
+     * @return list<WordBox>
+     */
+    public function wordBoxes(string $language = 'deu+eng'): array {
+        if ($this->wordBoxCache !== null) {
+            return $this->wordBoxCache;
+        }
+        $boxes = $this->isScanned() ? [] : PDFWordBoxHelper::fromTextLayer($this->pdfPath);
+        if ($boxes === []) {
+            $settings = TesseractReader::ocrSettings();
+            $parameters = [
+                'language' => $language,
+                'dpi' => $settings['dpi'],
+                'psm' => $settings['psm'],
+                'noDict' => $settings['noDict'],
+                'whitelist' => $settings['whitelist'],
+                'deskew' => $settings['preprocess'],
+                'denoise' => $settings['denoise'],
+                'boxes' => 1,
+            ];
+            $cached = OcrCache::get($this->pdfPath, 'word-boxes', $parameters);
+            if ($cached !== null) {
+                $decoded = JsonHelper::decode($cached);
+                $boxes = is_array($decoded) ? array_map(static fn (array $box): WordBox => WordBox::fromArray($box), array_filter($decoded, 'is_array')) : [];
+            } else {
+                $boxes = PDFWordBoxHelper::fromOcr($this->pdfPath, $language);
+                if ($boxes !== []) {
+                    OcrCache::put($this->pdfPath, 'word-boxes', JsonHelper::encode(array_map(static fn (WordBox $box): array => $box->toArray(), $boxes)), $parameters);
+                }
+            }
+        }
+        $this->logDebug('Wortboxen: ' . count($boxes) . " für: {$this->pdfPath}");
+
+        return $this->wordBoxCache = array_values($boxes);
     }
 
     /**
@@ -513,6 +557,7 @@ final class PDFTextProvider {
      * Cache leeren (alle Varianten).
      */
     public function clearCache(): void {
+        $this->wordBoxCache = null;
         $variants = count($this->textCache);
         $documents = count($this->documentCache);
         $this->textCache = [];

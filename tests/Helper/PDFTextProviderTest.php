@@ -349,4 +349,22 @@ final class PDFTextProviderTest extends BaseTestCase {
             @unlink($tmpFile);
         }
     }
+
+    public function test_word_boxes_come_from_the_text_layer_and_are_cached_per_provider(): void {
+        if (Config::getInstance()->getShellExecutable('pdftotext-bbox-layout') === null) {
+            $this->markTestSkipped('pdftotext-bbox-layout nicht verfügbar.');
+        }
+        $provider = new PDFTextProvider(self::SAMPLE_PDF);
+
+        $boxes = $provider->wordBoxes();
+
+        $this->assertNotSame([], $boxes);
+        foreach ($boxes as $box) {
+            $this->assertSame(1, $box->page);
+            $this->assertNotSame('', $box->text);
+            $this->assertGreaterThanOrEqual(0.0, min($box->x, $box->y));
+            $this->assertLessThanOrEqual(1.0, max($box->x + $box->w, $box->y + $box->h));
+        }
+        $this->assertSame($boxes, $provider->wordBoxes(), 'zweiter Aufruf kommt aus dem Cache');
+    }
 }

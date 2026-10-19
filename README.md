@@ -30,6 +30,7 @@ A PHP 8.2+ library for extracting text from PDF documents and creating PDFs with
 
 ### Additional Helpers
 
+- **Word boxes** - `PDFWordBoxHelper` and `PDFTextProvider::wordBoxes()` return every word with its rectangle relative to the page size (0–1), from the text layer (`pdftotext -bbox-layout`) or via OCR (Tesseract TSV on rendered pages, shared pipeline `TesseractPageOcr`); the basis for zone-based extraction such as "the invoice number of this supplier sits top right" (since 0.27.0)
 - **Image OCR** - `TesseractReader::extractTextFromImage()` runs OCR on a single image file instead of a PDF; the image is only deskewed when it is skewed by at least `TesseractReader::IMAGE_DESKEW_MIN_ANGLE` (0.5 degrees), because resampling a straight scan blurs thin characters such as the commas in amounts (needs `convert` for the measurement, otherwise every image is deskewed as before)
 - **Searchable PDF** - `PDFOcrHelper::makeSearchable()` puts an invisible OCRmyPDF text layer over scanned pages (optionally with the recognised text as a sidecar file); it is the one OCRmyPDF path of the package, `OcrMyPDFReader` uses it as well (see [Searchable PDF and OCRmyPDF](#searchable-pdf-and-ocrmypdf-since-0250))
 - **Encrypted Layers** - `CipherLayerSolver` resolves encrypted content layers so that text extraction also works on protected documents
