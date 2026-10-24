@@ -13,7 +13,7 @@ declare(strict_types=1);
 namespace PDFToolkit\Helper;
 
 use CommonToolkit\Helper\Data\StringHelper;
-use CommonToolkit\Helper\FileSystem\{File};
+use CommonToolkit\Helper\FileSystem\File;
 use CommonToolkit\Helper\Shell;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
