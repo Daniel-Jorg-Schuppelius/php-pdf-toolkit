@@ -83,6 +83,51 @@ class GlyphNameLayerTest extends TestCase {
         $this->assertMatchesRegularExpression('/^1 {2,}2$/', $result->text);
     }
 
+    /**
+     * Gepresste Zeilen: der Setzer schrumpft den Wortabstand auf 0,16 em, um
+     * einen langen Zweck in die Spalte zu bekommen (Deutsche-Bank-Auszug,
+     * "SMS-Gebühren für mobileTAN und Postfach-Benachricht"). Für die
+     * Schwelle 0,2 war das ein Wort.
+     */
+    public function test_narrow_word_gap_becomes_a_space(): void {
+        // Vorschub .556 em bei 10,5 pt = 5,838 pt; Wortlücke 0,16 em = 1,68 pt
+        $trace = $this->trace([
+            $this->line(500.0, [
+                ['A', 'f', 50.0],
+                ['A', 'u', 55.838],
+                ['A', 'r', 61.676],
+                ['A', 'm', 69.194],
+                ['A', 'o', 75.032],
+                ['A', 'b', 80.87],
+            ]),
+        ]);
+
+        $result = GlyphNameLayer::fromTraceFile($trace);
+
+        $this->assertNotNull($result);
+        $this->assertSame('fur mob', $result->text);
+    }
+
+    /**
+     * Kerning und Rundung des Vorschubs sind keine Wortgrenzen: Lücken bis
+     * 0,05 em und Überlappungen bleiben ohne Leerzeichen.
+     */
+    public function test_kerning_gap_is_no_space(): void {
+        // Vorschub 5,838 pt; Kerning +0,05 em = 0,525 pt, Überlappung -0,2 pt
+        $trace = $this->trace([
+            $this->line(500.0, [
+                ['A', 'T', 50.0],
+                ['A', 'A', 56.363],
+                ['A', 'N', 62.001],
+            ]),
+        ]);
+
+        $result = GlyphNameLayer::fromTraceFile($trace);
+
+        $this->assertNotNull($result);
+        $this->assertSame('TAN', $result->text);
+    }
+
     public function test_unicode_names_are_decoded(): void {
         $trace = $this->trace([
             $this->line(500.0, [
