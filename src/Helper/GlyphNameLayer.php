@@ -45,8 +45,19 @@ use XMLReader;
 final class GlyphNameLayer {
     use ErrorLog;
 
-    /** Ab dieser Lücke (Anteil der Schriftgröße) steht ein Leerzeichen. */
-    private const SPACE_GAP_RATIO = 0.2;
+    /**
+     * Ab dieser Lücke (Anteil der Schriftgröße) steht ein Leerzeichen.
+     *
+     * Fonts ohne Space-Glyphe setzen den Wortabstand nur als Versatz; ein
+     * normales Leerzeichen misst etwa 0,25-0,28 em. Zeilen, die der Setzer in
+     * eine feste Spaltenbreite presst (lange Namen und Zwecke in
+     * Kontoauszügen), schrumpfen den Wortabstand auf 0,16-0,21 em - bei 0,2
+     * klebten dort ganze Zeilen zusammen ("GebührenfürmobileTANund"). Die
+     * Lücke INNERHALB eines Wortes liegt bei 0 (Rundung des Vorschubs:
+     * -0,02..+0,02 em), Kerning-Paare bleiben deutlich unter 0,1 em. Poppler
+     * (pdftotext) bricht Wörter mit derselben Schwelle (minWordBreakSpace 0.1).
+     */
+    private const SPACE_GAP_RATIO = 0.1;
 
     /** Breite eines Leerzeichens (Anteil der Schriftgröße) für die Spaltenrasterung. */
     private const SPACE_WIDTH_RATIO = 0.5;
