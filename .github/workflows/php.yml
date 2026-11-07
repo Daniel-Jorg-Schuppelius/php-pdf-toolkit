@@ -92,7 +92,8 @@ jobs:
 
     # Die MuPDF-Skripte unter data/mupdf laufen auf dem Server mit einer
     # aelteren Version als hier (ADR-0034 E5): 1.17 und 1.21 aus dem
-    # Debian-Pool davorstellen und die betroffenen Tests wiederholen.
+    # Debian-Pool und 1.19 (Ubuntu 22.04 = Server) aus dem Ubuntu-Pool
+    # davorstellen und die betroffenen Tests wiederholen.
     # scripts/ci/mupdf-alt.sh prueft feste SHA-256-Summen.
     - name: Cache aeltere MuPDF-Versionen
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -103,9 +104,9 @@ jobs:
     - name: Aeltere MuPDF-Versionen bereitstellen
       run: bash scripts/ci/mupdf-alt.sh "$PWD/.mupdf-alt"
 
-    - name: Tests gegen MuPDF 1.17 und 1.21
+    - name: Tests gegen MuPDF 1.17, 1.19 und 1.21
       run: |
-        for version in 1.17.0 1.21.1; do
+        for version in 1.17.0 1.19.0 1.21.1; do
           echo "== MuPDF $version"
           PATH="$PWD/.mupdf-alt/bin-$version:$PATH" vendor/bin/phpunit \
             tests/Helper/PDFCropHelperGridTest.php \
