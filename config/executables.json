@@ -511,7 +511,7 @@
         "mutool-pdf-protect": {
             "path": "mutool",
             "required": false,
-            "description": "MuPDF: Passwortschutz pruefen, setzen (AES-256), entfernen (data/mupdf/pdf-protect.js); Passwoerter aus Dateien, nie als Argument",
+            "description": "MuPDF: Passwortschutz pruefen, setzen (AES-256), entfernen, Signatur erkennen (data/mupdf/pdf-protect.js); Passwoerter aus Dateien, nie als Argument",
             "package": "mupdf-tools",
             "arguments": [
                 "run",

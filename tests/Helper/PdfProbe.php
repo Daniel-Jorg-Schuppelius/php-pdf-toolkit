@@ -221,6 +221,42 @@ final class PdfProbe {
         return (string) shell_exec(sprintf('pdfinfo%s %s 2>/dev/null', $pw, escapeshellarg($pdf)));
     }
 
+    /**
+     * Signierte Kopie der ersten Seite von $source: selbst ausgestelltes
+     * Zertifikat, Signatur über tc-lib-pdf (Engine von TCPDF 7).
+     */
+    public static function signed(TestCase $test, string $source, string $target): string {
+        if (!extension_loaded('openssl') || !class_exists(\Com\Tecnick\Pdf\Tcpdf::class)) {
+            $test->markTestSkipped('openssl oder tc-lib-pdf nicht verfügbar');
+        }
+
+        $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        $test->assertNotFalse($key, 'Schlüssel nicht erzeugt');
+        $csr = openssl_csr_new(['commonName' => 'Test Signer'], $key);
+        $test->assertNotFalse($csr);
+        $cert = openssl_csr_sign($csr, null, $key, 1);
+        $test->assertNotFalse($cert);
+        openssl_x509_export($cert, $certPem);
+        openssl_pkey_export($key, $keyPem);
+
+        $engineDir = dirname((string) (new \ReflectionClass(\Com\Tecnick\Pdf\Tcpdf::class))->getFileName());
+        $pdf = new \Com\Tecnick\Pdf\Tcpdf('mm', true, false, true, '', null, ['allowedPaths' => [$engineDir, sys_get_temp_dir()]]);
+        $pdf->addPageFromImport($pdf->setImportSourceFile($source), 1);
+        $pdf->setSignature([
+            'signcert' => (string) $certPem,
+            'privkey' => (string) $keyPem,
+            'password' => '',
+            'cert_type' => 2,
+            'extracerts' => '',
+            'info' => ['Name' => 'Test Signer', 'Location' => '', 'Reason' => 'Test', 'ContactInfo' => ''],
+            'approval' => '',
+            'appearance' => ['empty' => [], 'name' => 'Signature', 'page' => 0, 'rect' => ''],
+        ]);
+        file_put_contents($target, $pdf->getOutPDFString());
+
+        return $target;
+    }
+
     public static function removeDir(string $dir): void {
         foreach (scandir($dir) ?: [] as $entry) {
             if ($entry === '.' || $entry === '..') {

@@ -73,6 +73,29 @@ final class PDFSecurityHelperTest extends BaseTestCase {
         $this->assertNull(PDFSecurityHelper::probe('/nonexistent.pdf'));
     }
 
+    public function test_plain_pdf_is_not_signed(): void {
+        $this->assertFalse(PDFSecurityHelper::isSigned($this->source));
+        $this->assertFalse(PDFSecurityHelper::isSigned('/nonexistent.pdf'));
+    }
+
+    public function test_signed_pdf_is_detected(): void {
+        $signed = PdfProbe::signed($this, $this->source, $this->workDir . '/signed.pdf');
+
+        $this->assertTrue(PDFSecurityHelper::isSigned($signed));
+    }
+
+    /**
+     * Ohne /ByteRange in den Rohdaten findet mutool die Signatur am signierten Feld.
+     */
+    public function test_signed_field_is_found_without_raw_byte_range(): void {
+        $signed = PdfProbe::signed($this, $this->source, $this->workDir . '/signed.pdf');
+        // Gleich lang, damit die Querverweise stimmen
+        $hidden = str_replace('/ByteRange', '/ByteRangX', (string) file_get_contents($signed));
+        file_put_contents($this->workDir . '/hidden.pdf', $hidden);
+
+        $this->assertTrue(PDFSecurityHelper::isSigned($this->workDir . '/hidden.pdf'));
+    }
+
     public function test_encrypt_locks_the_file_with_rights(): void {
         $locked = $this->workDir . '/locked.pdf';
 

@@ -71,6 +71,7 @@ class ZugferdReaderTest extends BaseTestCase {
         try {
             $xml = $this->reader->extractInvoiceXml($tempPdf);
             $this->assertNull($xml, 'Should return null for PDF without embedded invoice');
+            $this->assertNull($this->reader->extractInvoice($tempPdf));
         } finally {
             unlink($tempPdf);
         }
@@ -79,6 +80,7 @@ class ZugferdReaderTest extends BaseTestCase {
     public function test_extract_invoice_xml_returns_null_for_non_existent_file(): void {
         $xml = $this->reader->extractInvoiceXml('/non/existent/file.pdf');
         $this->assertNull($xml);
+        $this->assertNull($this->reader->extractInvoice('/non/existent/file.pdf'));
     }
 
     /**

@@ -4,6 +4,7 @@
 //   pdf-protect.js <lib.js> probe   <eingabe>
 //   pdf-protect.js <lib.js> encrypt <eingabe> <ausgabe> <nutzerPwDatei> <besitzerPwDatei> <rechte>
 //   pdf-protect.js <lib.js> decrypt <eingabe> <ausgabe> <pwDatei>
+//   pdf-protect.js <lib.js> signature <eingabe>
 //
 // Passwoerter kommen aus Dateien, nie aus der Befehlszeile: Die stuende in
 // der Prozessliste und im Protokoll. Die Datei enthaelt das Passwort, genau
@@ -14,6 +15,8 @@
 // die Berechnung uebernimmt der Aufrufer.
 //
 // probe gibt "encrypted=yes|no needsPassword=yes|no" aus.
+// signature gibt "signed=yes|no" aus: yes bei einem Signaturfeld mit Wert
+// (/FT /Sig, /V; der Feldtyp erbt sich ueber /Kids) oder /Perms (DocMDP, UR3).
 // decrypt endet mit Code 2 und der Zeile FALSCHES_PASSWORT, wenn das
 // Passwort nicht passt; das Ergebnis wird dann nicht geschrieben.
 
@@ -56,6 +59,37 @@ if (mode === "probe") {
     }
     locked.save(out, "garbage,compress,decrypt");
     print("ok");
+} else if (mode === "signature") {
+    var sigDoc = new PDFDocument(input);
+    var sigRoot = sigDoc.getTrailer().get("Root");
+    print("signed=" + (!isMissing(sigRoot) && isSignedCatalog(sigRoot) ? "yes" : "no"));
 } else {
     fail("unbekannter Modus: " + mode);
+}
+
+function isSignedCatalog(root) {
+    var perms = root.get("Perms");
+    if (!isMissing(perms) && perms.isDictionary() && (!isMissing(perms.get("DocMDP")) || !isMissing(perms.get("UR3")))) return true;
+    var form = root.get("AcroForm");
+    if (isMissing(form) || !form.isDictionary()) return false;
+    var fields = form.get("Fields");
+    if (isMissing(fields) || !fields.isArray()) return false;
+    for (var i = 0; i < fields.length; i++) {
+        if (isSignedField(fields.get(i), "", 0)) return true;
+    }
+    return false;
+}
+
+function isSignedField(field, inheritedType, depth) {
+    if (isMissing(field) || !field.isDictionary() || depth > 32) return false;
+    var ft = field.get("FT");
+    var type = !isMissing(ft) && ft.isName() ? ft.asName() : inheritedType;
+    var value = field.get("V");
+    if (type === "Sig" && !isMissing(value) && value.isDictionary()) return true;
+    var kids = field.get("Kids");
+    if (isMissing(kids) || !kids.isArray()) return false;
+    for (var k = 0; k < kids.length; k++) {
+        if (isSignedField(kids.get(k), type, depth + 1)) return true;
+    }
+    return false;
 }

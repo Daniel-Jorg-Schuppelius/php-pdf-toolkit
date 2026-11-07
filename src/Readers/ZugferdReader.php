@@ -101,6 +101,16 @@ final class ZugferdReader {
      * @return string|null XML-Inhalt oder null wenn keine Rechnung gefunden
      */
     public function extractInvoiceXml(string $pdfPath): ?string {
+        return $this->extractInvoice($pdfPath)['xml'] ?? null;
+    }
+
+    /**
+     * Wie {@see extractInvoiceXml()}, dazu der Name der eingebetteten Datei —
+     * wer das PDF neu schreibt, behält ihn (factur-x.xml, xrechnung.xml, ...).
+     *
+     * @return array{filename: string, xml: string}|null
+     */
+    public function extractInvoice(string $pdfPath): ?array {
         if (!File::exists($pdfPath)) {
             $this->logError('PDF file not found', ['path' => $pdfPath]);
             return null;
@@ -117,7 +127,7 @@ final class ZugferdReader {
                         'filename' => $invoiceFilename,
                         'size' => strlen($xml),
                     ]);
-                    return $xml;
+                    return ['filename' => $invoiceFilename, 'xml' => $xml];
                 }
             }
         }
@@ -131,7 +141,7 @@ final class ZugferdReader {
                         'pdf' => $pdfPath,
                         'filename' => $filename,
                     ]);
-                    return $xml;
+                    return ['filename' => $filename, 'xml' => $xml];
                 }
             }
         }

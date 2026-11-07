@@ -39,6 +39,12 @@ final class PDFSecurityHelper {
     /** AES-256 nimmt höchstens 127 Bytes (PDF 32000-2, 7.6.4.3.3) */
     public const MAX_PASSWORD_BYTES = 127;
 
+    /** Blockgröße der Rohsuche nach /ByteRange; große Dateien werden nicht am Stück geladen. */
+    private const SCAN_CHUNK = 1048576;
+
+    /** Überlappung zwischen zwei Blöcken, damit ein Treffer an der Blockgrenze nicht verloren geht. */
+    private const SCAN_OVERLAP = 32;
+
     /**
      * Prüft die Verschlüsselung einer PDF.
      *
@@ -76,6 +82,63 @@ final class PDFSecurityHelper {
      */
     public static function needsUserPassword(string $path): bool {
         return (bool) (self::probe($path)['needsPassword'] ?? false);
+    }
+
+    /**
+     * Trägt die Datei eine digitale Signatur (auch Zertifizierung oder Zeitstempel)?
+     *
+     * Erstes Merkmal ist /ByteRange in den Rohdaten: Jede Signatur nennt dort
+     * den signierten Bereich, und der muss unkomprimiert in der Datei stehen,
+     * weil der Signaturwert erst nach dem Schreiben eingesetzt wird. Steht der
+     * Eintrag doch in einem Objektstrom (nachträglich umgeschrieben), findet
+     * ihn die Prüfung mit mutool über die Felder (/FT /Sig mit /V) und /Perms.
+     *
+     * Grenzen: Gültigkeit und Umfang der Signatur prüft die Methode nicht. Eine
+     * unkomprimiert eingebettete signierte Fremddatei zählt mit. Ohne mutool
+     * bleibt nur die Rohsuche.
+     */
+    public static function isSigned(string $path): bool {
+        if (!File::exists($path)) {
+            self::logError('PDF-Datei nicht gefunden', ['path' => $path]);
+            return false;
+        }
+        if (self::containsByteRange($path)) {
+            return true;
+        }
+        if (!Config::getInstance()->isExecutableAvailable('mutool-pdf-protect')) {
+            return false;
+        }
+
+        $output = self::runScript('signature', ['[INPUT]' => $path]);
+
+        return $output !== null && trim((string) end($output)) === 'signed=yes';
+    }
+
+    private static function containsByteRange(string $path): bool {
+        $handle = @fopen($path, 'rb');
+        if ($handle === false) {
+            self::logError('PDF-Datei nicht lesbar', ['path' => $path]);
+            return false;
+        }
+
+        $tail = '';
+        try {
+            while (!feof($handle)) {
+                $chunk = fread($handle, self::SCAN_CHUNK);
+                if ($chunk === false || $chunk === '') {
+                    break;
+                }
+                $window = $tail . $chunk;
+                if (preg_match('#/ByteRange\s*\[#', $window) === 1) {
+                    return true;
+                }
+                $tail = substr($window, -self::SCAN_OVERLAP);
+            }
+        } finally {
+            fclose($handle);
+        }
+
+        return false;
     }
 
     /**
@@ -271,6 +334,7 @@ final class PDFSecurityHelper {
         // Fehlschlag; ein erwarteter Wert (2 = falsches Passwort) zählt hier
         // als Antwort
         // probe liest nur den Kopf; encrypt/decrypt schreiben die ganze Datei neu
+        // und signature liest den Formularbaum
         $input = $replacements['[INPUT]'] ?? '';
         $timeout = $mode === 'probe' ? ToolTimeout::PROBE : ToolTimeout::forSize($input);
 
