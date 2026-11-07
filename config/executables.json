@@ -829,7 +829,7 @@
         "gs-rewrite": {
             "path": "gs",
             "required": false,
-            "description": "Ghostscript: PDF unveraendert neu schreiben (Seiteninhalt, Text und Anmerkungen bleiben; Objektstroeme und Nachtraege werden aufgeloest) - Rueckfall, wenn MuPDF eine Datei nicht lesen kann, z. B. 1.19 bei PDFlib-Dateien mit Nachtraegen (PDFRedactHelper::redact())",
+            "description": "Ghostscript: PDF unveraendert neu schreiben (Seiteninhalt, Text und Anmerkungen bleiben; Objektstroeme und Nachtraege werden aufgeloest) - Rueckfall, wenn MuPDF eine Datei nicht lesen kann, z. B. 1.19 bei PDFlib-Dateien mit Nachtraegen (PDFPageHelper::runScript(), jedes mutool-Skript ausser pdf-attach.js)",
             "package": "ghostscript",
             "arguments": [
                 "-dSAFER",

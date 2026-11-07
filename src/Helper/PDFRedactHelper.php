@@ -132,53 +132,16 @@ final class PDFRedactHelper {
             return null;
         }
 
+        // Liest mutool die Datei nicht, versucht runScript() es auf einer von
+        // Ghostscript neu geschriebenen Kopie (MuPDF 1.19 und PDFlib-Nachtraege)
         $count = self::runRedaction($inputPath, $outputPath, $lines);
         if ($count === null) {
-            $count = self::retryAfterRewrite($inputPath, $outputPath, $lines);
-            if ($count === null) {
-                return null;
-            }
+            return null;
         }
 
         self::logInfo('PDF geschwärzt', ['input' => $inputPath, 'rects' => $count, 'pages' => count($rects)]);
 
         return $count;
-    }
-
-    /**
-     * Zweiter Versuch auf einer von Ghostscript neu geschriebenen Kopie: MuPDF
-     * 1.19 (Ubuntu 22.04) liest manche PDFlib-Dateien mit Nachträgen nicht
-     * ("object was not found in its object stream"), 1.25 schon; Ghostscript
-     * löst Objektströme und Nachträge auf, die Seitengeometrie bleibt, die
-     * Rechtecke gelten weiter.
-     *
-     * @param list<string> $lines
-     */
-    private static function retryAfterRewrite(string $inputPath, string $outputPath, array $lines): ?int {
-        $config = Config::getInstance();
-        if (!$config->isExecutableAvailable('gs-rewrite')) {
-            return null;
-        }
-        $rewritten = TempPath::file('pdfredact_rewrite', 'pdf');
-        try {
-            $command = $config->buildCommand('gs-rewrite', ['[INPUT]' => $inputPath, '[OUTPUT]' => $rewritten]);
-            $output = [];
-            $returnCode = 0;
-            if ($command === null || !Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode, timeout: ToolTimeout::forSize($inputPath)) || $returnCode !== 0 || !File::exists($rewritten)) {
-                self::logError('Neu schreiben mit Ghostscript fehlgeschlagen', ['returnCode' => $returnCode]);
-                return null;
-            }
-            $count = self::runRedaction($rewritten, $outputPath, $lines);
-            if ($count !== null) {
-                self::logWarning('Schwärzen erst nach Neuschreiben mit Ghostscript möglich (MuPDF ' . (self::mutoolVersion() ?? 'unbekannt') . ' las die Datei nicht)', ['input' => $inputPath]);
-            }
-
-            return $count;
-        } finally {
-            if (File::exists($rewritten)) {
-                File::delete($rewritten);
-            }
-        }
     }
 
     /**

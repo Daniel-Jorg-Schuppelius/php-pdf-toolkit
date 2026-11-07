@@ -505,7 +505,8 @@ final class PDFPageHelper {
                 'returnCode' => $returnCode,
                 'output' => implode("\n", $output),
             ]);
-            return null;
+
+            return self::retryAfterRewrite($executable, $script, $replacements, $timeout);
         }
 
         $result = (int) trim((string) end($output));
@@ -515,5 +516,63 @@ final class PDFPageHelper {
         }
 
         return $result;
+    }
+
+    /**
+     * Skripte, deren Eingabe nicht neu geschrieben werden darf: Ghostscript
+     * (pdfwrite) uebernimmt eingebettete Dateien nicht - ein Anhang-Skript
+     * auf der Kopie verloere die vorhandenen Anhaenge, statt einen
+     * hinzuzufuegen.
+     */
+    private const NO_REWRITE_SCRIPTS = ['pdf-attach.js'];
+
+    /**
+     * Zweiter Versuch auf einer von Ghostscript neu geschriebenen Eingabe:
+     * MuPDF 1.19 (Ubuntu 22.04) liest manche PDFlib-Dateien mit Nachtraegen
+     * nicht ("object was not found in its object stream"), 1.25 schon;
+     * Ghostscript loest Objektstroeme und Nachtraege auf, die Seitengeometrie
+     * bleibt. Gilt fuer jedes Skript mit [INPUT] ausser {@see NO_REWRITE_SCRIPTS};
+     * ein zweites Scheitern bleibt ein Scheitern.
+     *
+     * @param array<string, string> $replacements
+     */
+    private static function retryAfterRewrite(string $executable, string $script, array $replacements, ?float $timeout): ?int {
+        $input = $replacements['[INPUT]'] ?? '';
+        $config = Config::getInstance();
+        if ($input === '' || !File::exists($input) || in_array($script, self::NO_REWRITE_SCRIPTS, true) || !$config->isExecutableAvailable('gs-rewrite')) {
+            return null;
+        }
+        $rewritten = TempPath::file('mupdf_rewrite', 'pdf');
+        try {
+            $command = $config->buildCommand('gs-rewrite', ['[INPUT]' => $input, '[OUTPUT]' => $rewritten]);
+            $output = [];
+            $returnCode = 0;
+            if ($command === null || !Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode, timeout: ToolTimeout::forSize($input)) || $returnCode !== 0 || !File::exists($rewritten)) {
+                self::logError('Neu schreiben mit Ghostscript fehlgeschlagen', ['script' => $script, 'returnCode' => $returnCode]);
+                return null;
+            }
+
+            $command = $config->buildCommand($executable, [
+                '[SCRIPT]' => self::scriptPath($script),
+                '[LIB]' => self::libraryPath(),
+                '[INPUT]' => $rewritten,
+            ] + $replacements);
+            $output = [];
+            if ($command === null || !Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode, timeout: $timeout) || $returnCode !== 0) {
+                self::logError('MuPDF-Skript auch auf der neu geschriebenen Datei fehlgeschlagen', ['script' => $script, 'returnCode' => $returnCode, 'output' => implode("\n", $output)]);
+                return null;
+            }
+            $result = (int) trim((string) end($output));
+            if ($result < 1) {
+                return null;
+            }
+            self::logWarning('MuPDF-Skript erst nach Neuschreiben mit Ghostscript moeglich (mutool las die Datei nicht)', ['script' => $script, 'input' => $input]);
+
+            return $result;
+        } finally {
+            if (File::exists($rewritten)) {
+                File::delete($rewritten);
+            }
+        }
     }
 }
