@@ -148,6 +148,8 @@ final class PDFBboxLayoutHelper {
         if (!File::exists($pdfPath) || !PDFHelper::isValidPdf($pdfPath)) {
             return self::logWarningAndReturn('', "Keine gültige PDF-Datei für OCR-Reassembly: {$pdfPath}");
         }
+        // Das Modell (tesseract_models) gehoert in den Cache-Schluessel, nicht nur der Sprachcode
+        $language = TesseractDataHelper::resolveModels($language);
         $cacheParameters = [
             'language' => $language,
             'dpi' => $dpi,

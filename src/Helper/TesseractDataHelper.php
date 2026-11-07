@@ -15,6 +15,7 @@ namespace PDFToolkit\Helper;
 use CommonToolkit\Helper\Data\NumberHelper;
 use CommonToolkit\Helper\FileSystem\{File, Folder};
 use ERRORToolkit\Traits\ErrorLog;
+use PDFToolkit\Config\Config;
 
 /**
  * Helper-Klasse für Tesseract OCR Trainingsdaten.
@@ -37,6 +38,28 @@ final class TesseractDataHelper {
         'fin', 'hun', 'ron', 'tur', 'ell', 'rus', 'ukr', 'deu_frak', 'osd',
     ];
     private const REQUIRED_DATA_FILES = ['osd']; // Für Auto-Orientation/Script-Detection
+
+    /**
+     * Lokale Modelle: jede `<name>.traineddata` im Datenverzeichnis (mitgeliefert
+     * oder `tesseract_data_path`) ist ein gueltiger Sprachcode, auch wenn sie
+     * nicht in {@see SUPPORTED_LANGUAGES} steht - etwa ein nachtrainiertes
+     * `deu_finetuned`. Solche Modelle werden nie heruntergeladen. Der Name ist
+     * auf das beschraenkt, was tessdata selbst vergibt (Kleinbuchstaben,
+     * Ziffern, Unterstrich), damit er in Pfade und auf die Kommandozeile darf.
+     */
+    private const MODEL_NAME_PATTERN = '/^[a-z][a-z0-9_]{1,39}$/';
+
+    /**
+     * Einstellung PDFSettings/tesseract_models: Sprachcode => Modellname, als
+     * JSON-Objekt ({"deu": "deu_finetuned"}) oder Text ("deu=deu_finetuned").
+     * Aufrufer nennen weiter den Sprachcode ("deu+eng"); {@see resolveModels()}
+     * setzt das Modell ein, sobald es lokal liegt. Fehlt es, bleibt das
+     * Standardmodell (einmal je Prozess im Log).
+     */
+    public const MODELS_SETTING = 'tesseract_models';
+
+    /** @var array<string, true> Modelle, deren Fehlen schon gemeldet wurde */
+    private static array $missingModelsReported = [];
     private const MIN_TRAINEDDATA_SIZE = 1024 * 1024; // 1 MB
 
     /**
@@ -75,19 +98,22 @@ final class TesseractDataHelper {
 
     /**
      * Zerlegt eine Sprachangabe ("deu+eng") in ihre Codes; leer für eine
-     * leere Angabe, null, wenn ein Code nicht in {@see SUPPORTED_LANGUAGES}
-     * steht.
+     * leere Angabe, null, wenn ein Code weder in {@see SUPPORTED_LANGUAGES}
+     * steht noch ein lokales Modell ist ({@see isLocalModel()}).
      *
+     * @param string|null $directory Zusaetzliches Verzeichnis, in dem lokale
+     *                               Modelle liegen duerfen (z. B. das Ziel von
+     *                               {@see ensureTrainedData()})
      * @return list<string>|null
      */
-    public static function languageCodes(string $language): ?array {
+    public static function languageCodes(string $language, ?string $directory = null): ?array {
         $codes = [];
         foreach (explode('+', $language) as $code) {
             $code = trim($code);
             if ($code === '') {
                 continue;
             }
-            if (!in_array($code, self::SUPPORTED_LANGUAGES, true)) {
+            if (!in_array($code, self::SUPPORTED_LANGUAGES, true) && !self::isLocalModel($code, $directory)) {
                 self::logError('Nicht unterstützte OCR-Sprache abgelehnt', ['language' => $language]);
                 return null;
             }
@@ -101,17 +127,143 @@ final class TesseractDataHelper {
      * Ob eine Sprachangabe ("deu+eng") mindestens einen und nur unterstützte
      * Codes enthält.
      */
-    public static function isSupportedLanguage(string $language): bool {
-        $codes = self::languageCodes($language);
+    public static function isSupportedLanguage(string $language, ?string $directory = null): bool {
+        $codes = self::languageCodes($language, $directory);
 
         return $codes !== null && $codes !== [];
+    }
+
+    /**
+     * Ob $code ein lokales Modell ist: gueltiger Name und `<code>.traineddata`
+     * in einem Modellverzeichnis ({@see modelDirectories()}, dazu $directory).
+     */
+    public static function isLocalModel(string $code, ?string $directory = null): bool {
+        if (preg_match(self::MODEL_NAME_PATTERN, $code) !== 1) {
+            return false;
+        }
+        foreach (self::modelDirectories($directory) as $dir) {
+            if (File::exists($dir . '/' . $code . '.traineddata')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Setzt fuer jeden Sprachcode das konfigurierte Modell ein
+     * ({@see MODELS_SETTING}), sofern es lokal liegt: "deu+eng" wird mit
+     * {"deu": "deu_finetuned"} zu "deu_finetuned+eng". Ohne Einstellung oder
+     * bei ungueltiger Angabe kommt die Angabe unveraendert zurueck. Idempotent:
+     * ein Modellname bleibt ein Modellname. Gehoert ueberall dorthin, wo die
+     * Sprache an Tesseract geht oder einen Cache-Schluessel bildet - sonst
+     * liefert der OCR-Cache nach einem Modellwechsel den alten Text.
+     */
+    public static function resolveModels(string $language, ?string $directory = null): string {
+        $codes = self::languageCodes($language, $directory);
+        if ($codes === null || $codes === []) {
+            return $language;
+        }
+
+        return implode('+', self::applyModels($codes, self::configuredModels(), $directory));
+    }
+
+    /**
+     * Ersetzt Sprachcodes durch ihre Modelle, wenn das Modell lokal liegt;
+     * ein fehlendes Modell wird einmal gemeldet und der Code behalten.
+     *
+     * @param list<string> $codes
+     * @param array<string, string> $models Sprachcode => Modellname
+     * @return list<string>
+     */
+    public static function applyModels(array $codes, array $models, ?string $directory = null): array {
+        if ($models === []) {
+            return $codes;
+        }
+
+        $resolved = [];
+        foreach ($codes as $code) {
+            $model = $models[$code] ?? $code;
+            if ($model !== $code && !self::isLocalModel($model, $directory)) {
+                if (!isset(self::$missingModelsReported[$model])) {
+                    self::$missingModelsReported[$model] = true;
+                    self::logWarning("OCR-Modell '$model' fuer '$code' liegt in keinem Datenverzeichnis, Standardmodell bleibt", ['directories' => self::modelDirectories($directory)]);
+                }
+                $model = $code;
+            }
+            $resolved[] = $model;
+        }
+
+        return array_values(array_unique($resolved));
+    }
+
+    /**
+     * Die konfigurierte Zuordnung Sprachcode => Modellname
+     * ({@see MODELS_SETTING}); leer ohne Einstellung.
+     *
+     * @return array<string, string>
+     */
+    public static function configuredModels(): array {
+        return self::parseModels(Config::getInstance()->getConfig('PDFSettings', self::MODELS_SETTING));
+    }
+
+    /**
+     * Liest eine Modellzuordnung aus JSON-Objekt ({"deu": "deu_finetuned"})
+     * oder Text ("deu=deu_finetuned,eng=eng_best"); Paare mit Namen ausserhalb
+     * des Musters fallen weg.
+     *
+     * @return array<string, string>
+     */
+    public static function parseModels(mixed $value): array {
+        if (is_string($value)) {
+            $pairs = [];
+            foreach (explode(',', $value) as $pair) {
+                if (str_contains($pair, '=')) {
+                    [$code, $model] = explode('=', $pair, 2);
+                    $pairs[trim($code)] = trim($model);
+                }
+            }
+            $value = $pairs;
+        }
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $models = [];
+        foreach ($value as $code => $model) {
+            if (is_string($code) && is_string($model) && preg_match(self::MODEL_NAME_PATTERN, $code) === 1 && preg_match(self::MODEL_NAME_PATTERN, $model) === 1) {
+                $models[$code] = $model;
+            }
+        }
+
+        return $models;
+    }
+
+    /**
+     * Verzeichnisse, in denen lokale Modelle liegen duerfen: $directory,
+     * das konfigurierte (`tesseract_data_path`), das mitgelieferte.
+     *
+     * @return list<string>
+     */
+    public static function modelDirectories(?string $directory = null): array {
+        $directories = [];
+        if ($directory !== null && $directory !== '') {
+            $directories[] = rtrim($directory, '/');
+        }
+        $configured = (string) (Config::getInstance()->getConfig('PDFSettings', 'tesseract_data_path') ?? '');
+        if ($configured !== '') {
+            $directories[] = rtrim($configured, '/');
+        }
+        $directories[] = self::getLocalDataPath();
+
+        return array_values(array_unique($directories));
     }
 
     /**
      * Prüft ob eine bestimmte Sprache verfügbar ist.
      */
     public static function hasLanguage(string $path, string $language): bool {
-        $languages = self::languageCodes($language);
+        $languages = self::languageCodes($language, $path);
         if ($languages === null) {
             return false;
         }
@@ -142,8 +294,8 @@ final class TesseractDataHelper {
             }
         }
 
-        // Zu ladende Sprachen ermitteln; nur Codes aus der Positivliste
-        $languages = $language !== null ? self::languageCodes($language) : self::DEFAULT_LANGUAGES;
+        // Zu ladende Sprachen ermitteln; nur Codes aus der Positivliste oder lokale Modelle
+        $languages = $language !== null ? self::languageCodes($language, $targetPath) : self::DEFAULT_LANGUAGES;
         if ($languages === null) {
             return false;
         }
@@ -161,6 +313,13 @@ final class TesseractDataHelper {
 
             if (File::exists($targetFile)) {
                 self::logDebug("Trainingsdaten bereits vorhanden: $lang");
+                continue;
+            }
+
+            if (!in_array($lang, self::SUPPORTED_LANGUAGES, true)) {
+                // Lokales Modell: keine Download-Quelle, es muss im Zielverzeichnis liegen
+                self::logError("Lokales OCR-Modell liegt nicht im Datenverzeichnis und hat keine Download-Quelle: $lang", ['path' => $targetPath]);
+                $success = false;
                 continue;
             }
 
@@ -351,11 +510,10 @@ final class TesseractDataHelper {
      * @return string|null Pfad zu den Trainingsdaten oder null wenn nicht verfügbar
      */
     public static function getUsableDataPath(?string $language = null): ?string {
-        if ($language !== null && self::languageCodes($language) === null) {
+        $localPath = self::getLocalDataPath();
+        if ($language !== null && self::languageCodes($language, $localPath) === null) {
             return null;
         }
-
-        $localPath = self::getLocalDataPath();
 
         // Prüfe ob Daten vorhanden oder herunterladbar. Das Verzeichnis wird zum
         // TESSDATA_PREFIX und muss deshalb auch die Konfigurationsdateien tragen.

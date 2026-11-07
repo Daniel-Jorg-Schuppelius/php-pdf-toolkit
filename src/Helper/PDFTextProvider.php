@@ -231,7 +231,7 @@ final class PDFTextProvider {
         if ($boxes === []) {
             $settings = TesseractReader::ocrSettings();
             $parameters = [
-                'language' => $language,
+                'language' => TesseractDataHelper::resolveModels($language), // Modell statt Sprachcode im Schluessel
                 'dpi' => $settings['dpi'],
                 'psm' => $settings['psm'],
                 'noDict' => $settings['noDict'],

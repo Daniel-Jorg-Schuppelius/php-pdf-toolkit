@@ -112,7 +112,7 @@ final class TesseractReader implements PDFReaderInterface {
 
         // Fallback auf lokales data-Verzeichnis mit automatischem Download
         if (empty($this->tessDataPath)) {
-            $usablePath = TesseractDataHelper::getUsableDataPath($this->defaultLanguage);
+            $usablePath = TesseractDataHelper::getUsableDataPath(TesseractDataHelper::resolveModels($this->defaultLanguage));
             if ($usablePath !== null) {
                 $this->tessDataPath = $usablePath;
             }
@@ -469,6 +469,9 @@ final class TesseractReader implements PDFReaderInterface {
      * Extrahiert Text mit spezifischen Tesseract-Einstellungen (Sprache, PSM, DPI).
      */
     private function extractTextWithSettings(string $pdfPath, string $language, int $psm, int $dpi): ?string {
+        // Sprachcode -> Modell (tesseract_models): ab hier steht das Modell in
+        // Kommando und Cache-Schluessel, ein Modellwechsel trifft keinen alten Text.
+        $language = TesseractDataHelper::resolveModels($language);
         // Prozessübergreifender Cache: OCR ist der teuerste Schritt, und die
         // Qualitäts-Kaskade ruft diese Methode mehrfach mit unterschiedlichen
         // Einstellungen auf — jede Kombination wird einzeln zwischengespeichert.

@@ -33,6 +33,8 @@ final class TesseractPageOcr {
      * @return array{pages: array<int, string>, error: ?string} Seitennummer (1-basiert) → TSV; `error` nennt den Grund, wenn nichts entstand
      */
     public static function tsvPerPage(string $pdfPath, string $language, int $dpi, int $psm): array {
+        // Sprachcode -> Modell (tesseract_models), idempotent fuer Aufrufer, die schon aufgeloest haben
+        $language = TesseractDataHelper::resolveModels($language);
         $settings = TesseractReader::ocrSettings();
         $config = Config::getInstance();
         if ($config->getShellExecutable('tesseract') === null || $config->getShellExecutable('pdftoppm') === null) {

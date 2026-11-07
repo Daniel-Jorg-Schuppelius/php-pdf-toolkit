@@ -81,6 +81,8 @@ final class PDFOcrHelper {
         if ($pages !== null && (!$forceOcr || $sidecarPath !== null || $pages === [])) {
             self::logErrorAndThrow(InvalidArgumentException::class, 'Eine Seitenliste geht nur mit erzwungener Texterkennung, ohne Sidecar und nicht leer');
         }
+        // Sprachcode -> Modell (tesseract_models) fuer -l und die Sprachdatenpruefung
+        $language = TesseractDataHelper::resolveModels($language);
         if (!File::exists($inputPath)) {
             $messages[] = 'Eingabe fehlt: ' . basename($inputPath);
             return false;
