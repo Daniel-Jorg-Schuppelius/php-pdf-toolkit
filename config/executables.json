@@ -337,6 +337,30 @@
                 "[OUTPUT]"
             ]
         },
+        "ocrmypdf-force-pages": {
+            "path": "ocrmypdf",
+            "required": false,
+            "description": "PDF OCR via OCRmyPDF mit --force-ocr nur auf den genannten Seiten (--pages 1,3-5): diese Seiten werden gerastert und erkannt, alle anderen bleiben unveraendert - fuer Seiten ohne Textebene in einem Dokument mit Text, auch wenn ihr Inhalt nur aus Vektorpfaden besteht (die --skip-text uebergeht)",
+            "package": "ocrmypdf",
+            "arguments": [
+                "-q",
+                "--tesseract-pagesegmode",
+                "[PSM]",
+                "--language",
+                "[LANG]",
+                "--deskew",
+                "--rotate-pages",
+                "--rotate-pages-threshold",
+                "5",
+                "--force-ocr",
+                "--pages",
+                "[PAGES]",
+                "--output-type",
+                "pdf",
+                "[INPUT]",
+                "[OUTPUT]"
+            ]
+        },
         "ocrmypdf-optimize": {
             "path": "ocrmypdf",
             "required": false,
@@ -796,6 +820,23 @@
                 "-dBATCH",
                 "-dQUIET",
                 "-dPreserveAnnots=false",
+                "-dAutoRotatePages=/None",
+                "-sOutputFile=[OUTPUT]",
+                "-f",
+                "[INPUT]"
+            ]
+        },
+        "gs-rewrite": {
+            "path": "gs",
+            "required": false,
+            "description": "Ghostscript: PDF unveraendert neu schreiben (Seiteninhalt, Text und Anmerkungen bleiben; Objektstroeme und Nachtraege werden aufgeloest) - Rueckfall, wenn MuPDF eine Datei nicht lesen kann, z. B. 1.19 bei PDFlib-Dateien mit Nachtraegen (PDFRedactHelper::redact())",
+            "package": "ghostscript",
+            "arguments": [
+                "-dSAFER",
+                "-sDEVICE=pdfwrite",
+                "-dNOPAUSE",
+                "-dBATCH",
+                "-dQUIET",
                 "-dAutoRotatePages=/None",
                 "-sOutputFile=[OUTPUT]",
                 "-f",

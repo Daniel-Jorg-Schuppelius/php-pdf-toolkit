@@ -64,14 +64,22 @@ final class PDFOcrHelper {
      * @param string|null $sidecarPath Zusätzlich den erkannten Text in diese Datei schreiben
      * @param list<string>|null $messages Referenz: Meldungen von ocrmypdf, wenn der Lauf scheiterte
      * @param-out list<string> $messages
+     * @param list<int>|null $pages Nur diese Seiten (1-basiert) erkennen, alle anderen
+     *                              bleiben unverändert (--pages); nur mit $forceOcr und
+     *                              ohne Sidecar. Nötig für Seiten, deren Inhalt aus
+     *                              Vektorpfaden besteht: ohne Rasterbild übergeht
+     *                              --skip-text sie ("page has no images - skipping").
      * @return bool true, wenn $outputPath geschrieben wurde. Hatten alle Seiten
      *              schon Text, ist die Ausgabe eine Kopie der Eingabe.
      * @throws InvalidArgumentException wenn die Sprache nicht unterstützt wird
      */
-    public static function makeSearchable(string $inputPath, string $outputPath, bool $forceOcr = false, string $language = self::DEFAULT_LANGUAGE, ?int $psm = null, ?string $sidecarPath = null, ?array &$messages = null): bool {
+    public static function makeSearchable(string $inputPath, string $outputPath, bool $forceOcr = false, string $language = self::DEFAULT_LANGUAGE, ?int $psm = null, ?string $sidecarPath = null, ?array &$messages = null, ?array $pages = null): bool {
         $messages = [];
         if (!TesseractDataHelper::isSupportedLanguage($language)) {
             self::logErrorAndThrow(InvalidArgumentException::class, 'OCR-Sprache wird nicht unterstützt: ' . $language);
+        }
+        if ($pages !== null && (!$forceOcr || $sidecarPath !== null || $pages === [])) {
+            self::logErrorAndThrow(InvalidArgumentException::class, 'Eine Seitenliste geht nur mit erzwungener Texterkennung, ohne Sidecar und nicht leer');
         }
         if (!File::exists($inputPath)) {
             $messages[] = 'Eingabe fehlt: ' . basename($inputPath);
@@ -79,7 +87,7 @@ final class PDFOcrHelper {
         }
 
         $psm ??= PDFHelper::suggestScanPsm($inputPath, self::configuredPsm());
-        $configKey = ($forceOcr ? 'ocrmypdf-force' : 'ocrmypdf') . ($sidecarPath !== null ? '-sidecar' : '');
+        $configKey = ($forceOcr ? 'ocrmypdf-force' : 'ocrmypdf') . ($pages !== null ? '-pages' : '') . ($sidecarPath !== null ? '-sidecar' : '');
         $replacements = [
             '[PSM]' => (string) $psm,
             '[LANG]' => $language,
@@ -88,6 +96,9 @@ final class PDFOcrHelper {
         ];
         if ($sidecarPath !== null) {
             $replacements['[SIDECAR]'] = $sidecarPath;
+        }
+        if ($pages !== null) {
+            $replacements['[PAGES]'] = self::pageList($pages);
         }
 
         $command = Config::getInstance()->buildCommand($configKey, $replacements);
@@ -131,6 +142,37 @@ final class PDFOcrHelper {
     /** PSM-Standard aus PDFSettings (`ocrmypdf_psm`). */
     private static function configuredPsm(): int {
         return (int) (Config::getInstance()->getConfig('PDFSettings', 'ocrmypdf_psm') ?? self::DEFAULT_PSM);
+    }
+
+    /**
+     * Seitenliste für ocrmypdf --pages: aufsteigend, Nachbarn zu Bereichen
+     * ("1,3-5,8").
+     *
+     * @param list<int> $pages 1-basiert
+     */
+    public static function pageList(array $pages): string {
+        $pages = array_values(array_unique(array_filter(array_map('intval', $pages), static fn (int $p): bool => $p >= 1)));
+        sort($pages);
+        $ranges = [];
+        $start = null;
+        $previous = null;
+        foreach ($pages as $page) {
+            if ($start === null) {
+                $start = $previous = $page;
+                continue;
+            }
+            if ($page === $previous + 1) {
+                $previous = $page;
+                continue;
+            }
+            $ranges[] = $start === $previous ? (string) $start : $start . '-' . $previous;
+            $start = $previous = $page;
+        }
+        if ($start !== null) {
+            $ranges[] = $start === $previous ? (string) $start : $start . '-' . $previous;
+        }
+
+        return implode(',', $ranges);
     }
 
     /**

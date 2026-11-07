@@ -57,6 +57,55 @@ final class PdfProbe {
     }
 
     /**
+     * Einseitige A4-PDF, deren Text nur aus Vektorpfaden besteht (gs
+     * -dNoOutputFonts): keine Schrift, keine Textebene, kein Rasterbild -
+     * so liefern manche Exporte (SumUp, Qonto) ihre Seiten.
+     *
+     * @param list<string> $lines
+     */
+    public static function outlined(TestCase $test, string $dir, array $lines, string $name = 'outlined.pdf'): string {
+        $ps = $dir . '/outlined.ps';
+        $show = '';
+        foreach ($lines as $index => $line) {
+            $show .= sprintf("60 %d moveto (%s) show\n", 760 - 60 * $index, addcslashes($line, '()\\'));
+        }
+        file_put_contents($ps, "/Helvetica findfont 28 scalefont setfont\n" . $show . "showpage\n");
+
+        $pdf = $dir . '/' . $name;
+        exec(sprintf(
+            'gs -q -sDEVICE=pdfwrite -dNoOutputFonts -dDEVICEWIDTHPOINTS=595 -dDEVICEHEIGHTPOINTS=842 -dFIXEDMEDIA -o %s %s 2>&1',
+            escapeshellarg($pdf),
+            escapeshellarg($ps)
+        ), $output, $code);
+        $test->assertSame(0, $code, 'Vektor-PDF konnte nicht erzeugt werden: ' . implode("\n", $output));
+
+        return $pdf;
+    }
+
+    /**
+     * Mehrere PDFs hintereinander zu einer (gs pdfwrite, Seiten bleiben, wie sie sind).
+     *
+     * @param list<string> $inputs
+     */
+    public static function concatenated(TestCase $test, string $output, array $inputs): string {
+        exec(sprintf(
+            'gs -q -sDEVICE=pdfwrite -dAutoRotatePages=/None -o %s %s 2>&1',
+            escapeshellarg($output),
+            implode(' ', array_map('escapeshellarg', $inputs))
+        ), $out, $code);
+        $test->assertSame(0, $code, 'PDFs konnten nicht aneinandergehaengt werden: ' . implode("\n", $out));
+
+        return $output;
+    }
+
+    /** Rasterbilder einer Seite (pdfimages -list). */
+    public static function imageCount(string $pdf, int $page): int {
+        exec(sprintf('pdfimages -list -f %d -l %d %s 2>/dev/null', $page, $page, escapeshellarg($pdf)), $lines);
+
+        return max(0, count($lines) - 2);
+    }
+
+    /**
      * PDF mit einem großen JPEG je Seite (für Komprimieren und PDF/A).
      */
     public static function imageHeavy(TestCase $test, string $dir, int $pages = 1): ?string {

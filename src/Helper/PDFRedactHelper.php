@@ -52,8 +52,8 @@ final class PDFRedactHelper {
 
     /**
      * Fundstellen der Suchbegriffe je Seite. Verglichen wird ohne Rücksicht
-     * auf Groß-/Kleinschreibung und mit einfachen Leerzeichen; ein Begriff
-     * darf mehrere Wörter umfassen, aber keine Zeile überschreiten.
+     * auf Groß-/Kleinschreibung und ohne Leerraum ({@see compact()}); ein
+     * Begriff darf mehrere Wörter umfassen, aber keine Zeile überschreiten.
      *
      * @param list<string> $terms Suchbegriffe, leere werden übergangen
      * @param bool $wholeLine true = die ganze Zeile über die Seitenbreite statt nur der Wörter
@@ -134,12 +134,51 @@ final class PDFRedactHelper {
 
         $count = self::runRedaction($inputPath, $outputPath, $lines);
         if ($count === null) {
-            return null;
+            $count = self::retryAfterRewrite($inputPath, $outputPath, $lines);
+            if ($count === null) {
+                return null;
+            }
         }
 
         self::logInfo('PDF geschwärzt', ['input' => $inputPath, 'rects' => $count, 'pages' => count($rects)]);
 
         return $count;
+    }
+
+    /**
+     * Zweiter Versuch auf einer von Ghostscript neu geschriebenen Kopie: MuPDF
+     * 1.19 (Ubuntu 22.04) liest manche PDFlib-Dateien mit Nachträgen nicht
+     * ("object was not found in its object stream"), 1.25 schon; Ghostscript
+     * löst Objektströme und Nachträge auf, die Seitengeometrie bleibt, die
+     * Rechtecke gelten weiter.
+     *
+     * @param list<string> $lines
+     */
+    private static function retryAfterRewrite(string $inputPath, string $outputPath, array $lines): ?int {
+        $config = Config::getInstance();
+        if (!$config->isExecutableAvailable('gs-rewrite')) {
+            return null;
+        }
+        $rewritten = TempPath::file('pdfredact_rewrite', 'pdf');
+        try {
+            $command = $config->buildCommand('gs-rewrite', ['[INPUT]' => $inputPath, '[OUTPUT]' => $rewritten]);
+            $output = [];
+            $returnCode = 0;
+            if ($command === null || !Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode, timeout: ToolTimeout::forSize($inputPath)) || $returnCode !== 0 || !File::exists($rewritten)) {
+                self::logError('Neu schreiben mit Ghostscript fehlgeschlagen', ['returnCode' => $returnCode]);
+                return null;
+            }
+            $count = self::runRedaction($rewritten, $outputPath, $lines);
+            if ($count !== null) {
+                self::logWarning('Schwärzen erst nach Neuschreiben mit Ghostscript möglich (MuPDF ' . (self::mutoolVersion() ?? 'unbekannt') . ' las die Datei nicht)', ['input' => $inputPath]);
+            }
+
+            return $count;
+        } finally {
+            if (File::exists($rewritten)) {
+                File::delete($rewritten);
+            }
+        }
     }
 
     /**
@@ -374,7 +413,7 @@ final class PDFRedactHelper {
     public static function parseLayout(string $html, int $firstPage, ?array $wanted = null): array {
         $result = [];
         $pageNumber = $firstPage - 1;
-        if (preg_match_all('#<page\s+width="([\d.]+)"\s+height="([\d.]+)">(.*?)</page>#s', $html, $pageMatches, PREG_SET_ORDER) < 1) {
+        if (preg_match_all('#<page\s+width="(-?[\d.]+)"\s+height="(-?[\d.]+)">(.*?)</page>#s', $html, $pageMatches, PREG_SET_ORDER) < 1) {
             return [];
         }
         foreach ($pageMatches as $pageMatch) {
@@ -384,9 +423,11 @@ final class PDFRedactHelper {
             }
             // Alle Woerter der Seite; die Bloecke von pdftotext trennen Spalten,
             // eine Buchungszeile liegt aber ueber alle Spalten - Zeilen entstehen
-            // deshalb aus der senkrechten Lage ({@see groupLines()})
+            // deshalb aus der senkrechten Lage ({@see groupLines()}). Koordinaten
+            // duerfen negativ sein: eine Ueberschrift, die ueber den Seitenrand
+            // ragt, steht bei yMin="-4.3" - und muss trotzdem gefunden werden.
             $words = [];
-            if (preg_match_all('#<word\s+xMin="([\d.]+)"\s+yMin="([\d.]+)"\s+xMax="([\d.]+)"\s+yMax="([\d.]+)">(.*?)</word>#s', $pageMatch[3], $wordMatches, PREG_SET_ORDER) > 0) {
+            if (preg_match_all('#<word\s+xMin="(-?[\d.]+)"\s+yMin="(-?[\d.]+)"\s+xMax="(-?[\d.]+)"\s+yMax="(-?[\d.]+)">(.*?)</word>#s', $pageMatch[3], $wordMatches, PREG_SET_ORDER) > 0) {
                 foreach ($wordMatches as $w) {
                     $words[] = [
                         'text' => html_entity_decode($w[5], ENT_QUOTES | ENT_XML1, 'UTF-8'),
@@ -451,17 +492,18 @@ final class PDFRedactHelper {
      * @return list<array{x0: float, y0: float, x1: float, y1: float}>
      */
     private static function matchLine(array $words, array $needles, bool $wholeLine, float $pageWidth): array {
-        // Zeilentext mit Zuordnung Zeichen -> Wort
+        // Zeilentext ohne Leerraum mit Zuordnung Zeichen -> Wort. Leerraum
+        // zaehlt nicht, weil pdftotext ihn nicht zuverlaessig setzt: gesperrt
+        // gesetzte Woerter kommen als Einzelbuchstaben ("K O N T O A U S Z U G"),
+        // eine IBAN steht in Vierergruppen oder am Stueck - der Mensch sucht,
+        // was er liest. Ein Treffer markiert jedes Wort, von dem ein Zeichen
+        // beteiligt ist.
         $text = '';
         $owner = [];
         foreach ($words as $index => $word) {
-            $normalized = self::normalize($word['text']);
+            $normalized = self::compact($word['text']);
             if ($normalized === '') {
                 continue;
-            }
-            if ($text !== '') {
-                $text .= ' ';
-                $owner[] = -1;
             }
             $length = mb_strlen($normalized);
             $text .= $normalized;
@@ -475,6 +517,10 @@ final class PDFRedactHelper {
 
         $hit = [];
         foreach ($needles as $needle) {
+            $needle = self::compact($needle);
+            if ($needle === '') {
+                continue;
+            }
             $offset = 0;
             $needleLength = mb_strlen($needle);
             while (($position = mb_strpos($text, $needle, $offset)) !== false) {
@@ -526,6 +572,11 @@ final class PDFRedactHelper {
         $text = StringHelper::normalizeWhitespace($text);
 
         return trim(mb_strtolower($text));
+    }
+
+    /** Kleinschreibung ohne jeden Leerraum - die Vergleichsform der Suche */
+    public static function compact(string $text): string {
+        return (string) preg_replace('/\s+/u', '', self::normalize($text));
     }
 
     private static function number(float $value): string {

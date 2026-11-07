@@ -22,16 +22,21 @@ use Tests\Contracts\BaseTestCase;
  */
 class PDFOcrHelperTest extends BaseTestCase {
     /** Die ocrmypdf-Einträge mit Texterkennung - einer je Modus (skip/force, mit/ohne Sidecar) */
-    private const OCR_ENTRIES = ['ocrmypdf', 'ocrmypdf-sidecar', 'ocrmypdf-force', 'ocrmypdf-force-sidecar'];
+    private const OCR_ENTRIES = ['ocrmypdf', 'ocrmypdf-sidecar', 'ocrmypdf-force', 'ocrmypdf-force-sidecar', 'ocrmypdf-force-pages'];
 
     /** Schalter, die nur den Modus bestimmen und deshalb je Eintrag abweichen */
-    private const MODE_SWITCHES = ['--skip-text', '--force-ocr', '--sidecar', '[SIDECAR]'];
+    private const MODE_SWITCHES = ['--skip-text', '--force-ocr', '--sidecar', '[SIDECAR]', '--pages', '[PAGES]'];
 
     /** @var list<string> */
     private array $tempFiles = [];
 
     protected function tearDown(): void {
         foreach ($this->tempFiles as $file) {
+            if (is_dir($file)) {
+                array_map('unlink', glob($file . '/*') ?: []);
+                @rmdir($file);
+                continue;
+            }
             @unlink($file);
         }
         parent::tearDown();
@@ -53,6 +58,50 @@ class PDFOcrHelperTest extends BaseTestCase {
         $this->assertContains('--deskew', $flags['ocrmypdf'], 'Schiefe Seiten werden gerade gerichtet');
         $this->assertContains('--skip-text', $config['shellExecutables']['ocrmypdf']['arguments']);
         $this->assertContains('--force-ocr', $config['shellExecutables']['ocrmypdf-force']['arguments']);
+    }
+
+    public function test_seitenliste_wird_zu_bereichen(): void {
+        $this->assertSame('1-3,5,9', PDFOcrHelper::pageList([5, 1, 2, 3, 9, 0, 3]));
+        $this->assertSame('7', PDFOcrHelper::pageList([7]));
+        $this->assertSame('', PDFOcrHelper::pageList([]));
+    }
+
+    public function test_seitenliste_nur_mit_erzwungener_erkennung(): void {
+        $this->expectException(InvalidArgumentException::class);
+        PDFOcrHelper::makeSearchable(__FILE__, sys_get_temp_dir() . '/nie.pdf', false, pages: [1]);
+    }
+
+    /**
+     * Seite, deren Text nur aus Vektorpfaden besteht: --skip-text uebergeht
+     * sie ("page has no images - skipping"), die Seite bleibt ohne Text. Mit
+     * der Seitenliste wird genau sie gerastert und erkannt, die Textseite
+     * daneben bleibt unangetastet.
+     */
+    public function test_vektorseite_wird_nur_ueber_die_seitenliste_erkannt(): void {
+        if (!PDFOcrHelper::isAvailable(true) || !PdfProbe::toolsAvailable()) {
+            $this->markTestSkipped('ocrmypdf oder Ghostscript nicht verfuegbar');
+        }
+        $dir = sys_get_temp_dir() . '/pdftk-ocrhelper-' . bin2hex(random_bytes(6));
+        mkdir($dir);
+        $this->tempFiles[] = $dir;
+        $vector = PdfProbe::outlined($this, $dir, ['KONTOAUSZUG VEKTOR', 'SALDO 4711 EUR']);
+        $text = PdfProbe::labelled($this, $dir, 1);
+        $combined = PdfProbe::concatenated($this, $dir . '/beides.pdf', [$vector, $text]);
+        $this->assertSame('', trim(PdfProbe::pageText($combined, 1)), 'Die Vektorseite hat keine Textebene');
+        $this->assertSame(0, PdfProbe::imageCount($combined, 1), 'und kein Rasterbild');
+        $this->assertStringContainsString('P1-R1C1', PdfProbe::pageText($combined, 2));
+
+        $skipped = $dir . '/skip-text.pdf';
+        $this->assertTrue(PDFOcrHelper::makeSearchable($combined, $skipped));
+        $this->assertSame('', trim(PdfProbe::pageText($skipped, 1)), '--skip-text laesst eine Vektorseite ohne Text');
+
+        $forced = $dir . '/force-pages.pdf';
+        $messages = null;
+        $this->assertTrue(PDFOcrHelper::makeSearchable($combined, $forced, true, 'deu', 6, null, $messages, [1]), 'ocrmypdf: ' . implode("\n", $messages ?? []));
+        $this->assertStringContainsString('KONTOAUSZUG', PdfProbe::pageText($forced, 1), 'Die Vektorseite wurde erkannt');
+        $this->assertSame(1, PdfProbe::imageCount($forced, 1), 'und dafuer gerastert');
+        $this->assertStringContainsString('P1-R1C1', PdfProbe::pageText($forced, 2));
+        $this->assertSame(0, PdfProbe::imageCount($forced, 2), 'Die Textseite blieb, wie sie war');
     }
 
     public function test_unbekannte_sprache_geht_nicht_an_ocrmypdf(): void {

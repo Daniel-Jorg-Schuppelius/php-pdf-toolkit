@@ -72,6 +72,23 @@ final class PDFRedactHelperTest extends BaseTestCase {
         $this->assertEqualsWithDelta(595.0, $lines[1][0]['x1'], 0.5);
     }
 
+    /**
+     * Leerraum zaehlt nicht: pdftotext setzt ihn nicht zuverlaessig (gesperrt
+     * gesetzte Woerter kommen als Einzelbuchstaben, eine IBAN mal in
+     * Vierergruppen, mal am Stueck) - gesucht wird, was der Mensch liest.
+     */
+    public function test_find_text_ignores_whitespace_on_both_sides(): void {
+        $joined = PDFRedactHelper::findText($this->source, ['P1-R1C1P1-R1C2'], false, [1]);
+        $this->assertCount(1, $joined[1], 'Zwei Woerter ohne Leerzeichen gesucht');
+        $this->assertGreaterThan(400.0, $joined[1][0]['x1']);
+
+        $spaced = PDFRedactHelper::findText($this->source, ['P 1 - R 1 C 1'], false, [1]);
+        $this->assertCount(1, $spaced[1], 'Gesperrt gesucht');
+        $this->assertLessThan(300.0, $spaced[1][0]['x1']);
+
+        $this->assertSame('p1-r1c1', PDFRedactHelper::compact(" P1 - R1\tC1 "));
+    }
+
     public function test_redact_removes_the_words_from_the_file(): void {
         $output = $this->workDir . '/schwarz.pdf';
         $rects = PDFRedactHelper::findText($this->source, ['P1-R1C1', 'P2-R3C2']);
@@ -173,15 +190,20 @@ final class PDFRedactHelperTest extends BaseTestCase {
     public function test_parse_layout_reads_pages_lines_and_words(): void {
         $html = '<html><body><doc><page width="595.000000" height="842.000000"><flow><block xMin="1" yMin="2" xMax="3" yMax="4">'
             . '<line xMin="1" yMin="2" xMax="3" yMax="4"><word xMin="40.0" yMin="84.0" xMax="120.0" yMax="102.0">M&#252;ller</word>'
-            . '<word xMin="130.0" yMin="84.0" xMax="200.0" yMax="102.0">&amp;</word></line></block></flow></page>'
+            . '<word xMin="130.0" yMin="84.0" xMax="200.0" yMax="102.0">&amp;</word></line>'
+            // Ueberschrift ueber den Seitenrand hinaus: negative Koordinate
+            . '<line xMin="1" yMin="-4" xMax="3" yMax="14"><word xMin="300.5" yMin="-4.317" xMax="420.0" yMax="14.2">Rekeningafschrift</word></line></block></flow></page>'
             . '<page width="842.000000" height="595.000000"><flow></flow></page></doc></body></html>';
 
         $pages = PDFRedactHelper::parseLayout($html, 4);
 
         $this->assertSame([4, 5], array_keys($pages));
         $this->assertSame(595.0, $pages[4]['width']);
-        $this->assertSame('Müller', $pages[4]['lines'][0][0]['text']);
-        $this->assertSame('&', $pages[4]['lines'][0][1]['text']);
+        $this->assertCount(2, $pages[4]['lines']);
+        $this->assertSame('Rekeningafschrift', $pages[4]['lines'][0][0]['text'], 'Das Wort ueber dem Rand steht in der ersten Zeile');
+        $this->assertSame(-4.317, $pages[4]['lines'][0][0]['y0']);
+        $this->assertSame('Müller', $pages[4]['lines'][1][0]['text']);
+        $this->assertSame('&', $pages[4]['lines'][1][1]['text']);
         $this->assertSame(842.0, $pages[5]['width']);
         $this->assertSame([], $pages[5]['lines']);
         $this->assertSame([5], array_keys(PDFRedactHelper::parseLayout($html, 4, [5 => 0])));
