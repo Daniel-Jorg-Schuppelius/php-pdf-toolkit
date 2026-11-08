@@ -302,7 +302,9 @@ final class ZugferdWriterTest extends BaseTestCase {
 
     /**
      * PDF/A-3b laut veraPDF auf beiden Wegen mit PDF-Beilage: Erzeugung über
-     * createPdfString() und Ergänzung einer vorhandenen PDF über embedIntoPdf().
+     * createPdfString() und Ergänzung einer ZUGFeRD-PDF über embedIntoPdf().
+     * Die Ergänzung übernimmt Seiten unverändert, bleibt also nur mit einer
+     * konformen Quelle konform (fehlende Schriften liefert sie nicht nach).
      * Läuft dort, wo veraPDF installiert ist (CI über install-dependencies.sh).
      */
     #[Group('integration')]
@@ -318,12 +320,17 @@ final class ZugferdWriterTest extends BaseTestCase {
                 'mime' => 'application/pdf',
                 'description' => 'Leistungsnachweis',
             ];
+            $generated = $this->writer->createPdfString(
+                PDFContent::fromHtml('<h1>Rechnung</h1>', ['invoice_xml' => $this->sampleInvoiceXml()]),
+                ['render_engine' => ZugferdWriter::ENGINE_TCPDF, 'attachments' => [$attachment]]
+            );
+            $this->assertNotNull($generated);
+            file_put_contents($dir . '/source.pdf', $generated);
             $outputs = [
-                'generated' => $this->writer->createPdfString(
-                    PDFContent::fromHtml('<h1>Rechnung</h1>', ['invoice_xml' => $this->sampleInvoiceXml()]),
-                    ['render_engine' => ZugferdWriter::ENGINE_TCPDF, 'attachments' => [$attachment]]
-                ),
-                'augmented' => $this->writer->embedIntoPdf(PdfProbe::labelled($this, $dir, 2), $this->sampleInvoiceXml(), ['attachments' => [$attachment]]),
+                'generated' => $generated,
+                'augmented' => $this->writer->embedIntoPdf($dir . '/source.pdf', $this->sampleInvoiceXml(), [
+                    'attachments' => [['name' => 'nachweis-2.csv', 'content' => "datum;minuten\n2026-10-02;90\n", 'mime' => 'text/csv']],
+                ]),
             ];
 
             foreach ($outputs as $kind => $pdf) {
