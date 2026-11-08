@@ -14,7 +14,7 @@ namespace Tests\Writers;
 
 use PDFToolkit\Entities\PDFContent;
 use PDFToolkit\Enums\PDFWriterType;
-use PDFToolkit\Helper\{PDFAttachmentHelper, PDFHelper, PDFOptimizeHelper};
+use PDFToolkit\Helper\{PDFAComplianceHelper, PDFAttachmentHelper, PDFHelper, PDFOptimizeHelper};
 use PDFToolkit\Readers\ZugferdReader;
 use PDFToolkit\Writers\ZugferdWriter;
 use PHPUnit\Framework\Attributes\{DataProvider, Group};
@@ -298,6 +298,46 @@ final class ZugferdWriterTest extends BaseTestCase {
         $this->assertStringContainsString('xmlns:fx="urn:factur-x:pdfa:CrossIndustryDocument:invoice:1p0#"', $pdf);
         $this->assertStringContainsString('<fx:DocumentFileName>factur-x.xml</fx:DocumentFileName>', $pdf);
         $this->assertStringContainsString('<fx:ConformanceLevel>EXTENDED</fx:ConformanceLevel>', $pdf);
+    }
+
+    /**
+     * PDF/A-3b laut veraPDF auf beiden Wegen mit PDF-Beilage: Erzeugung über
+     * createPdfString() und Ergänzung einer vorhandenen PDF über embedIntoPdf().
+     * Läuft dort, wo veraPDF installiert ist (CI über install-dependencies.sh).
+     */
+    #[Group('integration')]
+    public function test_zugferd_output_with_pdf_attachment_is_pdfa3b(): void {
+        if (!$this->writer->isAvailable() || !PDFAComplianceHelper::supportsLevel('3b')) {
+            $this->markTestSkipped('TCPDF oder veraPDF nicht verfügbar');
+        }
+        $dir = $this->importWorkDir();
+        try {
+            $attachment = [
+                'name' => 'nachweis.pdf',
+                'content' => (string) file_get_contents(PdfProbe::labelled($this, $dir, 1)),
+                'mime' => 'application/pdf',
+                'description' => 'Leistungsnachweis',
+            ];
+            $outputs = [
+                'generated' => $this->writer->createPdfString(
+                    PDFContent::fromHtml('<h1>Rechnung</h1>', ['invoice_xml' => $this->sampleInvoiceXml()]),
+                    ['render_engine' => ZugferdWriter::ENGINE_TCPDF, 'attachments' => [$attachment]]
+                ),
+                'augmented' => $this->writer->embedIntoPdf(PdfProbe::labelled($this, $dir, 2), $this->sampleInvoiceXml(), ['attachments' => [$attachment]]),
+            ];
+
+            foreach ($outputs as $kind => $pdf) {
+                $this->assertNotNull($pdf, $kind);
+                $path = "{$dir}/{$kind}.pdf";
+                file_put_contents($path, $pdf);
+                $result = PDFAComplianceHelper::verify($path, '3b');
+                $this->assertNotNull($result, $kind);
+                $this->assertSame('3b', $result->declaredLevel, $kind);
+                $this->assertTrue($result->compliant, $kind . ': ' . json_encode($result->toArray(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            }
+        } finally {
+            PdfProbe::removeDir($dir);
+        }
     }
 
     /**
