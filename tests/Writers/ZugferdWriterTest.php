@@ -84,6 +84,32 @@ final class ZugferdWriterTest extends BaseTestCase {
     }
 
     /**
+     * Unter PHP-FPM ist das Arbeitsverzeichnis `public/`; TCPDF 7 muss das sRGB-Profil
+     * der tc-lib-pdf trotzdem lesen dürfen (bootstrap_tcpdf_paths.php).
+     */
+    public function test_pdfa_output_does_not_depend_on_working_directory(): void {
+        if (!$this->writer->isAvailable() || !class_exists(\Com\Tecnick\Pdf\Tcpdf::class)) {
+            $this->markTestSkipped('TCPDF 7 is not available');
+        }
+
+        $cwd = (string) getcwd();
+        $foreign = $this->tempDir . '/pdf-toolkit-cwd-' . uniqid();
+        mkdir($foreign);
+        chdir($foreign);
+        try {
+            $content = PDFContent::fromHtml('<h1>Rechnung</h1>', ['invoice_xml' => $this->sampleInvoiceXml()]);
+            $pdf = $this->writer->createPdfString($content, ['render_engine' => ZugferdWriter::ENGINE_TCPDF]);
+        } finally {
+            chdir($cwd);
+            rmdir($foreign);
+        }
+
+        $this->assertNotNull($pdf);
+        $this->assertStringStartsWith('%PDF-', $pdf);
+        $this->assertStringContainsString('factur-x.xml', $pdf);
+    }
+
+    /**
      * Explizit gesetzter invoice_filename überschreibt den Default.
      */
     #[Group('integration')]

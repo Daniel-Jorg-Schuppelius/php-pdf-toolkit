@@ -30,7 +30,8 @@
             "PDFToolkit\\": "src/"
         },
         "files": [
-            "src/bootstrap_fonts.php"
+            "src/bootstrap_fonts.php",
+            "src/bootstrap_tcpdf_paths.php"
         ]
     },
     "autoload-dev": {
