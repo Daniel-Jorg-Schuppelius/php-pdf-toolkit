@@ -87,8 +87,25 @@ jobs:
         # ueberspraenge PDFAComplianceHelperTest den Lauf gegen echte Dateien.
         echo "verapdf: $(verapdf --version 2>&1 | head -1)"; echo "pdfcraft-cli: $(pdfcraft-cli --version 2>&1 | head -1)"
 
+    # TesseractDataHelper laedt fehlende Trainingsdaten von github.com/tesseract-ocr/tessdata;
+    # faellt der Download aus (2026-11-08: Zeitueberschreitungen), scheiterten die OCR-Tests.
+    # Der Stand wird nach jedem Lauf unter seinem Inhalts-Hash gesichert, auch wenn Tests scheitern.
+    - name: Tesseract-Trainingsdaten aus dem Cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: data/tesseract/*.traineddata
+        key: tessdata-restore
+        restore-keys: tessdata-
+
     - name: Run test suite
       run: composer run-script test
+
+    - name: Tesseract-Trainingsdaten sichern
+      if: always() && hashFiles('data/tesseract/*.traineddata') != ''
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: data/tesseract/*.traineddata
+        key: tessdata-${{ hashFiles('data/tesseract/*.traineddata') }}
 
     # Die MuPDF-Skripte unter data/mupdf laufen auf dem Server mit einer
     # aelteren Version als hier (ADR-0034 E5): 1.17 und 1.21 aus dem
