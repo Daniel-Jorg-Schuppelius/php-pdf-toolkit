@@ -794,6 +794,19 @@
                 "[WHAT]"
             ]
         },
+        "mutool-pdf-phantom-spaces": {
+            "path": "mutool",
+            "required": false,
+            "description": "MuPDF: Phantom-Leerzeichen (Leerzeichen ohne Vorschub an Trennstellen) aus der Textebene entfernen (data/mupdf/pdf-phantom-spaces.js)",
+            "package": "mupdf-tools",
+            "arguments": [
+                "run",
+                "[SCRIPT]",
+                "[LIB]",
+                "[INPUT]",
+                "[OUTPUT]"
+            ]
+        },
         "mutool-pdf-redact": {
             "path": "mutool",
             "required": false,
