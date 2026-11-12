@@ -8,6 +8,7 @@
         {"key": "tesseract_auto_select_language", "value": false, "enabled": true},
         {"key": "ocrmypdf_psm", "value": 11, "enabled": true},
         {"key": "pdftoppm_dpi", "value": 300, "enabled": true},
+        {"key": "raster_max_pixels", "value": 150000000, "enabled": true},
         {"key": "quality_check_enabled", "value": true, "enabled": true},
         {"key": "quality_threshold", "value": 60.0, "enabled": true},
         {"key": "tesseract_char_whitelist", "value": "", "enabled": false},

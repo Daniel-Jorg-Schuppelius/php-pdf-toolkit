@@ -24,7 +24,8 @@ use PDFToolkit\Config\Config;
  * Anordnen, Drehen, Seiten pro Blatt und Stempel laufen über MuPDF-Skripte
  * (data/mupdf/*.js, mutool run): Die Seiten behalten ihren Inhaltsstrom,
  * nichts wird gerendert, Text bleibt Text. Die Skripte laufen mit MuPDF 1.17,
- * 1.21 und 1.25. Bilder und Miniaturen liefert pdftoppm.
+ * 1.21 und 1.25. Bilder und Miniaturen liefert pdftoppm, unter der
+ * Pixelgrenze von {@see RasterLimit}.
  */
 final class PDFPageHelper {
     use ErrorLog;
@@ -344,7 +345,8 @@ final class PDFPageHelper {
     }
 
     /**
-     * Miniaturen aller Seiten in einem Aufruf, für Seitenübersichten.
+     * Miniaturen aller Seiten in einem Aufruf, für Seitenübersichten. Seit
+     * 0.32.1 zeigen sie die sichtbare Seite (CropBox), wie ein Betrachter.
      *
      * @param string $outputDir Verzeichnis (wird angelegt)
      * @param int $dpi Auflösung; 24 dpi ergibt rund 200 x 280 Pixel je A4-Seite
@@ -358,21 +360,29 @@ final class PDFPageHelper {
             return [];
         }
 
-        return self::renderPages($inputPath, $outputDir, 'png', max(12, min(72, $dpi)), 1, min($count, max(1, $maxPages)));
+        return self::renderPages($inputPath, $outputDir, 'png', max(12, min(72, $dpi)), 1, min($count, max(1, $maxPages)), cropBox: true);
     }
 
     /**
      * Gibt Seiten als Bilder aus, je Seite eine Datei.
      *
+     * Seit 0.32.1 bekommt kein Bild mehr als {@see RasterLimit::maxPixels()}
+     * Pixel: Wäre eine Seite des Bereichs mit $dpi größer (gemessen an der
+     * größeren von MediaBox und CropBox), läuft der ganze Bereich mit
+     * entsprechend geringerer Auflösung; sind die Seitenmaße nicht lesbar,
+     * wird nichts gerastert.
+     *
      * @param string $outputDir Verzeichnis (wird angelegt)
      * @param string $format png oder jpeg
-     * @param int $dpi Auflösung
+     * @param int $dpi Auflösung (12-600)
      * @param int $firstPage Erste Seite (1-basiert)
      * @param int $lastPage Letzte Seite (0 = bis zur letzten)
      * @param int $quality JPEG-Qualität 1-100
+     * @param bool $cropBox Nur die sichtbare Seite (CropBox) rastern, seit 0.32.1; Vorgabe wie
+     *                      bisher die MediaBox, deren Koordinaten auch die Wortboxen nutzen
      * @return list<string> Pfade in Seitenreihenfolge, leer bei Fehler
      */
-    public static function renderPages(string $inputPath, string $outputDir, string $format = 'png', int $dpi = 150, int $firstPage = 1, int $lastPage = 0, int $quality = 85): array {
+    public static function renderPages(string $inputPath, string $outputDir, string $format = 'png', int $dpi = 150, int $firstPage = 1, int $lastPage = 0, int $quality = 85, bool $cropBox = false): array {
         $format = strtolower($format) === 'jpg' ? 'jpeg' : strtolower($format);
         if (!in_array($format, ['png', 'jpeg'], true)) {
             self::logError('Bildformat muss png oder jpeg sein', ['format' => $format]);
@@ -398,16 +408,23 @@ final class PDFPageHelper {
             return [];
         }
 
+        // Pixelgrenze: eine übergroße MediaBox hinter einer A4-CropBox kostete sonst Gigabytes
+        $rasterDpi = RasterLimit::dpiFor($inputPath, max(12, min(600, $dpi)), $firstPage, $lastPage);
+        if ($rasterDpi === null) {
+            self::logError('Seiten werden nicht gerastert (Seitenmaße nicht lesbar oder zu groß)', ['path' => $inputPath, 'first' => $firstPage, 'last' => $lastPage]);
+            return [];
+        }
+
         Folder::create($outputDir);
         $prefix = $outputDir . '/page';
         $command = $config->buildCommand($executable, [
-            '[DPI]' => (string) max(12, min(600, $dpi)),
+            '[DPI]' => RasterLimit::format($rasterDpi),
             '[FIRST]' => (string) $firstPage,
             '[LAST]' => (string) $lastPage,
             '[QUALITY]' => (string) max(1, min(100, $quality)),
             '[PDF-FILE]' => $inputPath,
             '[OUTPUT-PREFIX]' => $prefix,
-        ]);
+        ], $cropBox ? ['-cropbox'] : []);
         if ($command === null) {
             self::logError('Konnte pdftoppm-Befehl nicht erstellen');
             return [];

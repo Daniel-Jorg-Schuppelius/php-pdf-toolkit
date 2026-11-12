@@ -18,7 +18,7 @@ use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 use PDFToolkit\Contracts\PDFReaderInterface;
 use PDFToolkit\Enums\PDFReaderType;
-use PDFToolkit\Helper\{OcrCache, PDFHelper, ParallelShell, TempPath, TesseractDataHelper, TextQualityAnalyzer, ToolTimeout};
+use PDFToolkit\Helper\{OcrCache, PDFHelper, ParallelShell, RasterLimit, TempPath, TesseractDataHelper, TextQualityAnalyzer, ToolTimeout};
 use Throwable;
 
 /**
@@ -504,9 +504,15 @@ final class TesseractReader implements PDFReaderInterface {
         try {
             $deskew = $this->preprocessImages;
             if ($isPdf) {
-                // 1. PDF zu PNG konvertieren
+                // 1. PDF zu PNG konvertieren - unter der Pixelgrenze: eine übergroße
+                // MediaBox senkt die Auflösung, statt Gigabytes je Seite zu belegen
+                $rasterDpi = RasterLimit::dpiFor($pdfPath, $dpi);
+                if ($rasterDpi === null) {
+                    $this->logWarning("Seitenmaße nicht lesbar oder Seite zu groß, keine OCR: $pdfPath");
+                    return null;
+                }
                 $command = $this->config->buildCommand('pdftoppm', [
-                    '[DPI]' => (string) $dpi,
+                    '[DPI]' => RasterLimit::format($rasterDpi),
                     '[PDF-FILE]' => $pdfPath,
                     '[OUTPUT-PREFIX]' => $tempDir . '/page',
                 ]);

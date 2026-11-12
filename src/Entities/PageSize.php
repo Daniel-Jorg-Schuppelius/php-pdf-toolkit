@@ -229,6 +229,15 @@ final readonly class PageSize {
     }
 
     /**
+     * Pixel, wenn die Seite mit $dpi gerastert wird (seit 0.32.1). Wie pdftoppm
+     * aufgerundet je Kante; die Drehung tauscht nur die Kanten. Als float,
+     * weil präparierte Seitenmaße den Ganzzahlbereich sprengen können.
+     */
+    public function pixelsAt(float $dpi): float {
+        return ceil($this->widthPt * $dpi / 72) * ceil($this->heightPt * $dpi / 72);
+    }
+
+    /**
      * Berechnet das Seitenverhältnis (Breite/Höhe).
      */
     public function aspectRatio(): float {

@@ -29,6 +29,10 @@ use PDFToolkit\Config\Config;
  * Objektströme - auch Voraussetzung für FPDI-Überlagerungen). Linearisieren
  * gibt es bewusst nicht: `mutool clean -l` (1.25) schreibt Dateien, deren
  * Querverweise poppler nicht liest.
+ *
+ * Die OCRmyPDF-Wege ("verlustfrei", {@see toPdfA()}) rastern Seiten ohne Text
+ * (--skip-text erkennt sie); seit 0.32.1 laufen sie nur, wenn jede Seite mit
+ * {@see RasterLimit::OCRMYPDF_DPI} unter der Pixelgrenze bleibt.
  */
 final class PDFOptimizeHelper {
     use ErrorLog;
@@ -231,7 +235,13 @@ final class PDFOptimizeHelper {
 
         // OCRmyPDF erkennt mit --skip-text die Scanseiten (OCR je Seite); Ghostscript
         // und MuPDF schreiben die Datei neu
-        $timeout = str_starts_with($executable, 'ocrmypdf') ? ToolTimeout::forOcr($inputPath) : ToolTimeout::forSize($inputPath);
+        $ocr = str_starts_with($executable, 'ocrmypdf');
+        // Dabei rastert OCRmyPDF die MediaBox mit selbst gewählter Auflösung: zu große Seiten vorher abweisen
+        if ($ocr && !RasterLimit::fits($inputPath, RasterLimit::OCRMYPDF_DPI)) {
+            self::logError('Seite zu groß für OCRmyPDF oder Seitenmaße nicht lesbar', ['executable' => $executable, 'path' => $inputPath]);
+            return false;
+        }
+        $timeout = $ocr ? ToolTimeout::forOcr($inputPath) : ToolTimeout::forSize($inputPath);
 
         $output = [];
         $returnCode = 0;

@@ -98,6 +98,53 @@ final class PdfProbe {
         return $output;
     }
 
+    /**
+     * Handgeschriebene PDF mit eigener MediaBox, CropBox und Drehung je Seite,
+     * ohne Werkzeug erzeugt (für Seitenmaße und Rastergrenzen). Jede Seite
+     * trägt "Seite N" oben links auf A4. Mit A4-CropBox und 9000 x 9000 pt
+     * MediaBox ist das die Raster-Bombe aus der Sicherheitsprüfung (gut 600 Byte).
+     *
+     * @param list<array{media: string, crop?: string, rotate?: int}> $pages Boxen als "x1 y1 x2 y2" in Punkten
+     */
+    public static function boxed(string $path, array $pages): string {
+        $objects = [
+            1 => '<< /Type /Catalog /Pages 2 0 R >>',
+            3 => '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+        ];
+        $kids = [];
+        foreach (array_values($pages) as $index => $page) {
+            $pageObject = 4 + 2 * $index;
+            $kids[] = "$pageObject 0 R";
+            $content = sprintf('BT /F1 24 Tf 72 720 Td (Seite %d) Tj ET', $index + 1);
+            $objects[$pageObject] = sprintf(
+                '<< /Type /Page /Parent 2 0 R /MediaBox [%s]%s%s /Resources << /Font << /F1 3 0 R >> >> /Contents %d 0 R >>',
+                $page['media'],
+                isset($page['crop']) ? ' /CropBox [' . $page['crop'] . ']' : '',
+                isset($page['rotate']) ? ' /Rotate ' . $page['rotate'] : '',
+                $pageObject + 1
+            );
+            $objects[$pageObject + 1] = sprintf("<< /Length %d >>\nstream\n%s\nendstream", strlen($content), $content);
+        }
+        $objects[2] = sprintf('<< /Type /Pages /Kids [%s] /Count %d >>', implode(' ', $kids), count($kids));
+        ksort($objects);
+
+        $pdf = "%PDF-1.4\n";
+        $offsets = [];
+        foreach ($objects as $number => $object) {
+            $offsets[$number] = strlen($pdf);
+            $pdf .= "$number 0 obj\n$object\nendobj\n";
+        }
+        $xref = strlen($pdf);
+        $pdf .= sprintf("xref\n0 %d\n0000000000 65535 f \n", count($objects) + 1);
+        foreach ($offsets as $offset) {
+            $pdf .= sprintf("%010d 00000 n \n", $offset);
+        }
+        $pdf .= sprintf("trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", count($objects) + 1, $xref);
+        file_put_contents($path, $pdf);
+
+        return $path;
+    }
+
     /** Rasterbilder einer Seite (pdfimages -list). */
     public static function imageCount(string $pdf, int $page): int {
         exec(sprintf('pdfimages -list -f %d -l %d %s 2>/dev/null', $page, $page, escapeshellarg($pdf)), $lines);

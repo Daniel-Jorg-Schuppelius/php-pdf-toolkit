@@ -36,6 +36,10 @@ use PDFToolkit\Readers\TesseractReader;
  * $forceOcr wird eine vorhandene, unbrauchbare Textebene verworfen und neu
  * erkannt. Die Seitensegmentierung folgt v1: `ocrmypdf_psm` (11, dünner Text),
  * bei Nicht-A4-Seiten 12 ({@see PDFHelper::suggestScanPsm()}).
+ *
+ * Seit 0.32.1 startet ocrmypdf nur, wenn jede zu erkennende Seite mit
+ * {@see RasterLimit::OCRMYPDF_DPI} unter der Pixelgrenze bleibt
+ * ({@see RasterLimit::fits()}); die Auflösung lässt sich OCRmyPDF nicht vorgeben.
  */
 final class PDFOcrHelper {
     use ErrorLog;
@@ -86,6 +90,12 @@ final class PDFOcrHelper {
         if (!File::exists($inputPath)) {
             $messages[] = 'Eingabe fehlt: ' . basename($inputPath);
             return false;
+        }
+        // OCRmyPDF wählt die Auflösung selbst (Seiten mit Text oder Vektorinhalt
+        // mindestens 400 dpi) und rastert die MediaBox: zu große Seiten vorher abweisen
+        if (!RasterLimit::fits($inputPath, RasterLimit::OCRMYPDF_DPI, $pages)) {
+            $messages[] = 'Seite zu groß für die Texterkennung oder Seitenmaße nicht lesbar';
+            return self::logWarningAndReturn(false, "ocrmypdf nicht gestartet, Pixelgrenze ({$inputPath})");
         }
 
         $psm ??= PDFHelper::suggestScanPsm($inputPath, self::configuredPsm());

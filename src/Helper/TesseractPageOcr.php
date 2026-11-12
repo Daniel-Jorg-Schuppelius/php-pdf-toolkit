@@ -24,7 +24,8 @@ use Throwable;
  * PDF (pdftoppm), entzerrt sie wie der Textpfad und lässt Tesseract je Seite
  * eine TSV-Ausgabe schreiben. Gemeinsame Pipeline für die zeilentreue
  * Rekonstruktion ({@see PDFBboxLayoutHelper::ocrRowAlignedText()}) und die
- * Wortboxen ({@see PDFWordBoxHelper::fromOcr()}).
+ * Wortboxen ({@see PDFWordBoxHelper::fromOcr()}). Seit 0.32.1 unter der
+ * Pixelgrenze von {@see RasterLimit}.
  */
 final class TesseractPageOcr {
     use ErrorLog;
@@ -47,8 +48,14 @@ final class TesseractPageOcr {
             return ['pages' => [], 'error' => 'Temp-Verzeichnis nicht erstellbar für OCR: ' . $e->getMessage()];
         }
         try {
+            // Pixelgrenze: eine übergroße MediaBox senkt die Auflösung, statt Gigabytes je Seite zu belegen.
+            // Gerastert wird die MediaBox wie bisher - in ihren Koordinaten liegen auch die Wortboxen aus pdftotext.
+            $rasterDpi = RasterLimit::dpiFor($pdfPath, $dpi);
+            if ($rasterDpi === null) {
+                return ['pages' => [], 'error' => "Seitenmaße nicht lesbar oder Seite zu groß zum Rastern: {$pdfPath}"];
+            }
             $renderCmd = $config->buildCommand('pdftoppm', [
-                '[DPI]' => (string) $dpi,
+                '[DPI]' => RasterLimit::format($rasterDpi),
                 '[PDF-FILE]' => $pdfPath,
                 '[OUTPUT-PREFIX]' => $tempDir . '/page',
             ]);

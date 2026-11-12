@@ -16,7 +16,7 @@ use CommonToolkit\Helper\FileSystem\File;
 use CommonToolkit\Helper\Shell;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
-use PDFToolkit\Entities\PageSize;
+use PDFToolkit\Entities\{PageBoxes, PageSize};
 use PDFToolkit\Enums\PaperFormat;
 
 /**
@@ -24,6 +24,9 @@ use PDFToolkit\Enums\PaperFormat;
  */
 final class PDFHelper {
     use ErrorLog;
+
+    /** Letzte Seite für `pdfinfo -l`, wenn der Bereich bis zum Ende reicht: pdfinfo kürzt sie auf die Seitenzahl. */
+    private const PDFINFO_LAST_PAGE = 2147483647;
 
     /** Cache für hasEmbeddedText() Ergebnisse (filePath:minChars => bool) */
     private static array $embeddedTextCache = [];
@@ -417,6 +420,9 @@ final class PDFHelper {
      * Gibt die Seitengrößen aller Seiten zurück.
      *
      * Nutzt pdfinfo -l für seitenweise Metadaten (nur wenn pdfinfo verfügbar).
+     * Das ist die CropBox, die sichtbare Seite. Gerastert wird ohne -cropbox
+     * die MediaBox, die beliebig größer sein kann: Für Prüfungen vor dem
+     * Rastern {@see getAllPageBoxes()} und {@see PageBoxes::largest()} nehmen.
      *
      * @return array<int, PageSize> Array mit PageSize-Objekten, indiziert nach Seitennummer (1-basiert)
      */
@@ -485,6 +491,85 @@ final class PDFHelper {
         }
 
         return $sizes;
+    }
+
+    /**
+     * MediaBox und CropBox je Seite (`pdfinfo -box`), seit 0.32.1.
+     *
+     * {@see getAllPageSizes()} liefert die CropBox; pdftoppm rastert ohne
+     * -cropbox aber die MediaBox. Für Seitenmaß-Prüfungen vor dem Rastern
+     * {@see PageBoxes::largest()} nehmen - die Rasterwege des Pakets tun das
+     * über {@see RasterLimit}. Liest jede Datei, die pdfinfo öffnet, auch ohne
+     * Endung .pdf (der Tesseract-Reader nimmt PDFs am Dateikopf an).
+     *
+     * @param int $firstPage Erste Seite (1-basiert)
+     * @param int $lastPage Letzte Seite; 0 oder hinter dem Ende = bis zur letzten
+     * @return array<int, PageBoxes> jede Seite des Bereichs, nach Seitennummer (1-basiert);
+     *         leer, wenn pdfinfo scheitert oder für eine Seite des Bereichs keine
+     *         lesbaren Boxen nennt - dann ist nichts über die Seitenmaße bekannt
+     */
+    public static function getAllPageBoxes(string $filePath, int $firstPage = 1, int $lastPage = 0): array {
+        if ($firstPage < 1 || ($lastPage > 0 && $lastPage < $firstPage) || !File::exists($filePath) || !File::isReadable($filePath)) {
+            return [];
+        }
+
+        $command = Config::getInstance()->buildCommand('pdfinfo', [
+            '[PDF-FILE]' => $filePath,
+        ], ['-box', '-f', (string) $firstPage, '-l', (string) ($lastPage > 0 ? $lastPage : self::PDFINFO_LAST_PAGE)]);
+        if ($command === null) {
+            return [];
+        }
+
+        $output = [];
+        $returnCode = 0;
+        Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::PROBE);
+        if ($returnCode !== 0) {
+            return [];
+        }
+
+        // "Pages: 3", "Page    1 rot:   90" und
+        // "Page    1 MediaBox:      0.00     0.00  9000.00  9000.00" (%8.2f, nie Exponent);
+        // pdfinfo schreibt erst Größe und Drehung aller Seiten, danach die Boxen.
+        $pageCount = 0;
+        $rotations = [];
+        $boxes = [];
+        foreach ($output as $line) {
+            if (preg_match('/^Pages:\s*(\d+)\s*$/', $line, $matches)) {
+                $pageCount = (int) $matches[1];
+            } elseif (preg_match('/^Page\s+(\d+)\s+rot:\s*(\d+)\s*$/', $line, $matches)) {
+                $rotations[(int) $matches[1]] = (int) $matches[2];
+            } elseif (preg_match('/^Page\s+(\d+)\s+(MediaBox|CropBox):\s*(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s+(-?\d+(?:\.\d+)?)\s*$/', $line, $matches)) {
+                $boxes[(int) $matches[1]][$matches[2]] = [
+                    abs((float) $matches[5] - (float) $matches[3]),
+                    abs((float) $matches[6] - (float) $matches[4]),
+                ];
+            }
+        }
+
+        $lastPage = $lastPage > 0 ? min($lastPage, $pageCount) : $pageCount;
+        if ($lastPage < $firstPage) {
+            return [];
+        }
+
+        $result = [];
+        for ($page = $firstPage; $page <= $lastPage; $page++) {
+            // Unlesbare Maße (inf, nan) oder eine fehlende Box: lieber nichts als eine Lücke
+            if (!isset($boxes[$page]['MediaBox'], $boxes[$page]['CropBox'])) {
+                self::logWarning('pdfinfo nennt keine lesbaren Seitenboxen', ['path' => $filePath, 'page' => $page]);
+                return [];
+            }
+            $rotation = $rotations[$page] ?? 0;
+            [$mediaWidth, $mediaHeight] = $boxes[$page]['MediaBox'];
+            [$cropWidth, $cropHeight] = $boxes[$page]['CropBox'];
+            $result[$page] = new PageBoxes(
+                pageNumber: $page,
+                mediaBox: new PageSize($mediaWidth, $mediaHeight, $page, $rotation),
+                cropBox: new PageSize($cropWidth, $cropHeight, $page, $rotation),
+                rotation: $rotation,
+            );
+        }
+
+        return $result;
     }
 
     /**
@@ -603,17 +688,26 @@ final class PDFHelper {
      * Nutzt pdftoppm für die Konvertierung. Die Ausgabedatei wird automatisch
      * generiert wenn kein outputPath angegeben wird.
      *
+     * Seit 0.32.1 bekommt das Bild höchstens {@see RasterLimit::maxPixels()}
+     * Pixel: Wäre die Seite mit $dpi größer (gemessen an der größeren von
+     * MediaBox und CropBox), wird sie mit entsprechend geringerer Auflösung
+     * gerastert; sind ihre Maße nicht lesbar, gar nicht.
+     *
      * @param string $filePath Pfad zur PDF-Datei
      * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
      * @param int $dpi Auflösung in DPI (Standard: 72 für Vorschau, 150 für bessere Qualität)
      * @param string|null $outputPath Optionaler Ausgabepfad (ohne Extension)
+     * @param bool $cropBox Nur die sichtbare Seite (CropBox, wie ein Betrachter sie zeigt) statt
+     *                      der MediaBox rastern (seit 0.32.1; Vorgabe wie bisher die MediaBox,
+     *                      deren Koordinaten auch pdftotext -bbox nutzt)
      * @return string|null Pfad zur PNG-Datei oder null bei Fehler
      */
     public static function renderPageToImage(
         string $filePath,
         int $pageNumber = 1,
         int $dpi = 72,
-        ?string $outputPath = null
+        ?string $outputPath = null,
+        bool $cropBox = false
     ): ?string {
         if (!self::isValidPdf($filePath)) {
             self::logError('Ungültige PDF-Datei', ['path' => $filePath]);
@@ -639,17 +733,24 @@ final class PDFHelper {
             return null;
         }
 
+        // Pixelgrenze: eine übergroße MediaBox hinter einer A4-CropBox kostete sonst Gigabytes
+        $rasterDpi = RasterLimit::dpiFor($filePath, $dpi, $pageNumber, $pageNumber);
+        if ($rasterDpi === null) {
+            self::logError('Seite wird nicht gerastert (Seitenmaße nicht lesbar oder zu groß)', ['path' => $filePath, 'page' => $pageNumber]);
+            return null;
+        }
+
         // Ausgabepfad generieren: ohne Vorgabe eine vorab exklusiv angelegte
         // Datei (0600), in die pdftoppm -singlefile das Seitenbild schreibt
         $outputPrefix = $outputPath ?? substr(TempPath::file('pdf_preview', 'png'), 0, -4);
 
         // Versuche zuerst pdftoppm-page (Einzelseiten-Modus)
         $command = $config->buildCommand('pdftoppm-page', [
-            '[DPI]' => (string) $dpi,
+            '[DPI]' => RasterLimit::format($rasterDpi),
             '[PAGE]' => (string) $pageNumber,
             '[PDF-FILE]' => $filePath,
             '[OUTPUT-PREFIX]' => $outputPrefix,
-        ]);
+        ], $cropBox ? ['-cropbox'] : []);
 
         if ($command === null) {
             self::logError('Konnte pdftoppm-page Befehl nicht erstellen');
@@ -685,7 +786,7 @@ final class PDFHelper {
             'input' => $filePath,
             'page' => $pageNumber,
             'output' => $outputFile,
-            'dpi' => $dpi,
+            'dpi' => $rasterDpi,
         ]);
 
         return $outputFile;
@@ -694,19 +795,22 @@ final class PDFHelper {
     /**
      * Rendert eine PDF-Seite als Base64-kodiertes PNG.
      *
-     * Praktisch für API-Responses ohne temporäre Dateien.
+     * Praktisch für API-Responses ohne temporäre Dateien. Pixelgrenze wie
+     * {@see renderPageToImage()}.
      *
      * @param string $filePath Pfad zur PDF-Datei
      * @param int $pageNumber Seitennummer (1-basiert, Standard: 1)
      * @param int $dpi Auflösung in DPI (Standard: 72)
+     * @param bool $cropBox Nur die sichtbare Seite (CropBox) rastern, seit 0.32.1
      * @return string|null Base64-kodierter PNG-String oder null bei Fehler
      */
     public static function renderPageToBase64(
         string $filePath,
         int $pageNumber = 1,
-        int $dpi = 72
+        int $dpi = 72,
+        bool $cropBox = false
     ): ?string {
-        $imagePath = self::renderPageToImage($filePath, $pageNumber, $dpi);
+        $imagePath = self::renderPageToImage($filePath, $pageNumber, $dpi, null, $cropBox);
         if ($imagePath === null) {
             return null;
         }

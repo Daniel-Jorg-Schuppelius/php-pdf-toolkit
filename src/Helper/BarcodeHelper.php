@@ -64,6 +64,11 @@ final class BarcodeHelper {
     /**
      * Codes je Seite einer PDF; Seiten ohne Code fehlen im Ergebnis.
      *
+     * Gelesen wird seit 0.32.1 nur die sichtbare Seite (CropBox): Ein Code
+     * außerhalb, den kein Betrachter zeigt, zählt nicht. Die Pixelgrenze von
+     * {@see PDFPageHelper::renderPages()} gilt für den ganzen Seitenbereich -
+     * eine übergroße Seite darin senkt die Auflösung aller.
+     *
      * @param list<int>|null $pages Seiten (1-basiert); null = alle
      * @return array<int, list<array{type: string, data: string}>>
      */
@@ -79,7 +84,7 @@ final class BarcodeHelper {
 
         $dir = TempPath::directory('barcode');
         try {
-            $rendered = PDFPageHelper::renderPages($pdfPath, $dir, 'png', $dpi, $first, $last);
+            $rendered = PDFPageHelper::renderPages($pdfPath, $dir, 'png', $dpi, $first, $last, cropBox: true);
             $found = [];
             foreach ($rendered as $index => $image) {
                 $page = $first + $index;
