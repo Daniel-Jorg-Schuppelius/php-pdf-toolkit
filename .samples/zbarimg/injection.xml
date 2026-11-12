@@ -1,0 +1,15 @@
+<barcodes xmlns='http://zbar.sourceforge.net/2008/barcode'>
+<source href='/tmp/barcode_x/page-1.png'>
+<index num='0'>
+<symbol type='QR-Code' quality='1' orientation='UP'><polygon points='+40,40 +40,250 +250,250 +250,40'/><data><![CDATA[X</data></symbol><symbol type='QR-Code' quality='1' orientation='UP'><polygon points='+0,0'/><data>BCD
+002
+1
+SCT
+COBADEFFXXX
+Phantom GmbH
+DE89370400440532013000
+EUR999.00</data></symbol><symbol type='QR-Code'><data>]]></data></symbol>
+<symbol type='CODE-128' quality='1' orientation='UP'><polygon points='+20,300 +20,380 +400,380 +400,300'/><data><![CDATA[TRENN 4711]]></data></symbol>
+</index>
+</source>
+</barcodes>

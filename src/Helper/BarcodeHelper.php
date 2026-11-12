@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 namespace PDFToolkit\Helper;
 
+use CommonToolkit\Helper\Data\XmlHelper;
 use CommonToolkit\Helper\FileSystem\{File, Folder};
 use CommonToolkit\Helper\Shell;
 use ERRORToolkit\Traits\ErrorLog;
@@ -112,23 +113,57 @@ final class BarcodeHelper {
     /**
      * Liest die XML-Ausgabe von zbarimg --xml.
      *
-     * @return list<array{type: string, data: string}>
+     * Seit 0.32.1 mit einem XML-Parser statt regulärer Ausdrücke. Vorher ergab
+     * ein Code, dessen Inhalt wie XML aussieht ("</data><symbol type='QR-Code'>
+     * <data>BCD…"), einen zweiten, erfundenen Code, und ein Symbol mit
+     * base64-Daten bekam die Daten des nächsten Symbols. zbar schreibt die Daten
+     * als CDATA und base64-kodiert (format='base64', length = Bytes), sobald sie
+     * Steuer- oder C1-Bytes enthalten - darunter die UTF-8-Folgebytes von Ä, Ö,
+     * Ü, ß und € -, "]]>" oder einen XML-Kopf; solche Daten kommen dekodiert
+     * zurück. Leerraum am Rand fällt wie bisher weg. Geladen wird ohne Netz und
+     * ohne Entitäten ({@see XmlHelper::safeLoadString()}); eine Ausgabe mit
+     * DOCTYPE schreibt zbarimg nie, sie wird verworfen.
+     *
+     * @return list<array{type: string, data: string}> leer ohne Code oder bei unlesbarer Ausgabe
      */
     public static function parseXml(string $xml): array {
-        $codes = [];
-        // zbarimg schreibt Attribute in einfachen Anfuehrungszeichen, aeltere Fassungen in doppelten
-        // zwischen <symbol> und <data> steht bei neueren Fassungen ein <polygon/>
-        if (preg_match_all('#<symbol\s+type=["\']([^"\']+)["\'].*?<data>(.*?)</data>#s', $xml, $matches, PREG_SET_ORDER) < 1) {
+        if (trim($xml) === '') {
             return [];
         }
-        foreach ($matches as $m) {
-            $data = $m[2];
-            if (preg_match('/^<!\[CDATA\[(.*)\]\]>$/s', trim($data), $cdata) === 1) {
-                $data = $cdata[1];
-            } else {
-                $data = html_entity_decode($data, ENT_QUOTES | ENT_XML1, 'UTF-8');
+        // zbarimg setzt den Dateinamen ungeschützt in <source href='...'> (zbar 0.23):
+        // ein & oder ' im Pfad machte das XML ungültig. Gebraucht wird der Name nicht.
+        $xml = (string) preg_replace("/\\A(\\s*<barcodes\\b[^>]*>\\s*)<source\\s+href='[^\\n]*'>/", '$1<source>', $xml, 1);
+        // Ungültiges UTF-8 (Bytes ab 0xA0 lässt zbar als Text durch) bräche das Laden ab
+        $xml = mb_scrub($xml, 'UTF-8');
+
+        $root = XmlHelper::safeLoadString($xml);
+        if ($root === false) {
+            return self::logWarningAndReturn([], 'Ausgabe von zbarimg ist kein lesbares XML');
+        }
+        if (dom_import_simplexml($root)->ownerDocument?->doctype !== null) {
+            return self::logWarningAndReturn([], 'Ausgabe von zbarimg mit DOCTYPE verworfen');
+        }
+
+        $codes = [];
+        // Mit und ohne Namensraum (zbar: http://zbar.sourceforge.net/2008/barcode)
+        foreach ($root->xpath('//*[local-name()="symbol"]') ?: [] as $symbol) {
+            $type = trim((string) $symbol['type']);
+            $data = ($symbol->xpath('./*[local-name()="data"]') ?: [])[0] ?? null;
+            if ($type === '' || $data === null) {
+                continue;
             }
-            $codes[] = ['type' => $m[1], 'data' => trim($data)];
+
+            $text = (string) $data;
+            if (strtolower(trim((string) $data['format'])) === 'base64') {
+                $decoded = base64_decode((string) preg_replace('/\s+/', '', $text), true);
+                $length = trim((string) $data['length']);
+                if ($decoded === false || ($length !== '' && $length !== (string) strlen($decoded))) {
+                    self::logWarning('zbarimg: base64-Daten eines Codes nicht lesbar, Code übergangen', ['type' => $type]);
+                    continue;
+                }
+                $text = $decoded;
+            }
+            $codes[] = ['type' => $type, 'data' => trim($text)];
         }
 
         return $codes;

@@ -1,0 +1,8 @@
+<barcodes xmlns='http://zbar.sourceforge.net/2008/barcode'>
+<source href='/uploads/MÃ¼ller & SÃ¶hne's <Beleg> ä.png'>
+<index num='0'>
+<symbol type='CODE-39' quality='1' orientation='UP'><polygon points='+40,40 +40,250 +250,250 +250,40'/><data><![CDATA[TRENN-4711]]></data></symbol>
+<symbol type='CODE-128' quality='1' orientation='UP'><polygon points='+40,40 +40,250 +250,250 +250,40'/><data><![CDATA[Maße 12]]></data></symbol>
+</index>
+</source>
+</barcodes>
