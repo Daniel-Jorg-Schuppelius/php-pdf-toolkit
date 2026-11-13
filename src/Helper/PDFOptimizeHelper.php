@@ -13,7 +13,7 @@ declare(strict_types=1);
 namespace PDFToolkit\Helper;
 
 use CommonToolkit\Helper\FileSystem\{File, Folder};
-use CommonToolkit\Helper\{Platform, Shell};
+use CommonToolkit\Helper\Platform;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 
@@ -183,22 +183,22 @@ final class PDFOptimizeHelper {
         try {
             File::write($paramsFile, "<< /ColorImageDict {$dict} /GrayImageDict {$dict} >> setdistillerparams\n");
 
-            $command = $config->buildCommand('gs-compress-custom', [
+            $output = [];
+            $returnCode = 0;
+            $ok = ConfinedTool::execute('gs-compress-custom', [
                 '[DPI]' => (string) $dpi,
                 // Strichbilder (Scans) vertragen weniger Abtastung
                 '[MONO-DPI]' => (string) min(600, max($dpi, 300)),
                 '[PARAMS-FILE]' => $paramsFile,
                 '[INPUT]' => $inputPath,
                 '[OUTPUT]' => $outputPath,
-            ]);
-            if ($command === null) {
+            ], $output, $returnCode, ToolTimeout::forSize($inputPath), ['[INPUT]', '[PARAMS-FILE]'], mergeStderr: true);
+            if ($ok === null) {
                 self::logError('Konnte Befehl nicht erstellen', ['executable' => 'gs-compress-custom']);
                 return false;
             }
 
-            $output = [];
-            $returnCode = 0;
-            if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode, timeout: ToolTimeout::forSize($inputPath)) || $returnCode !== 0 || !File::exists($outputPath)) {
+            if (!$ok || $returnCode !== 0 || !File::exists($outputPath)) {
                 self::logError('Werkzeug fehlgeschlagen', ['executable' => 'gs-compress-custom', 'returnCode' => $returnCode, 'output' => implode("\n", array_slice($output, -5))]);
                 self::dropPartialOutput($inputPath, $outputPath);
                 return false;
@@ -224,15 +224,6 @@ final class PDFOptimizeHelper {
             return false;
         }
 
-        $command = $config->buildCommand($executable, [
-            '[INPUT]' => $inputPath,
-            '[OUTPUT]' => $outputPath,
-        ]);
-        if ($command === null) {
-            self::logError('Konnte Befehl nicht erstellen', ['executable' => $executable]);
-            return false;
-        }
-
         // OCRmyPDF erkennt mit --skip-text die Scanseiten (OCR je Seite); Ghostscript
         // und MuPDF schreiben die Datei neu
         $ocr = str_starts_with($executable, 'ocrmypdf');
@@ -245,7 +236,13 @@ final class PDFOptimizeHelper {
 
         $output = [];
         $returnCode = 0;
-        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode, timeout: $timeout) || $returnCode !== 0 || !File::exists($outputPath)) {
+        $ok = ConfinedTool::execute($executable, ['[INPUT]' => $inputPath, '[OUTPUT]' => $outputPath], $output, $returnCode, $timeout, mergeStderr: true);
+        if ($ok === null) {
+            self::logError('Konnte Befehl nicht erstellen', ['executable' => $executable]);
+            return false;
+        }
+
+        if (!$ok || $returnCode !== 0 || !File::exists($outputPath)) {
             self::logError('Werkzeug fehlgeschlagen', [
                 'executable' => $executable,
                 'returnCode' => $returnCode,

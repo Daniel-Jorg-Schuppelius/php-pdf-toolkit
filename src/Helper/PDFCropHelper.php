@@ -71,8 +71,9 @@ final class PDFCropHelper {
         $firstPage = $page > 0 ? sprintf('-dFirstPage=%d', $page) : '';
         $lastPage = $page > 0 ? sprintf('-dLastPage=%d', $page) : '';
 
-        $config = Config::getInstance();
-        $command = $config->buildCommand('gs-crop', [
+        $output = [];
+        $returnCode = 0;
+        $ok = ConfinedTool::execute('gs-crop', [
             '[WIDTH]' => number_format($width, 2, '.', ''),
             '[HEIGHT]' => number_format($height, 2, '.', ''),
             '[FIRST-PAGE]' => $firstPage,
@@ -80,16 +81,14 @@ final class PDFCropHelper {
             '[OUTPUT]' => $outputPath,
             '[POSTSCRIPT]' => $postscript,
             '[INPUT]' => $inputPath,
-        ]);
+        ], $output, $returnCode, ToolTimeout::forSize($inputPath));
 
-        if ($command === null) {
+        if ($ok === null) {
             self::logError('Konnte gs-crop Befehl nicht erstellen');
             return false;
         }
 
-        $output = [];
-        $returnCode = 0;
-        if (!Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($inputPath)) || $returnCode !== 0) {
+        if (!$ok || $returnCode !== 0) {
             self::logError('Ghostscript-Cropping fehlgeschlagen', [
                 'returnCode' => $returnCode,
                 'output' => implode("\n", $output),
@@ -295,21 +294,21 @@ final class PDFCropHelper {
             return false;
         }
 
-        $command = $config->buildCommand('gs-resize', [
+        $output = [];
+        $returnCode = 0;
+        $ok = ConfinedTool::execute('gs-resize', [
             '[WIDTH]' => number_format($widthPt, 2, '.', ''),
             '[HEIGHT]' => number_format($heightPt, 2, '.', ''),
             '[OUTPUT]' => $outputPath,
             '[INPUT]' => $inputPath,
-        ]);
+        ], $output, $returnCode, ToolTimeout::forSize($inputPath));
 
-        if ($command === null) {
+        if ($ok === null) {
             self::logError('Konnte gs-resize Befehl nicht erstellen');
             return false;
         }
 
-        $output = [];
-        $returnCode = 0;
-        if (!Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($inputPath)) || $returnCode !== 0) {
+        if (!$ok || $returnCode !== 0) {
             self::logError('Ghostscript-Resize fehlgeschlagen', [
                 'returnCode' => $returnCode,
                 'output' => implode("\n", $output),
@@ -407,8 +406,9 @@ final class PDFCropHelper {
                     number_format(-$offsetY, 4, '.', '')
                 );
 
-                $config = Config::getInstance();
-                $command = $config->buildCommand('gs-crop', [
+                $output = [];
+                $returnCode = 0;
+                $ok = ConfinedTool::execute('gs-crop', [
                     '[WIDTH]' => number_format($widthPt, 2, '.', ''),
                     '[HEIGHT]' => number_format($heightPt, 2, '.', ''),
                     '[FIRST-PAGE]' => '',
@@ -416,16 +416,14 @@ final class PDFCropHelper {
                     '[OUTPUT]' => $outputPath,
                     '[POSTSCRIPT]' => $postscript,
                     '[INPUT]' => $tempPath,
-                ]);
+                ], $output, $returnCode, ToolTimeout::forSize($tempPath));
 
-                if ($command === null) {
+                if ($ok === null) {
                     self::logError('Konnte Zentrierungs-Befehl nicht erstellen');
                     return false;
                 }
 
-                $output = [];
-                $returnCode = 0;
-                if (!Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forSize($tempPath)) || $returnCode !== 0) {
+                if (!$ok || $returnCode !== 0) {
                     self::logError('Ghostscript-Zentrierung fehlgeschlagen', [
                         'returnCode' => $returnCode,
                         'output' => implode("\n", $output),

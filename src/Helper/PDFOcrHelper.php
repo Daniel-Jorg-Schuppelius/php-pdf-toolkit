@@ -113,26 +113,26 @@ final class PDFOcrHelper {
             $replacements['[PAGES]'] = self::pageList($pages);
         }
 
-        $command = Config::getInstance()->buildCommand($configKey, $replacements);
-        if ($command === null) {
-            $messages[] = "ocrmypdf ist nicht verfügbar ({$configKey})";
-            return self::logDebugAndReturn(false, "ocrmypdf ({$configKey}) nicht verfügbar für: {$inputPath}");
-        }
-
         // Sprachdaten: liegen sie nicht im System-tessdata, zeigt TESSDATA_PREFIX
         // auf das (nachgeladene) Verzeichnis samt configs/, die ocrmypdf beim
         // Namen ruft ("pdf txt", "hocr txt"). Ein Thread je Tesseract-Aufruf:
         // ocrmypdf verteilt die Seiten selbst.
+        [$threadVariable, $threadValue] = explode('=', TesseractReader::OMP_SINGLE_THREAD, 2);
+        $environment = [$threadVariable => $threadValue];
         $dataPath = self::dataPath($language);
         if ($dataPath !== null) {
-            $command = 'TESSDATA_PREFIX=' . escapeshellarg($dataPath) . ' ' . $command;
+            $environment = ['TESSDATA_PREFIX' => $dataPath] + $environment;
         }
-        $command = TesseractReader::OMP_SINGLE_THREAD . ' ' . $command;
 
         $output = [];
         $returnCode = 0;
-        // Frist nach Seitenzahl: ein Haenger endet, grosse Scans laufen durch
-        Shell::executeShellCommand($command, $output, $returnCode, timeout: ToolTimeout::forOcr($inputPath));
+        // Frist nach Seitenzahl: ein Haenger endet, grosse Scans laufen durch.
+        // ocrmypdf ruft Ghostscript mit Dateien aus seinem TMPDIR auf (ConfinedTool)
+        $ok = ConfinedTool::execute($configKey, $replacements, $output, $returnCode, ToolTimeout::forOcr($inputPath), outputs: ['[OUTPUT]', '[SIDECAR]'], environment: $environment);
+        if ($ok === null) {
+            $messages[] = "ocrmypdf ist nicht verfügbar ({$configKey})";
+            return self::logDebugAndReturn(false, "ocrmypdf ({$configKey}) nicht verfügbar für: {$inputPath}");
+        }
 
         if ($returnCode === self::EXIT_PRIOR_OCR && !File::exists($outputPath)) {
             // Alle Seiten hatten schon Text: das Original ist bereits durchsuchbar

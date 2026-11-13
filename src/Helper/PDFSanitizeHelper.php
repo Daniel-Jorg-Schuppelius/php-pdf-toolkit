@@ -13,7 +13,6 @@ declare(strict_types=1);
 namespace PDFToolkit\Helper;
 
 use CommonToolkit\Helper\FileSystem\File;
-use CommonToolkit\Helper\Shell;
 use ERRORToolkit\Traits\ErrorLog;
 use PDFToolkit\Config\Config;
 
@@ -55,15 +54,15 @@ final class PDFSanitizeHelper {
             self::logError('Ghostscript ist nicht konfiguriert oder nicht verfügbar (gs-flatten)');
             return false;
         }
-        $command = $config->buildCommand('gs-flatten', ['[INPUT]' => $inputPath, '[OUTPUT]' => $outputPath]);
-        if ($command === null) {
+        $output = [];
+        $returnCode = 0;
+        $ok = ConfinedTool::execute('gs-flatten', ['[INPUT]' => $inputPath, '[OUTPUT]' => $outputPath], $output, $returnCode, ToolTimeout::forSize($inputPath), mergeStderr: true);
+        if ($ok === null) {
             self::logError('Konnte gs-flatten-Befehl nicht erstellen');
             return false;
         }
 
-        $output = [];
-        $returnCode = 0;
-        if (!Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode, timeout: ToolTimeout::forSize($inputPath)) || $returnCode !== 0 || !File::exists($outputPath)) {
+        if (!$ok || $returnCode !== 0 || !File::exists($outputPath)) {
             self::logError('Ghostscript (Einbrennen) fehlgeschlagen', ['returnCode' => $returnCode, 'output' => implode("\n", $output)]);
             return false;
         }

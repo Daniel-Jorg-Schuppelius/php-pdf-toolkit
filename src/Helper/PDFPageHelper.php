@@ -561,10 +561,10 @@ final class PDFPageHelper {
         }
         $rewritten = TempPath::file('mupdf_rewrite', 'pdf');
         try {
-            $command = $config->buildCommand('gs-rewrite', ['[INPUT]' => $input, '[OUTPUT]' => $rewritten]);
             $output = [];
             $returnCode = 0;
-            if ($command === null || !Shell::executeShellCommand($command . ' 2>&1', $output, $returnCode, timeout: ToolTimeout::forSize($input)) || $returnCode !== 0 || !File::exists($rewritten)) {
+            $ok = ConfinedTool::execute('gs-rewrite', ['[INPUT]' => $input, '[OUTPUT]' => $rewritten], $output, $returnCode, ToolTimeout::forSize($input), mergeStderr: true);
+            if ($ok !== true || $returnCode !== 0 || !File::exists($rewritten)) {
                 self::logError('Neu schreiben mit Ghostscript fehlgeschlagen', ['script' => $script, 'returnCode' => $returnCode]);
                 return null;
             }
