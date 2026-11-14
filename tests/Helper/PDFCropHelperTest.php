@@ -495,8 +495,20 @@ final class PDFCropHelperTest extends BaseTestCase {
 
     /** Einseitige PDF, deren Seite ganz schwarz gefuellt ist. */
     private function writeFilledPdf(string $path, float $width, float $height): void {
+        $this->writeRectsPdf($path, $width, $height, [[0.0, 0.0, $width, $height]]);
+    }
+
+    /**
+     * Einseitige PDF mit schwarzen Rechtecken an bekannter Stelle.
+     *
+     * @param list<array{float, float, float, float}> $rects je x, y, Breite, Hoehe in Punkten
+     */
+    private function writeRectsPdf(string $path, float $width, float $height, array $rects): void {
         $size = sprintf('%.2F %.2F', $width, $height);
-        $stream = "0 0 {$size} re f\n";
+        $stream = '';
+        foreach ($rects as [$x, $y, $w, $h]) {
+            $stream .= sprintf("%.2F %.2F %.2F %.2F re f\n", $x, $y, $w, $h);
+        }
         $objects = [
             '<< /Type /Catalog /Pages 2 0 R >>',
             '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
@@ -532,6 +544,71 @@ final class PDFCropHelperTest extends BaseTestCase {
             }
         }
         $this->fail('Keine Begrenzung von Ghostscript: ' . implode(' | ', $output));
+    }
+
+    // ===================================================================
+    // contentBox / cropToContent – Zuschnitt am gezeichneten Inhalt
+    // ===================================================================
+
+    public function test_content_box_finds_drawn_rectangle(): void {
+        $source = $this->outputPath('rect-source');
+        $this->writeRectsPdf($source, 300.0, 200.0, [[40.0, 30.0, 100.0, 50.0]]);
+
+        $box = PDFCropHelper::contentBox($source);
+
+        $this->assertNotNull($box);
+        $this->assertEqualsWithDelta(40.0, $box['x0'], 1.0);
+        $this->assertEqualsWithDelta(30.0, $box['y0'], 1.0);
+        $this->assertEqualsWithDelta(140.0, $box['x1'], 1.0);
+        $this->assertEqualsWithDelta(80.0, $box['y1'], 1.0);
+    }
+
+    public function test_content_box_of_empty_page_is_null(): void {
+        $source = $this->outputPath('empty-source');
+        $this->writeRectsPdf($source, 300.0, 200.0, []);
+
+        $this->assertNull(PDFCropHelper::contentBox($source));
+        $this->assertFalse(PDFCropHelper::cropToContent($source, $this->outputPath('empty-out'), 10.0));
+    }
+
+    /** Was ein Zuschnitt abgeschnitten hat, steht noch im Datenstrom, zaehlt aber nicht. */
+    public function test_content_box_ignores_content_cut_away(): void {
+        $source = $this->outputPath('two-rects');
+        $cropped = $this->outputPath('two-rects-left');
+        $this->writeRectsPdf($source, 300.0, 200.0, [[20.0, 20.0, 40.0, 40.0], [200.0, 120.0, 50.0, 50.0]]);
+
+        $this->assertTrue(PDFCropHelper::cropToBox($source, $cropped, 0.0, 0.0, 150.0, 200.0));
+        $box = PDFCropHelper::contentBox($cropped);
+
+        $this->assertNotNull($box);
+        $this->assertEqualsWithDelta(60.0, $box['x1'], 1.0, 'das rechte Rechteck liegt ausserhalb');
+        $this->assertEqualsWithDelta(60.0, $box['y1'], 1.0);
+    }
+
+    public function test_crop_to_content_leaves_even_padding(): void {
+        $source = $this->outputPath('rect-off-center');
+        $out = $this->outputPath('rect-tight');
+        $this->writeRectsPdf($source, 300.0, 200.0, [[40.0, 30.0, 100.0, 50.0]]);
+
+        $this->assertTrue(PDFCropHelper::cropToContent($source, $out, 10.0));
+
+        $this->assertPdfDimensions($out, 120.0, 70.0, 'Inhalt plus 10 pt je Seite');
+        $box = PDFCropHelper::contentBox($out);
+        $this->assertNotNull($box);
+        $this->assertEqualsWithDelta(10.0, $box['x0'], 1.0);
+        $this->assertEqualsWithDelta(10.0, $box['y0'], 1.0);
+        $this->assertEqualsWithDelta(110.0, $box['x1'], 1.0);
+        $this->assertEqualsWithDelta(60.0, $box['y1'], 1.0);
+    }
+
+    public function test_crop_to_content_stops_padding_at_page_edge(): void {
+        $source = $this->outputPath('rect-at-edge');
+        $out = $this->outputPath('rect-at-edge-tight');
+        $this->writeRectsPdf($source, 300.0, 200.0, [[5.0, 5.0, 50.0, 50.0]]);
+
+        $this->assertTrue(PDFCropHelper::cropToContent($source, $out, 10.0));
+
+        $this->assertPdfDimensions($out, 65.0, 65.0, 'links und unten nur bis zur Seitenkante');
     }
 
     public function test_resize_to_fit_centered_rejects_invalid_input(): void {

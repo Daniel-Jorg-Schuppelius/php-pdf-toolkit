@@ -454,6 +454,23 @@
                 "[INPUT]"
             ]
         },
+        "gs-bbox": {
+            "path": "gs",
+            "required": false,
+            "description": "Ghostscript: Begrenzung des gezeichneten Inhalts einer Seite (Geraet bbox), fuer den Zuschnitt am Inhalt",
+            "package": "ghostscript",
+            "arguments": [
+                "-dSAFER",
+                "-dNOPAUSE",
+                "-dBATCH",
+                "-dQUIET",
+                "-sDEVICE=bbox",
+                "[FIRST-PAGE]",
+                "[LAST-PAGE]",
+                "-f",
+                "[INPUT]"
+            ]
+        },
         "mutool-grid-split": {
             "path": "mutool",
             "required": false,

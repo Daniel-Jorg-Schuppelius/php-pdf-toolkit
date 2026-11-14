@@ -111,6 +111,90 @@ final class PDFCropHelper {
     }
 
     /**
+     * Begrenzung des gezeichneten Inhalts einer Seite in PDF-Punkten
+     * (Ursprung unten links), ermittelt mit dem Ghostscript-Geraet bbox.
+     *
+     * Es zaehlt nur, was auf der Seite liegt: pdfwrite laesst bei einem
+     * Zuschnitt ({@see cropToBox()}) den Inhalt ausserhalb im Datenstrom
+     * stehen, bbox schneidet ihn ab. Weisser Inhalt zaehlt wie jeder andere -
+     * gezeichnet ist gezeichnet.
+     *
+     * @param string $inputPath Pfad zur PDF
+     * @param int $page Seitennummer (1-basiert)
+     * @return array{x0: float, y0: float, x1: float, y1: float}|null null bei leerer Seite oder Fehler
+     */
+    public static function contentBox(string $inputPath, int $page = 1): ?array {
+        if (!PDFHelper::isValidPdf($inputPath)) {
+            self::logError('Ungültige PDF-Datei', ['path' => $inputPath]);
+            return null;
+        }
+
+        if (!Config::getInstance()->isExecutableAvailable('gs-bbox')) {
+            self::logError('Ghostscript (gs-bbox) ist nicht konfiguriert oder nicht verfügbar');
+            return null;
+        }
+
+        // bbox schreibt die Begrenzung auf stderr und keine Ausgabedatei
+        $output = [];
+        $returnCode = 0;
+        $ok = ConfinedTool::execute('gs-bbox', [
+            '[FIRST-PAGE]' => sprintf('-dFirstPage=%d', max(1, $page)),
+            '[LAST-PAGE]' => sprintf('-dLastPage=%d', max(1, $page)),
+            '[INPUT]' => $inputPath,
+        ], $output, $returnCode, ToolTimeout::forSize($inputPath), outputs: [], mergeStderr: true);
+
+        if (!$ok || $returnCode !== 0) {
+            self::logError('Ghostscript-Begrenzung fehlgeschlagen', [
+                'returnCode' => $returnCode,
+                'output' => implode("\n", $output),
+            ]);
+            return null;
+        }
+
+        foreach ($output as $line) {
+            if (preg_match('/^%%HiResBoundingBox:\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)/', trim($line), $m) !== 1) {
+                continue;
+            }
+            [$x0, $y0, $x1, $y1] = [(float) $m[1], (float) $m[2], (float) $m[3], (float) $m[4]];
+
+            // Leere Seite: bbox meldet 0 0 0 0
+            return $x1 > $x0 && $y1 > $y0 ? ['x0' => $x0, 'y0' => $y0, 'x1' => $x1, 'y1' => $y1] : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Schneidet eine Seite auf ihren gezeichneten Inhalt zu ({@see contentBox()}),
+     * mit gleichem Rand auf allen Seiten, soweit die Seite ihn hergibt.
+     *
+     * Fuer Belege, deren Inhalt nicht mittig im Ausschnitt sitzt: Zentriert
+     * wird danach der Inhalt, nicht der Ausschnitt (Versandetikett,
+     * Meldung FM-SQ6N8-6ZEEB).
+     *
+     * @param string $inputPath Pfad zur Quell-PDF
+     * @param string $outputPath Pfad zur Ziel-PDF
+     * @param float $padding Rand um den Inhalt in Punkten
+     * @param int $page Seitennummer (1-basiert)
+     * @return bool false bei leerer Seite oder Fehler (dann ist nichts geschrieben)
+     */
+    public static function cropToContent(string $inputPath, string $outputPath, float $padding = 0.0, int $page = 1): bool {
+        $box = self::contentBox($inputPath, $page);
+        $dims = $box !== null ? self::getPageDimensions($inputPath) : null;
+        if ($box === null || $dims === null) {
+            return false;
+        }
+
+        $padding = max(0.0, $padding);
+        $x0 = max(0.0, $box['x0'] - $padding);
+        $y0 = max(0.0, $box['y0'] - $padding);
+        $x1 = min($dims['width'], $box['x1'] + $padding);
+        $y1 = min($dims['height'], $box['y1'] + $padding);
+
+        return self::cropToBox($inputPath, $outputPath, $x0, $y0, $x1 - $x0, $y1 - $y0, $page);
+    }
+
+    /**
      * Schneidet die obere Hälfte einer PDF-Seite aus.
      *
      * Typisch für DHL-Paketmarken: Etikett oben, Kundeninfo unten.
