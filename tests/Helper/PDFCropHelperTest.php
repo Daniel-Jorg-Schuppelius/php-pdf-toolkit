@@ -464,6 +464,76 @@ final class PDFCropHelperTest extends BaseTestCase {
         $this->assertPdfDimensions($out, $targetW, $targetH, 'resizeToFitCentered Querformat');
     }
 
+    /**
+     * Lage, nicht nur Groesse: Eine ganz gefuellte Seite muss mit gleichen
+     * Raendern auf der Zielseite stehen. Bis 0.32.2 schob resizeToFitCentered
+     * das Ergebnis von -dPDFFitPage (das schon mittig setzt) ein zweites Mal
+     * um den halben Leerraum - die DHL-Paketmarke lag mit 7,2 mm links und
+     * 18 mm rechts auf dem 10x15-cm-Etikett (Meldung FM-SQ6N8-6ZEEB).
+     *
+     * @return iterable<string, array{float, float, float, float}>
+     */
+    public static function centeredCases(): iterable {
+        yield 'oben und unten frei' => [200.0, 100.0, 400.0, 300.0];
+        yield 'links und rechts frei' => [100.0, 200.0, 300.0, 400.0];
+        yield 'gedreht wie das Versandetikett' => [200.0, 100.0, 100.0, 150.0];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('centeredCases')]
+    public function test_resize_to_fit_centered_places_page_in_the_middle(float $sourceW, float $sourceH, float $targetW, float $targetH): void {
+        $source = $this->outputPath('filled-source');
+        $out = $this->outputPath('filled-centered');
+        $this->writeFilledPdf($source, $sourceW, $sourceH);
+
+        $this->assertTrue(PDFCropHelper::resizeToFitCentered($source, $out, $targetW, $targetH));
+
+        [$x0, $y0, $x1, $y1] = $this->contentBox($out);
+        $this->assertEqualsWithDelta($x0, $targetW - $x1, 1.0, sprintf('links %.1f pt, rechts %.1f pt', $x0, $targetW - $x1));
+        $this->assertEqualsWithDelta($y0, $targetH - $y1, 1.0, sprintf('unten %.1f pt, oben %.1f pt', $y0, $targetH - $y1));
+        $this->assertLessThan(1.0, min($x0, $y0), 'eine Richtung fuellt die Zielseite');
+    }
+
+    /** Einseitige PDF, deren Seite ganz schwarz gefuellt ist. */
+    private function writeFilledPdf(string $path, float $width, float $height): void {
+        $size = sprintf('%.2F %.2F', $width, $height);
+        $stream = "0 0 {$size} re f\n";
+        $objects = [
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {$size}] /Contents 4 0 R >>",
+            '<< /Length ' . strlen($stream) . " >>\nstream\n{$stream}endstream",
+        ];
+        $pdf = "%PDF-1.4\n";
+        $offsets = [];
+        foreach ($objects as $i => $object) {
+            $offsets[] = strlen($pdf);
+            $pdf .= ($i + 1) . " 0 obj\n{$object}\nendobj\n";
+        }
+        $xref = strlen($pdf);
+        $pdf .= 'xref' . "\n0 " . (count($objects) + 1) . "\n0000000000 65535 f \n";
+        foreach ($offsets as $offset) {
+            $pdf .= sprintf("%010d 00000 n \n", $offset);
+        }
+        $pdf .= 'trailer << /Size ' . (count($objects) + 1) . " /Root 1 0 R >>\nstartxref\n{$xref}\n%%EOF\n";
+        file_put_contents($path, $pdf);
+    }
+
+    /**
+     * Begrenzung des gezeichneten Inhalts (Ghostscript-Geraet bbox).
+     *
+     * @return array{float, float, float, float} x0, y0, x1, y1 in Punkten
+     */
+    private function contentBox(string $path): array {
+        $output = [];
+        exec('gs -q -dNOPAUSE -dBATCH -dSAFER -sDEVICE=bbox ' . escapeshellarg($path) . ' 2>&1', $output);
+        foreach ($output as $line) {
+            if (preg_match('/^%%HiResBoundingBox:\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)/', $line, $m) === 1) {
+                return [(float) $m[1], (float) $m[2], (float) $m[3], (float) $m[4]];
+            }
+        }
+        $this->fail('Keine Begrenzung von Ghostscript: ' . implode(' | ', $output));
+    }
+
     public function test_resize_to_fit_centered_rejects_invalid_input(): void {
         $this->assertFalse(PDFCropHelper::resizeToFitCentered('/no/file.pdf', $this->outputPath('x'), 100, 100));
     }
